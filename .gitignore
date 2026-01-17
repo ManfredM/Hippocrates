@@ -1,0 +1,15 @@
+
+# System
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Temporary
+read_pdf.py
+extracted_content.txt
