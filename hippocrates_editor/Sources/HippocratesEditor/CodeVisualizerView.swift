@@ -51,14 +51,14 @@ struct CodeVisualizerView: NSViewRepresentable {
             ("\\b(is a plan|is a drug|is an addressee|context|timeframe|during plan|show message|ask|listen for|send information|assess|event progression|change of|begin of|end of|every|after|for|with|valid values|meaning|calculation|reuse|documentation)\\b", .systemPurple),
             ("\\b(is|during|between|begin|and|or|not)\\b", .systemPink),
             
-            // Strings (GREEN)
-            ("\"[^\"]*\"", .systemGreen),
-            
             // Numbers & Units (RED)
             ("\\b\\d+(\\.\\d+)?\\s*(°C|°F|mg|kg|g|lb|oz|ml|l|m|cm|mm|km|days|weeks|hours|minutes|seconds)?\\b", .systemRed),
 
             // Angled Variables (CYAN)
             ("<[^>]+>", .systemCyan),
+            
+            // Strings (GREEN)
+            ("\"[^\"]*\"", .systemGreen),
             
             // Comments
             ("\\(\\*.*?\\*\\)", .secondaryLabelColor)

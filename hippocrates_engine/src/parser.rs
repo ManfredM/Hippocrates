@@ -931,21 +931,8 @@ fn parse_show_message(pairs: pest::iterators::Pairs<Rule>) -> Result<Action, Par
                 statements.push(parse_statement(p)?);
             }
             Rule::string_literal => {
-                // Handle interpolation
-                let inner = p.into_inner();
-                for part in inner {
-                    match part.as_rule() {
-                        Rule::text_chunk => {
-                            let s = part.as_str().to_string();
-                            message_parts.push(Expression::Literal(Literal::String(s)));
-                        }
-                        Rule::angled_identifier => {
-                            let name = parse_identifier_str(part);
-                            message_parts.push(Expression::Variable(name));
-                        }
-                        _ => {}
-                    }
-                }
+                let s = p.as_str().trim_matches('"').to_string();
+                message_parts.push(Expression::Literal(Literal::String(s)));
             }
             _ => {} // Ignore keywords or unknown tokens if any
         }

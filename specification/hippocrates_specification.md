@@ -24,7 +24,7 @@ digit = "0" | "1" | ... | "9";
 integer = [ "-" ], digit, { digit };
 float = integer, [ ".", digit, { digit } ];
 word = character, { character };
-string_literal = '"', { character }, '"';
+string_literal = '"', { character - ( "<" | ">" ) }, '"';
 identifier = ( "<", { character - ">" }, ">" ) | ( word, { " ", word } );
 
 (* Basic Types *)
@@ -173,7 +173,9 @@ assessment_case = range_selector, ":", newline, indent, block, dedent;
 (* Ranges *)
 range_selector = 
     "between ", expression, " ... ", expression, |
-    expression; (* Equality check *)
+    expression | (* Equality check *)
+    "Not enough data";
+
 ```
 
 ### 3.5. Events and Timing
@@ -357,6 +359,22 @@ Variables (Values) are resolved in the following order:
 2. **Global Scope**: Values defined in the `value definition` chapters.
 3. **Library Scope**: Values imported from linked libraries.
 
+### 4.4. Data Sufficiency
+
+Calculations involving timeframes (e.g., `count of ... in past 5 days`) enforce strict data sufficiency rules.
+
+* If the system has been running for less time than the requested timeframe (e.g., running for 2 days, requested 5 days), the result is `Not Enough Data`.
+* This ensures that calculations do not return partial or misleading results (e.g., returning 0 incidents simply because history is empty).
+* Plans can explicitly handle this state:
+
+```hippocrates
+assess <incident count>:
+    Not enough data:
+        show message "Collecting more data...".
+    > 5:
+        show message "High incidents".
+```
+
 ## 5. Standard Library Proposal
 
 Implicit definitions available in every plan.
@@ -416,6 +434,22 @@ Before execution, the runtime validates that:
     calculation:
         timeframe for analysis is between 5 days ago ... now:
             value = count of inhaler used is yes.
+```
+
+### 7.3. Handling Insufficient Data
+
+```hippocrates
+<weekly average> is a number:
+    calculation:
+        timeframe for analysis is 7 days ago ... now:
+            value = average of <daily pain> over 7 days.
+
+during plan:
+    assess <weekly average>:
+        Not enough data:
+            show message "Please continue tracking pain for a full week.".
+        > 5:
+            show message "Your pain levels are high this week.".
 ```
 
 ### 7.3. Message Expiration

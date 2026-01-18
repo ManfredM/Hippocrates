@@ -12,9 +12,7 @@ time_literal = @{ ASCII_DIGIT{1,2} ~ ":" ~ ASCII_DIGIT{2} }
 
 // string_literal = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
 // New string literal supporting interpolation
-string_literal = ${ "\"" ~ string_content ~ "\"" }
-string_content = _{ (angled_identifier | text_chunk)* }
-text_chunk = @{ (!"\"" ~ !"<" ~ ANY)+ }
+string_literal = @{ "\"" ~ (!"\"" ~ !"<" ~ !">" ~ ANY)* ~ "\"" }
 
 angled_identifier = @{ "<" ~ (!">" ~ ANY)+ ~ ">" }
 
