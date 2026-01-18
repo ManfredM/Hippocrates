@@ -1,15 +1,10 @@
 use crate::ast::*;
-use crate::domain::*;
-use chrono::{DateTime, Datelike, NaiveTime, Timelike, Utc, Weekday};
-use std::str::FromStr;
+use chrono::{DateTime, Datelike, NaiveTime, Utc, Weekday};
 
 pub struct Scheduler;
 
 impl Scheduler {
-    pub fn next_occurrence(
-        def: &ValueDef,
-        now: DateTime<Utc>,
-    ) -> Option<DateTime<Utc>> {
+    pub fn next_occurrence(def: &ValueDef, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
         // Find Timeframe property
         let mut timeframe_groups = None;
         for prop in &def.properties {
@@ -35,12 +30,12 @@ impl Scheduler {
         // Separate selectors into Day constraints and Time constraints
         // Assumption: One day range and one time range per group (as seen in copd plan)
         // If multiple, intersection logic is needed.
-        
+
         // Simplified Logic:
         // 1. Identify Day range (e.g. Mon-Fri)
         // 2. Identify Time range (e.g. 07:40-07:50)
         // 3. Iterate starting from 'now', checking if day matches and if time is future (for today) or simple start time (for future days).
-        
+
         let mut start_day = None;
         let mut end_day = None;
         let mut start_time = None;
@@ -55,7 +50,8 @@ impl Scheduler {
                         end_day = Some(d2);
                     }
                     // Check if it's Time range
-                    else if let (Some(t1), Some(_t2)) = (Self::eval_time(e1), Self::eval_time(e2)) {
+                    else if let (Some(t1), Some(_t2)) = (Self::eval_time(e1), Self::eval_time(e2))
+                    {
                         start_time = Some(t1);
                         // end_time = Some(t2);
                     }
@@ -64,13 +60,13 @@ impl Scheduler {
             }
         }
 
-        let start_time = start_time.unwrap_or(NaiveTime::from_hms(0, 0, 0)); // Default midnight?
-        
+        let start_time = start_time.unwrap_or(NaiveTime::from_hms_opt(0, 0, 0).unwrap()); // Default midnight?
+
         // Search next 14 days
         for i in 0..14 {
             let candidate_date = now.date_naive() + chrono::Duration::days(i);
             let candidate_weekday = candidate_date.weekday();
-            
+
             // Check day constraint
             let day_match = if let (Some(s), Some(e)) = (start_day, end_day) {
                 Self::weekday_in_range(candidate_weekday, s, e)
@@ -84,19 +80,19 @@ impl Scheduler {
                 // Actually, if we are simulating sequential execution, strict > might be needed if we just executed previous.
                 // But for "Begin of period", it triggers exactly at start_time.
                 // If now > start_time, we missed it for today.
-                
+
                 // Construct full DateTime
                 // Note: creating DateTime from naive needs validation (DST etc)
                 // Using simplistic approach
                 let candidate_dt_naive = candidate_date.and_time(start_time);
-                let candidate_dt = DateTime::<Utc>::from_utc(candidate_dt_naive, Utc); // Assuming simple mapping
+                let candidate_dt = DateTime::<Utc>::from_naive_utc_and_offset(candidate_dt_naive, Utc); // Assuming simple mapping
 
                 if candidate_dt > now {
                     return Some(candidate_dt);
                 }
             }
         }
-        
+
         None
     }
 
@@ -120,10 +116,8 @@ impl Scheduler {
         match expr {
             Expression::Literal(Literal::TimeOfDay(s)) => {
                 NaiveTime::parse_from_str(s, "%H:%M").ok()
-            },
-            Expression::Literal(Literal::String(s)) => {
-                 NaiveTime::parse_from_str(s, "%H:%M").ok()
             }
+            Expression::Literal(Literal::String(s)) => NaiveTime::parse_from_str(s, "%H:%M").ok(),
             _ => None,
         }
     }
@@ -132,7 +126,7 @@ impl Scheduler {
         let t_idx = target.num_days_from_monday();
         let s_idx = start.num_days_from_monday();
         let e_idx = end.num_days_from_monday();
-        
+
         if s_idx <= e_idx {
             t_idx >= s_idx && t_idx <= e_idx
         } else {

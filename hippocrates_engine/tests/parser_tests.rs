@@ -1,6 +1,6 @@
+use hippocrates_engine::ast::{Action, Assignment, Expression, Literal, Plan, Statement};
+use hippocrates_engine::domain::{Unit, ValueType};
 use hippocrates_engine::parser;
-use hippocrates_engine::domain::{ValueType, Unit};
-use hippocrates_engine::ast::{Plan, Statement, Assignment, Expression, Literal, Action};
 use hippocrates_engine::parser::{HippocratesParser, Rule};
 use pest::Parser;
 
@@ -13,35 +13,34 @@ fn test_treating_copd_parsing() {
 
 #[test]
 fn test_vas_parsing() {
-    let input = r#"
-"use of rescue medication" is a number:
-    valid values: 0 ... 10
-    question:
-        ask "How severe?":
-            validate answer once.
-            question style is visual analogue scale:
-                best value is 0:
-                    text for best value is "No breathlessness".
-                worst value is 10:
-                    text for worst value is "Severe breathlessness".
-"#;
+    let input = r#""use of rescue medication" is a number:
+《valid values: 0 ... 10
+question:
+《ask "How severe?":
+《validate answer once.
+question style is visual analogue scale:
+《best value is 0:
+《text for best value is "No breathlessness".
+》worst value is 10:
+《text for worst value is "Severe breathlessness".
+》》》》》"#;
     let result = parser::parse_plan(input);
     assert!(result.is_ok(), "Failed to parse VAS: {:?}", result.err());
 }
 
 #[test]
 fn test_simple_plan_parsing() {
-    let script = "\"body weight\" is a number:
-    valid values: 0 ... 200
-    unit: kg
+    let script = r#""body weight" is a number:
+《valid values: 0 ... 200
+unit: kg
 
-patient_age is a number.
+》patient_age is a number.
 
 treatment is a plan:
-    during plan:
-        \"body weight\" = 75 kg.
-        show message \"Patient weight recorded\".";
-
+《during plan:
+《"body weight" = 75 kg.
+show message "Patient weight recorded".
+》》"#;
 
     let plan = parser::parse_plan(script).expect("Failed to parse plan");
 
@@ -56,7 +55,7 @@ fn test_expression_parsing() {
         "10 minutes from now",
         "75 kg",
         "body weight",
-        "now"
+        "now",
     ];
     for input in inputs {
         let mut pairs = HippocratesParser::parse(Rule::expression, input)
@@ -87,12 +86,16 @@ fn test_range_selector_parsing() {
 #[test]
 fn test_expression_excludes_keyword_is() {
     let input = "is";
-    let pair = hippocrates_engine::parser::HippocratesParser::parse(hippocrates_engine::parser::Rule::expression, input);
+    let pair = hippocrates_engine::parser::HippocratesParser::parse(
+        hippocrates_engine::parser::Rule::expression,
+        input,
+    );
     assert!(pair.is_err(), "Expression should NOT match 'is'");
 }
 #[test]
 fn test_99_bottles_parsing() {
-    let input = std::fs::read_to_string("plans/99_bottles.hipp").expect("Failed to read 99_bottles.hipp");
+    let input =
+        std::fs::read_to_string("plans/99_bottles.hipp").expect("Failed to read 99_bottles.hipp");
     let plan = parser::parse_plan(&input).expect("Failed to parse 99_bottles.hipp");
     // Verify structure
     assert!(!plan.definitions.is_empty());

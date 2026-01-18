@@ -159,6 +159,7 @@ pub enum StatementKind {
     ContextBlock(ContextBlock),
     EventProgression(String, Vec<AssessmentCase>),
     Command(String),
+    NoOp,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -211,6 +212,8 @@ pub enum RangeSelector {
     List(Vec<Expression>),
     Range(Expression, Expression),
     Comparison(Expression, ConditionOperator, Expression),
+    Condition(ConditionOperator, Expression),
+    NotEnoughData,
     Default,
 }
 

@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
+    use hippocrates_engine::ast::{Definition, Expression, Literal, RangeSelector};
     use hippocrates_engine::parser;
-    use hippocrates_engine::ast::{Definition, RangeSelector, Expression, Literal};
     use std::fs;
 
     #[test]

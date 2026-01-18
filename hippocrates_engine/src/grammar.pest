@@ -20,12 +20,12 @@ angled_identifier = @{ "<" ~ (!">" ~ ANY)+ ~ ">" }
 
 keyword = @{ "is" | "during" | "between" | "with" | "begin" | "every" | "after" | "assess" | "for" | "question" | "style" }
 raw_identifier = @{ !keyword ~ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
-identifier = { angled_identifier | raw_identifier }
+identifier = { angled_identifier | raw_identifier | string_literal }
 multi_word_identifier = { identifier ~ (identifier | number)* }
 
 // Extended units to support plurals as seen in test files
 unit = { 
-    "°F" | "°C" | 
+    "°F" | "°C" | "%" | 
     "mg" | "kg" | "g" | "lb" | "oz" |
     "ml" | "l" | "fl oz" | "gal" |
     "m" | "cm" | "mm" | "km" | "inch" | "foot" | "mile" |
@@ -84,9 +84,10 @@ dosage_rule = { ("maximum single dose" | "maximum daily dose" | "minimum time be
 
 admin_block = { "administration" ~ ":" ~ NEWLINE* ~ INDENT ~ admin_rule+ ~ DEDENT }
 admin_rule = { 
-    ("form of administration is" ~ (identifier | string_literal)) |
-    (identifier ~ quantity ~ "after" ~ identifier)
-~ NEWLINE* }
+    (admin_form_rule | admin_schedule_rule) ~ NEWLINE* 
+}
+admin_form_rule = { "form of administration is" ~ (identifier | string_literal) }
+admin_schedule_rule = { identifier ~ quantity ~ "after" ~ identifier }
 
 interaction_block = { "interactions" ~ ":" ~ NEWLINE* ~ INDENT ~ interaction_rule+ ~ DEDENT }
 interaction_rule = { "assess interaction with" ~ identifier ~ ":" ~ NEWLINE* ~ INDENT ~ block ~ DEDENT }
@@ -97,7 +98,7 @@ contact_type = { "email" | "phone" | "hippocrates id" }
 
 after_consent_prop = { "after consent has been rejected" ~ ":" ~ NEWLINE* ~ INDENT ~ block ~ DEDENT }
 grouped_addressees_prop = { "grouped addressees are" ~ identifier ~ (";" ~ identifier)* ~ NEWLINE* }
-contact_logic_prop = { "order of contacting" ~ ":" ~ NEWLINE* ~ INDENT ~ contact_logic ~ DEDENT }
+contact_logic_prop = { "order of contacting" ~ ":" ~ NEWLINE* ~ INDENT ~ contact_logic ~ NEWLINE* ~ DEDENT }
 contact_logic = { "contact all addressees in parallel" | ("sequence of contacting is" ~ identifier ~ (";" ~ identifier)*) }
 
 inheritance_prop = { "definition is the same as for" ~ identifier ~ ("except" ~ ":" ~ NEWLINE* ~ INDENT ~ value_property+ ~ DEDENT)? }
@@ -178,10 +179,13 @@ condition = { expression ~ condition_op ~ expression }
 condition_op = { "is" | "is not" | "=" | "!=" | ">" | "<" | ">=" | "<=" }
 
 range_selector = {
+    ( "Not" ~ "enough" ~ "data" ) |
     "between" ~ expression ~ "..." ~ expression | 
     expression ~ "..." ~ expression | 
+    compare_op ~ expression |
     expression
 }
+compare_op = { ">=" | "<=" | ">" | "<" | "=" | "!=" }
 
 block = { statement+ }
 

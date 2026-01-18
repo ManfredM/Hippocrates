@@ -18,6 +18,8 @@
     
     every 1 day:
         assess <average temperature>:
+            Not enough data:
+                 show message "Collecting temperature data...".
             35.0 ... 37.5:
                 show message "Temperature is normal.".
             37.6 ... 42.0:

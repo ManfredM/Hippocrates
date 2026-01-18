@@ -76,7 +76,8 @@
         5: meaning of value = "all doses taken".
         6 ... 1000: meaning of value = "too many doses taken".
     calculation:
-        value = count of <inhaler used>.
+        timeframe for analysis is between 5 days ago ... now:
+            value = count of <inhaler used> is "Yes".
     (* reuse:
         reuse period of value is 1 day.
     *)
@@ -114,11 +115,15 @@
 
 
         assess <inhaler used in past 5 days on time>:
+            Not enough data:
+                show message to patient "We are still collecting data for compliance check.".
             4; 5:
                 show message to patient "You are doing a great job in using the inhaler right on time".
             
             0 ... 3; 6 ... 1000:
                 assess <inhaler used in past 5 days>:
+                    Not enough data:
+                        show message to patient "We are still collecting the first 5 days of data.".
                     0:
                         show message to patient "Not using a medication does not lead to improvement!".
                     1 ... 2:

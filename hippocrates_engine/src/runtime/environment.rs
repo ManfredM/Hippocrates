@@ -1,5 +1,5 @@
+use crate::ast::{Definition, Plan, RangeSelector};
 use crate::domain::{RuntimeValue, ValueInstance};
-use crate::ast::{Plan, Definition, RangeSelector};
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -10,9 +10,11 @@ pub struct Environment {
     pub values: HashMap<String, Vec<ValueInstance>>,
     pub definitions: HashMap<String, Definition>,
     pub now: DateTime<Utc>,
+    pub start_time: DateTime<Utc>,
     pub output_log: Vec<String>,
     pub output_handler: Option<Arc<dyn Fn(String) + Send + Sync>>,
-    pub context_stack: Vec<EvaluationContext>,
+    // Use RwLock for interior mutability so Evaluator can push context with &Environment
+    pub context_stack: std::sync::RwLock<Vec<EvaluationContext>>,
 }
 
 #[derive(Debug, Clone)]
@@ -23,12 +25,13 @@ pub struct EvaluationContext {
 impl fmt::Debug for Environment {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Environment")
-         .field("values", &self.values)
-         .field("definitions", &self.definitions)
-         .field("now", &self.now)
-         .field("output_log", &self.output_log)
-         .field("output_handler", &"fn(...)")
-         .finish()
+            .field("values", &self.values)
+            .field("definitions", &self.definitions)
+            .field("now", &self.now)
+            .field("start_time", &self.start_time)
+            .field("output_log", &self.output_log)
+            .field("output_handler", &"fn(...)")
+            .finish()
     }
 }
 
@@ -38,22 +41,27 @@ impl Environment {
             values: HashMap::new(),
             definitions: HashMap::new(),
             now: Utc::now(),
+            start_time: Utc::now(),
             output_log: Vec::new(),
             output_handler: None,
-            context_stack: Vec::new(),
+            context_stack: std::sync::RwLock::new(Vec::new()),
         }
     }
 
-    pub fn push_context(&mut self, ctx: EvaluationContext) {
-        self.context_stack.push(ctx);
+    pub fn push_context(&self, ctx: EvaluationContext) {
+        self.context_stack.write().unwrap().push(ctx);
     }
 
-    pub fn pop_context(&mut self) {
-        self.context_stack.pop();
+    pub fn pop_context(&self) {
+        self.context_stack.write().unwrap().pop();
     }
 
-    pub fn active_context(&self) -> Option<&EvaluationContext> {
-        self.context_stack.last()
+    pub fn active_context(&self) -> Option<EvaluationContext> {
+        self.context_stack.read().unwrap().last().cloned()
+    }
+
+    pub fn set_start_time(&mut self, time: DateTime<Utc>) {
+        self.start_time = time;
     }
 
     pub fn set_output_handler(&mut self, handler: Arc<dyn Fn(String) + Send + Sync>) {
@@ -71,7 +79,7 @@ impl Environment {
                     let default = self.default_value_for(&v.value_type);
                     self.set_value(&v.name, default);
                     v.name.clone()
-                },
+                }
                 Definition::Period(p) => p.name.clone(),
                 Definition::Plan(p) => p.name.clone(),
                 Definition::Drug(d) => d.name.clone(),
@@ -83,7 +91,7 @@ impl Environment {
     }
 
     fn default_value_for(&self, vt: &crate::domain::ValueType) -> RuntimeValue {
-        use crate::domain::{ValueType, RuntimeValue};
+        use crate::domain::{RuntimeValue, ValueType};
         match vt {
             ValueType::Number => RuntimeValue::Number(0.0),
             ValueType::Enumeration => RuntimeValue::Enumeration("".to_string()),
@@ -97,10 +105,7 @@ impl Environment {
     }
 
     pub fn set_value_at(&mut self, name: &str, value: RuntimeValue, timestamp: DateTime<Utc>) {
-        let instance = ValueInstance {
-            value,
-            timestamp,
-        };
+        let instance = ValueInstance { value, timestamp };
         let history = self.values.entry(name.to_string()).or_insert_with(Vec::new);
         history.push(instance);
         // Sort by timestamp to ensure history is ordered?
@@ -110,7 +115,10 @@ impl Environment {
     }
 
     pub fn get_value(&self, name: &str) -> Option<&RuntimeValue> {
-        self.values.get(name).and_then(|history| history.last()).map(|instance| &instance.value)
+        self.values
+            .get(name)
+            .and_then(|history| history.last())
+            .map(|instance| &instance.value)
     }
 
     pub fn get_history(&self, name: &str) -> Option<&Vec<ValueInstance>> {
@@ -122,7 +130,7 @@ impl Environment {
             // println!("DEBUG: Calling output handler");
             handler(message.clone());
         } else {
-             println!("DEBUG: No output handler set!");
+            println!("DEBUG: No output handler set!");
         }
         self.output_log.push(message);
     }

@@ -1,9 +1,9 @@
-use crate::runtime::{Environment, Evaluator, scheduler::Scheduler};
-use crate::ast::{Statement, StatementKind, Action, Block};
+use crate::ast::{Action, Block, Statement, StatementKind};
 use crate::domain::Unit;
-use std::collections::{BinaryHeap, HashMap};
-use std::cmp::Ordering;
+use crate::runtime::{Environment, Evaluator, scheduler::Scheduler};
 use rand::Rng;
+use std::cmp::Ordering;
+use std::collections::BinaryHeap;
 
 #[derive(Debug, Clone)]
 struct ScheduledEvent {
@@ -46,7 +46,6 @@ impl Ord for ScheduledEvent {
     }
 }
 
-
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub enum ExecutionMode {
     RealTime,
@@ -61,14 +60,18 @@ pub struct Executor {
 
 impl Executor {
     pub fn new() -> Self {
-        Executor { on_step: None, on_log: None, mode: ExecutionMode::RealTime }
+        Executor {
+            on_step: None,
+            on_log: None,
+            mode: ExecutionMode::RealTime,
+        }
     }
-    
+
     pub fn with_activites(
         line_cb: Box<dyn Fn(usize) + Send>,
-        log_cb: Box<dyn Fn(String, chrono::DateTime<chrono::Utc>) + Send>
+        log_cb: Box<dyn Fn(String, chrono::DateTime<chrono::Utc>) + Send>,
     ) -> Self {
-        Executor { 
+        Executor {
             on_step: Some(line_cb),
             on_log: Some(log_cb),
             mode: ExecutionMode::RealTime,
@@ -81,185 +84,230 @@ impl Executor {
 
     pub fn execute_plan(&mut self, env: &mut Environment, plan_name: &str) {
         env.log(format!("Starting plan: {}", plan_name));
-        
+
         // Hacky clone for prototype
-        let defs = env.definitions.clone(); 
-        
+        let defs = env.definitions.clone();
+
         if let Some(crate::ast::Definition::Plan(plan_def)) = defs.get(plan_name) {
-             println!("DEBUG: Found plan '{}', blocks: {}", plan_name, plan_def.blocks.len());
-             
-             let mut events = BinaryHeap::new();
-             let start_time = env.now;
-             let end_time = match self.mode {
-                 ExecutionMode::RealTime => None,
-                 ExecutionMode::Simulation(d) => Some(start_time + chrono::Duration::from_std(d).unwrap_or(chrono::Duration::max_value())),
-             };
+            println!(
+                "DEBUG: Found plan '{}', blocks: {}",
+                plan_name,
+                plan_def.blocks.len()
+            );
 
-             // Initial Scheduling
-             for block in &plan_def.blocks {
-                 match block {
-                     crate::ast::PlanBlock::DuringPlan(stmts) => {
-                         println!("DEBUG: Executing DuringPlan block with {} stmts", stmts.len());
-                         self.execute_block(env, stmts);
-                     }
-                     crate::ast::PlanBlock::Trigger(block) => {
-                          match &block.trigger {
-                               crate::ast::Trigger::Periodic { interval, interval_unit, duration } => {
-                                    let interval_secs = match interval_unit {
-                                        Unit::Second => *interval,
-                                        Unit::Minute => *interval * 60.0,
-                                        Unit::Hour => *interval * 3600.0,
-                                        Unit::Day => *interval * 86400.0,
-                                        Unit::Week => *interval * 604800.0,
-                                        Unit::Month => *interval * 2592000.0,
-                                        Unit::Year => *interval * 31536000.0,
-                                        _ => *interval,
-                                    };
-                                    
-                                    let max_dur = if let Some((d_val, d_unit)) = duration {
-                                         let d_secs = match d_unit {
-                                            Unit::Second => *d_val,
-                                            Unit::Minute => *d_val * 60.0,
-                                            Unit::Hour => *d_val * 3600.0,
-                                            Unit::Day => *d_val * 86400.0,
-                                            Unit::Week => *d_val * 604800.0,
-                                            Unit::Month => *d_val * 2592000.0,
-                                            Unit::Year => *d_val * 31536000.0,
-                                            _ => *d_val,
-                                         };
-                                         Some(chrono::Duration::milliseconds((d_secs * 1000.0) as i64))
-                                    } else {
-                                        None
-                                    };
+            let mut events = BinaryHeap::new();
+            let start_time = env.now;
+            let end_time = match self.mode {
+                ExecutionMode::RealTime => None,
+                ExecutionMode::Simulation(d) => Some(
+                    start_time
+                        + chrono::Duration::from_std(d).unwrap_or(chrono::Duration::MAX),
+                ),
+            };
 
-                                    // Schedule first run immediately or after interval?
-                                    // "every 1 day" usually triggers after 1 day.
-                                    // Assuming after interval.
-                                    let first_run = start_time + chrono::Duration::milliseconds((interval_secs * 1000.0) as i64);
-                                    
+            // Initial Scheduling
+            for block in &plan_def.blocks {
+                match block {
+                    crate::ast::PlanBlock::DuringPlan(stmts) => {
+                        println!(
+                            "DEBUG: Executing DuringPlan block with {} stmts",
+                            stmts.len()
+                        );
+                        self.execute_block(env, stmts);
+                    }
+                    crate::ast::PlanBlock::Trigger(block) => {
+                        match &block.trigger {
+                            crate::ast::Trigger::Periodic {
+                                interval,
+                                interval_unit,
+                                duration,
+                            } => {
+                                let interval_secs = match interval_unit {
+                                    Unit::Second => *interval,
+                                    Unit::Minute => *interval * 60.0,
+                                    Unit::Hour => *interval * 3600.0,
+                                    Unit::Day => *interval * 86400.0,
+                                    Unit::Week => *interval * 604800.0,
+                                    Unit::Month => *interval * 2592000.0,
+                                    Unit::Year => *interval * 31536000.0,
+                                    _ => *interval,
+                                };
+
+                                let max_dur = if let Some((d_val, d_unit)) = duration {
+                                    let d_secs = match d_unit {
+                                        Unit::Second => *d_val,
+                                        Unit::Minute => *d_val * 60.0,
+                                        Unit::Hour => *d_val * 3600.0,
+                                        Unit::Day => *d_val * 86400.0,
+                                        Unit::Week => *d_val * 604800.0,
+                                        Unit::Month => *d_val * 2592000.0,
+                                        Unit::Year => *d_val * 31536000.0,
+                                        _ => *d_val,
+                                    };
+                                    Some(chrono::Duration::milliseconds((d_secs * 1000.0) as i64))
+                                } else {
+                                    None
+                                };
+
+                                // Schedule first run immediately or after interval?
+                                // "every 1 day" usually triggers after 1 day.
+                                // Assuming after interval.
+                                let first_run = start_time
+                                    + chrono::Duration::milliseconds(
+                                        (interval_secs * 1000.0) as i64,
+                                    );
+
+                                events.push(ScheduledEvent {
+                                    time: first_run,
+                                    kind: EventKind::Periodic {
+                                        block: block.clone(),
+                                        iteration: 0,
+                                        interval_secs,
+                                        max_duration: max_dur,
+                                    },
+                                });
+                            }
+                            crate::ast::Trigger::StartOf(target) => {
+                                // Note: StartOf TriggerBlock is unusual? Plan usually uses EventBlock for distinct events.
+                                // But TriggerBlock exists too. Treating same as EventBlock.
+                                if let Some(crate::ast::Definition::Value(val_def)) =
+                                    defs.get(target)
+                                {
+                                    if let Some(_next) =
+                                        Scheduler::next_occurrence(val_def, start_time)
+                                    {
+                                        // Convert TriggerBlock to EventBlock-like structure or just execute stmts
+                                        // We need a way to schedule "TriggerBlock execution".
+                                        // Reusing EventKind::StartOf logic but with wrappers?
+                                        // Actually I'll clone stmts.
+                                        // Actually TriggerBlock for StartOf is rare in my examples, usually EventBlock.
+                                        // But let's handle it.
+                                        // Wait, EventKind::StartOf expects EventBlock.
+                                        // I'll make EventKind generic or multiple variants.
+                                        // Or simplified: Just store stmts + reschedule info.
+                                        // For now, skipping StartOf in TriggerBlock (unlikely usage).
+                                        println!(
+                                            "DEBUG: StartOf in TriggerBlock not fully supported yet."
+                                        );
+                                    }
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                    crate::ast::PlanBlock::Event(block) => {
+                        if let crate::ast::Trigger::StartOf(target) = &block.trigger {
+                            if let Some(crate::ast::Definition::Value(val_def)) = defs.get(target) {
+                                if let Some(next) = Scheduler::next_occurrence(val_def, start_time)
+                                {
+                                    println!("DEBUG: Scheduled '{}' at {}", block.name, next);
                                     events.push(ScheduledEvent {
-                                        time: first_run,
-                                        kind: EventKind::Periodic {
+                                        time: next,
+                                        kind: EventKind::StartOf {
                                             block: block.clone(),
-                                            iteration: 0,
-                                            interval_secs,
-                                            max_duration: max_dur,
-                                        }
+                                            period_name: target.clone(),
+                                        },
                                     });
-                               }
-                               crate::ast::Trigger::StartOf(target) => {
-                                   // Note: StartOf TriggerBlock is unusual? Plan usually uses EventBlock for distinct events.
-                                   // But TriggerBlock exists too. Treating same as EventBlock.
-                                   if let Some(crate::ast::Definition::Value(val_def)) = defs.get(target) {
-                                       if let Some(next) = Scheduler::next_occurrence(val_def, start_time) {
-                                            // Convert TriggerBlock to EventBlock-like structure or just execute stmts
-                                            // We need a way to schedule "TriggerBlock execution". 
-                                            // Reusing EventKind::StartOf logic but with wrappers?
-                                            // Actually I'll clone stmts.
-                                            // Actually TriggerBlock for StartOf is rare in my examples, usually EventBlock.
-                                            // But let's handle it.
-                                            // Wait, EventKind::StartOf expects EventBlock.
-                                            // I'll make EventKind generic or multiple variants.
-                                            // Or simplified: Just store stmts + reschedule info.
-                                            // For now, skipping StartOf in TriggerBlock (unlikely usage).
-                                            println!("DEBUG: StartOf in TriggerBlock not fully supported yet.");
-                                       }
-                                   }
-                               },
-                               _ => {}
-                          }
-                     }
-                     crate::ast::PlanBlock::Event(block) => {
-                         if let crate::ast::Trigger::StartOf(target) = &block.trigger {
-                             if let Some(crate::ast::Definition::Value(val_def)) = defs.get(target) {
-                                 if let Some(next) = Scheduler::next_occurrence(val_def, start_time) {
-                                     println!("DEBUG: Scheduled '{}' at {}", block.name, next);
-                                     events.push(ScheduledEvent {
-                                         time: next,
-                                         kind: EventKind::StartOf {
-                                             block: block.clone(),
-                                             period_name: target.clone(),
-                                         }
-                                     });
-                                 } else {
-                                     println!("DEBUG: Could not schedule '{}', no valid time found.", block.name);
-                                 }
-                             } else {
-                                 println!("DEBUG: Definition for '{}' not found.", target);
-                             }
-                         }
-                     }
-                 }
-             }
+                                } else {
+                                    println!(
+                                        "DEBUG: Could not schedule '{}', no valid time found.",
+                                        block.name
+                                    );
+                                }
+                            } else {
+                                println!("DEBUG: Definition for '{}' not found.", target);
+                            }
+                        }
+                    }
+                }
+            }
 
-             // Event Loop
-             while let Some(event) = events.pop() {
-                 let now = event.time;
-                 
-                 if let Some(limit) = end_time {
-                     if now > limit {
-                         println!("DEBUG: Simulation time limit reached.");
-                         break;
-                     }
-                 }
+            // Event Loop
+            while let Some(event) = events.pop() {
+                let now = event.time;
 
-                 // Advance time
-                 match self.mode {
-                     ExecutionMode::RealTime => {
-                         if now > env.now {
-                             let diff = (now - env.now).to_std().unwrap_or(std::time::Duration::from_secs(0));
-                             std::thread::sleep(diff);
-                         }
-                     }
-                     ExecutionMode::Simulation(_) => {
-                         // Instant jump
-                     }
-                 }
-                 env.set_time(now);
+                if let Some(limit) = end_time {
+                    if now > limit {
+                        println!("DEBUG: Simulation time limit reached.");
+                        break;
+                    }
+                }
 
-                 // Execute
-                 match event.kind {
-                     EventKind::Periodic { block, iteration, interval_secs, max_duration } => {
-                          self.execute_block(env, &block.statements);
-                          
-                          // Reschedule
-                          let next_time = now + chrono::Duration::milliseconds((interval_secs * 1000.0) as i64);
-                          let elapsed = next_time - start_time;
-                          
-                          let stop = if let Some(max) = max_duration {
-                              elapsed > max
-                          } else {
-                              false
-                          };
+                // Advance time
+                match self.mode {
+                    ExecutionMode::RealTime => {
+                        if now > env.now {
+                            let diff = (now - env.now)
+                                .to_std()
+                                .unwrap_or(std::time::Duration::from_secs(0));
+                            std::thread::sleep(diff);
+                        }
+                    }
+                    ExecutionMode::Simulation(_) => {
+                        // Instant jump
+                    }
+                }
+                env.set_time(now);
 
-                          if !stop {
-                              events.push(ScheduledEvent {
-                                  time: next_time,
-                                  kind: EventKind::Periodic { block, iteration: iteration + 1, interval_secs, max_duration }
-                              });
-                          }
-                     }
-                     EventKind::StartOf { block, period_name } => {
-                          println!("DEBUG: Executing Event '{}'", block.name);
-                          self.execute_block(env, &block.statements);
-                          
-                          // Reschedule next occurrence
-                          if let Some(crate::ast::Definition::Value(val_def)) = defs.get(&period_name) {
-                              if let Some(next) = Scheduler::next_occurrence(val_def, now) {
-                                  // Ensure we don't schedule same time again loop
-                                  if next > now {
-                                      events.push(ScheduledEvent {
-                                          time: next,
-                                          kind: EventKind::StartOf { block, period_name }
-                                      });
-                                  }
-                              }
-                          }
-                     }
-                 }
-             }
+                // Execute
+                match event.kind {
+                    EventKind::Periodic {
+                        block,
+                        iteration,
+                        interval_secs,
+                        max_duration,
+                    } => {
+                        self.execute_block(env, &block.statements);
+
+                        // Reschedule
+                        let next_time =
+                            now + chrono::Duration::milliseconds((interval_secs * 1000.0) as i64);
+                        let elapsed = next_time - start_time;
+
+                        let stop = if let Some(max) = max_duration {
+                            elapsed > max
+                        } else {
+                            false
+                        };
+
+                        if !stop {
+                            events.push(ScheduledEvent {
+                                time: next_time,
+                                kind: EventKind::Periodic {
+                                    block,
+                                    iteration: iteration + 1,
+                                    interval_secs,
+                                    max_duration,
+                                },
+                            });
+                        }
+                    }
+                    EventKind::StartOf { block, period_name } => {
+                        println!("DEBUG: Executing Event '{}'", block.name);
+                        self.execute_block(env, &block.statements);
+
+                        // Reschedule next occurrence
+                        if let Some(crate::ast::Definition::Value(val_def)) = defs.get(&period_name)
+                        {
+                            if let Some(next) = Scheduler::next_occurrence(val_def, now) {
+                                // Ensure we don't schedule same time again loop
+                                if next > now {
+                                    events.push(ScheduledEvent {
+                                        time: next,
+                                        kind: EventKind::StartOf { block, period_name },
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         } else {
-            println!("DEBUG: Plan '{}' not found. Available: {:?}", plan_name, defs.keys());
+            println!(
+                "DEBUG: Plan '{}' not found. Available: {:?}",
+                plan_name,
+                defs.keys()
+            );
             env.log(format!("Plan not found: {}", plan_name));
         }
     }
@@ -272,9 +320,9 @@ impl Executor {
 
     pub fn execute_statement(&mut self, env: &mut Environment, stmt: &Statement) {
         if stmt.line > 0 {
-             if let Some(cb) = &self.on_step {
-                 cb(stmt.line);
-             }
+            if let Some(cb) = &self.on_step {
+                cb(stmt.line);
+            }
         }
 
         match &stmt.kind {
@@ -286,117 +334,82 @@ impl Executor {
             StatementKind::Command(cmd) => {
                 env.log(format!("Command: {}", cmd));
             }
+            StatementKind::NoOp => {}
             StatementKind::EventProgression(target_name, cases) => {
-                 let val = if let Some(v) = env.get_value(target_name) {
-                     v.clone()
-                 } else {
-                     env.log(format!("Warning: Variable '{}' not found for assessment", target_name));
-                     return;
-                 };
-                 
-                 // println!("DEBUG: Assessing '{}' (val={:?}) against {} cases", target_name, val, cases.len());
+                let val = if let Some(v) = env.get_value(target_name) {
+                    v.clone()
+                } else {
+                    env.log(format!(
+                        "Warning: Variable '{}' not found for assessment",
+                        target_name
+                    ));
+                    return;
+                };
 
-                 for case in cases {
-                     let selector = &case.condition; 
-                     let is_match = match selector {
-                         crate::ast::RangeSelector::Equals(v_expr) => {
-                             let v = Evaluator::evaluate(env, &v_expr);
-                             match (&val, &v) {
-                                  (crate::domain::RuntimeValue::Number(a), crate::domain::RuntimeValue::Number(b)) => (a - b).abs() < f64::EPSILON,
-                                  _ => val == v,
-                             }
-                         }
-                         crate::ast::RangeSelector::Range(min_expr, max_expr) => {
-                             let min = Evaluator::evaluate(env, &min_expr);
-                             let max = Evaluator::evaluate(env, &max_expr);
-                             match (&val, &min, &max) {
-                                 (crate::domain::RuntimeValue::Number(v), crate::domain::RuntimeValue::Number(min_v), crate::domain::RuntimeValue::Number(max_v)) => {
-                                     *v >= *min_v && *v <= *max_v
-                                 }
-                                 _ => false, 
-                             }
-                         }
-                         crate::ast::RangeSelector::Default => true,
-                         _ => false, 
-                     };
-                     
-                     // println!("DEBUG: Checking selector {:?} match={}", selector, is_match);
-                     
-                     if is_match {
-                         // println!("DEBUG: Case matched, executing block len={}", case.block.len());
-                         self.execute_block(env, &case.block);
-                         break;
-                     }
-                 }
+                // println!("DEBUG: Assessing '{}' (val={:?}) against {} cases", target_name, val, cases.len());
+
+                for case in cases {
+                    let selector = &case.condition;
+                    let is_match = Evaluator::check_condition(env, selector, &val);
+
+                    // println!("DEBUG: Checking selector {:?} match={}", selector, is_match);
+
+                    if is_match {
+                        // println!("DEBUG: Case matched, executing block len={}", case.block.len());
+                        self.execute_block(env, &case.block);
+                        break;
+                    }
+                }
             }
             StatementKind::Conditional(cond) => {
-                 self.execute_conditional(env, cond);
+                self.execute_conditional(env, cond);
             }
             StatementKind::ContextBlock(cb) => {
-                 // Build evaluation context
-                 let mut timeframe = None;
-                 for item in &cb.items {
-                     if let crate::ast::ContextItem::Timeframe(ts) = item {
-                         timeframe = Some(ts.clone());
-                     }
-                 }
-                 let ctx = crate::runtime::environment::EvaluationContext { timeframe };
-                 
-                 env.push_context(ctx);
-                 self.execute_block(env, &cb.statements);
-                 env.pop_context();
+                // Build evaluation context
+                let mut timeframe = None;
+                for item in &cb.items {
+                    if let crate::ast::ContextItem::Timeframe(ts) = item {
+                        timeframe = Some(ts.clone());
+                    }
+                }
+                let ctx = crate::runtime::environment::EvaluationContext { timeframe };
+
+                env.push_context(ctx);
+                self.execute_block(env, &cb.statements);
+                env.pop_context();
             }
-            _ => { println!("DEBUG: Unimplemented execution for {:?}", stmt); }
+
         }
     }
 
     fn execute_conditional(&mut self, env: &mut Environment, cond_stmt: &crate::ast::Conditional) {
         let val = match &cond_stmt.condition {
-             crate::ast::ConditionalTarget::Expression(expr) => Evaluator::evaluate(env, expr),
-             crate::ast::ConditionalTarget::Confidence(_ident) => {
-                  // Stub: return high confidence
-                  crate::domain::RuntimeValue::Number(100.0) 
-             }
-        }; 
-        
+            crate::ast::ConditionalTarget::Expression(expr) => Evaluator::evaluate(env, expr),
+            crate::ast::ConditionalTarget::Confidence(_ident) => {
+                // Stub: return high confidence
+                crate::domain::RuntimeValue::Number(100.0)
+            }
+        };
+
         // Context-aware resolution
         let val = if let crate::domain::RuntimeValue::String(s) = &val {
-             if let Some(resolved) = env.get_value(s) {
-                 resolved.clone()
-             } else {
-                 val
-             }
+            if let Some(resolved) = env.get_value(s) {
+                resolved.clone()
+            } else {
+                val
+            }
         } else {
             val
         };
 
         for case in &cond_stmt.cases {
-             let selector = &case.condition; 
-             let is_match = match selector {
-                 crate::ast::RangeSelector::Equals(v_expr) => {
-                     let v = Evaluator::evaluate(env, &v_expr);
-                     match (&val, &v) {
-                         (crate::domain::RuntimeValue::Number(a), crate::domain::RuntimeValue::Number(b)) => (a - b).abs() < f64::EPSILON,
-                         _ => val == v,
-                     }
-                 }
-                 crate::ast::RangeSelector::Range(min_expr, max_expr) => {
-                     let min = Evaluator::evaluate(env, &min_expr);
-                     let max = Evaluator::evaluate(env, &max_expr);
-                     match (&val, &min, &max) {
-                         (crate::domain::RuntimeValue::Number(v), crate::domain::RuntimeValue::Number(min_v), crate::domain::RuntimeValue::Number(max_v)) => {
-                             v >= min_v && v <= max_v
-                         }
-                         _ => false, 
-                     }
-                 }
-                 _ => false, 
-             };
-             
-             if is_match {
-                 self.execute_block(env, &case.block);
-                 break;
-             }
+            let selector = &case.condition;
+            let is_match = Evaluator::check_condition(env, selector, &val);
+
+            if is_match {
+                self.execute_block(env, &case.block);
+                break;
+            }
         }
     }
 
@@ -412,7 +425,7 @@ impl Executor {
                 let mut full_msg = String::new();
                 for part in parts {
                     let val = Evaluator::evaluate(env, part);
-                    let s = val.to_string(); 
+                    let s = val.to_string();
                     full_msg.push_str(&s);
                 }
                 let msg = full_msg;
@@ -434,28 +447,32 @@ impl Executor {
                         let mut ranges = Vec::new();
 
                         for prop in &val_def.properties {
-                             if let crate::ast::Property::ValidValues(stmts) = prop {
-                                 for stmt in stmts {
-                                     if let StatementKind::EventProgression(_, cases) = &stmt.kind {
-                                         for case in cases {
-                                              match &case.condition {
-                                                  crate::ast::RangeSelector::Equals(expr) => {
-                                                      let v = Evaluator::evaluate(env, expr);
-                                                      candidates.push(v);
-                                                  },
-                                                  crate::ast::RangeSelector::Range(min, max) => {
-                                                       let min_v = Evaluator::evaluate(env, min);
-                                                       let max_v = Evaluator::evaluate(env, max);
-                                                       if let (crate::domain::RuntimeValue::Number(mn), crate::domain::RuntimeValue::Number(mx)) = (min_v, max_v) {
-                                                           ranges.push((mn, mx));
-                                                       }
-                                                  },
-                                                  _ => {}
-                                              }
-                                         }
-                                     }
-                                 }
-                             }
+                            if let crate::ast::Property::ValidValues(stmts) = prop {
+                                for stmt in stmts {
+                                    if let StatementKind::EventProgression(_, cases) = &stmt.kind {
+                                        for case in cases {
+                                            match &case.condition {
+                                                crate::ast::RangeSelector::Equals(expr) => {
+                                                    let v = Evaluator::evaluate(env, expr);
+                                                    candidates.push(v);
+                                                }
+                                                crate::ast::RangeSelector::Range(min, max) => {
+                                                    let min_v = Evaluator::evaluate(env, min);
+                                                    let max_v = Evaluator::evaluate(env, max);
+                                                    if let (
+                                                        crate::domain::RuntimeValue::Number(mn),
+                                                        crate::domain::RuntimeValue::Number(mx),
+                                                    ) = (min_v, max_v)
+                                                    {
+                                                        ranges.push((mn, mx));
+                                                    }
+                                                }
+                                                _ => {}
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
 
                         let mut rng = rand::rng();
@@ -463,30 +480,30 @@ impl Executor {
                             let idx = rng.random_range(0..candidates.len());
                             Some(candidates[idx].clone())
                         } else if !ranges.is_empty() {
-                             let idx = rng.random_range(0..ranges.len());
-                             let (min, max) = ranges[idx];
-                             // Generate random number. integer or float?
-                             // Hippocrates usually implies integer steps if range defined as 0...5?
-                             // But it's f64.
-                             // Let's assume integer if min/max are effectively integers? 
-                             // Or just generate float.
-                             // If I pick 3.5 for 0...5, will it match "3" or "4"?
-                             // My comparisons are strict equality (epsilon) or range.
-                             // For Likert scale (1,2,3,4,5), usually integers expected.
-                             // If ValidValues was parsed from "0...5", it's a range.
-                             // ValidValues: 0, 1, 2...
-                             // The parser parses "0...5" as Range(0, 5).
-                             // I'll round to integer for now to be safe with matchers?
-                             // Or use random_range(min..=max) if I implement integer.
-                             // Let's use integer casting for simulation niceness.
-                             let start = min as i64;
-                             let end = max as i64;
-                             if start <= end {
-                                 let r = rng.random_range(start..=end);
-                                 Some(crate::domain::RuntimeValue::Number(r as f64))
-                             } else {
-                                 Some(crate::domain::RuntimeValue::Number(min))
-                             }
+                            let idx = rng.random_range(0..ranges.len());
+                            let (min, max) = ranges[idx];
+                            // Generate random number. integer or float?
+                            // Hippocrates usually implies integer steps if range defined as 0...5?
+                            // But it's f64.
+                            // Let's assume integer if min/max are effectively integers?
+                            // Or just generate float.
+                            // If I pick 3.5 for 0...5, will it match "3" or "4"?
+                            // My comparisons are strict equality (epsilon) or range.
+                            // For Likert scale (1,2,3,4,5), usually integers expected.
+                            // If ValidValues was parsed from "0...5", it's a range.
+                            // ValidValues: 0, 1, 2...
+                            // The parser parses "0...5" as Range(0, 5).
+                            // I'll round to integer for now to be safe with matchers?
+                            // Or use random_range(min..=max) if I implement integer.
+                            // Let's use integer casting for simulation niceness.
+                            let start = min as i64;
+                            let end = max as i64;
+                            if start <= end {
+                                let r = rng.random_range(start..=end);
+                                Some(crate::domain::RuntimeValue::Number(r as f64))
+                            } else {
+                                Some(crate::domain::RuntimeValue::Number(min))
+                            }
                         } else {
                             None
                         };
@@ -500,17 +517,20 @@ impl Executor {
                 }
             }
             Action::SendInfo(msg_text, vars) => {
-                 let vals: Vec<String> = vars.iter().map(|e| format!("{:?}", Evaluator::evaluate(env, e))).collect();
-                 let msg = format!("Action: Send Info '{}' with values: {:?}", msg_text, vals);
-                 env.log(msg.clone());
-                 self.emit_log(msg, env.now);
+                let vals: Vec<String> = vars
+                    .iter()
+                    .map(|e| format!("{:?}", Evaluator::evaluate(env, e)))
+                    .collect();
+                let msg = format!("Action: Send Info '{}' with values: {:?}", msg_text, vals);
+                env.log(msg.clone());
+                self.emit_log(msg, env.now);
             }
             Action::ListenFor(val) => {
                 let msg = format!("Action: Listen For '{}'", val);
                 env.log(msg.clone());
                 self.emit_log(msg, env.now);
             }
-             _ => {}
+            _ => {}
         }
     }
 }

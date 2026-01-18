@@ -1,12 +1,13 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fmt;
-use chrono::{DateTime, Utc};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Unit {
     // Temperature
     Fahrenheit,
     Celsius,
+    Percent,
     // Weight
     Milligram,
     Gram,
@@ -70,6 +71,7 @@ pub enum RuntimeValue {
     List(Vec<RuntimeValue>),
     Date(DateTime<Utc>),
     Void,
+    NotEnoughData,
 }
 
 impl RuntimeValue {
@@ -97,20 +99,21 @@ impl fmt::Display for RuntimeValue {
                 } else {
                     write!(f, "{}", n)
                 }
-            },
+            }
             RuntimeValue::Quantity(n, u) => {
                 if n.fract() == 0.0 {
                     write!(f, "{} {}", *n as i64, u)
                 } else {
                     write!(f, "{} {}", n, u)
                 }
-            },
-            RuntimeValue::String(s) => write!(f, "{}", s), 
+            }
+            RuntimeValue::String(s) => write!(f, "{}", s),
             RuntimeValue::Boolean(b) => write!(f, "{}", b),
             RuntimeValue::Enumeration(e) => write!(f, "{}", e),
             RuntimeValue::Void => write!(f, "Void"),
             RuntimeValue::List(l) => write!(f, "{:?}", l),
             RuntimeValue::Date(d) => write!(f, "{}", d),
+            RuntimeValue::NotEnoughData => write!(f, "Not Enough Data"),
         }
     }
 }
