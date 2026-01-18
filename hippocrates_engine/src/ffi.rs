@@ -55,7 +55,7 @@ pub extern "C" fn hippocrates_free_string(s: *mut c_char) {
 }
 
 pub type LineCallback = extern "C" fn(c_int, *mut std::ffi::c_void);
-pub type LogCallback = extern "C" fn(*const c_char, *mut std::ffi::c_void);
+pub type LogCallback = extern "C" fn(*const c_char, i64, *mut std::ffi::c_void);
 
 struct SendPtr(*mut std::ffi::c_void);
 unsafe impl Send for SendPtr {}
@@ -78,6 +78,29 @@ pub extern "C" fn hippocrates_run(
     callback: Option<LineCallback>,
     log_callback: Option<LogCallback>,
     user_data: *mut std::ffi::c_void
+) {
+    hippocrates_execute_internal(input, plan_name, callback, log_callback, user_data, None);
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hippocrates_simulate(
+    input: *const c_char,
+    plan_name: *const c_char,
+    callback: Option<LineCallback>,
+    log_callback: Option<LogCallback>,
+    user_data: *mut std::ffi::c_void,
+    days: c_int
+) {
+    hippocrates_execute_internal(input, plan_name, callback, log_callback, user_data, Some(days));
+}
+
+fn hippocrates_execute_internal(
+    input: *const c_char,
+    plan_name: *const c_char,
+    callback: Option<LineCallback>,
+    log_callback: Option<LogCallback>,
+    user_data: *mut std::ffi::c_void,
+    simulation_days: Option<c_int>
 ) {
     let input_str = unsafe {
         if input.is_null() { return; }
@@ -117,17 +140,23 @@ pub extern "C" fn hippocrates_run(
          Box::new(|_| {})
     };
 
-    let log_cb_wrapper: Box<dyn Fn(String) + Send> = if let Some(cb) = log_callback {
+    let log_cb_wrapper: Box<dyn Fn(String, chrono::DateTime<chrono::Utc>) + Send> = if let Some(cb) = log_callback {
          let ptr = SendPtr(user_data);
-         Box::new(move |msg: String| {
+         Box::new(move |msg: String, ts: chrono::DateTime<chrono::Utc>| {
              if let Ok(c_msg) = CString::new(msg) {
-                  cb(c_msg.as_ptr(), ptr.get());
+                  cb(c_msg.as_ptr(), ts.timestamp_millis(), ptr.get());
              }
          })
     } else {
-         Box::new(|_| {})
+         Box::new(|_, _| {})
     };
     
     let mut executor = crate::runtime::Executor::with_activites(line_cb_wrapper, log_cb_wrapper);
+    if let Some(days) = simulation_days {
+        executor.set_mode(crate::runtime::ExecutionMode::Simulation(
+            std::time::Duration::from_secs((days as u64) * 86400)
+        ));
+    }
+    
     executor.execute_plan(&mut env, plan_name_str);
 }

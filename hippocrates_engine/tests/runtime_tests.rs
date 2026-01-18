@@ -152,7 +152,7 @@ fn test_execution_callback() {
     
     let mut executor = Executor::with_activites(
         callback,
-        Box::new(|_| {}) // No-op log callback
+        Box::new(|_, _| {}) // No-op log callback
     );
     executor.execute_plan(&mut env, "callback plan");
     

@@ -101,6 +101,7 @@ pub enum Property {
     AfterConsentRejected(Vec<Statement>),
     GroupedAddressees(Vec<String>),
     ContactOrder(String), // Parallel or Sequence
+    Timeframe(Vec<Vec<RangeSelector>>),
     Custom(String, String),
 }
 

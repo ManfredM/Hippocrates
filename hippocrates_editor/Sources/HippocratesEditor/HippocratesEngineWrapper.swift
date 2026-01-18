@@ -67,14 +67,27 @@ struct HippocratesParser {
             return .failure(error)
         }
     }
-    static func run(input: String, planName: String, onStep: @escaping (Int) -> Void, onLog: @escaping (String) -> Void) {
+    static func run(input: String, planName: String, onStep: @escaping (Int) -> Void, onLog: @escaping (String, Date) -> Void) {
+        execute(input: input, planName: planName, onStep: onStep, onLog: onLog) { scriptC, planC, lineCb, logCb, context in
+            hippocrates_run(scriptC, planC, lineCb, logCb, context)
+        }
+    }
+
+    static func simulate(input: String, planName: String, days: Int, onStep: @escaping (Int) -> Void, onLog: @escaping (String, Date) -> Void) {
+        execute(input: input, planName: planName, onStep: onStep, onLog: onLog) { scriptC, planC, lineCb, logCb, context in
+            hippocrates_simulate(scriptC, planC, lineCb, logCb, context, Int32(days))
+        }
+    }
+    
+    private static func execute(input: String, planName: String, onStep: @escaping (Int) -> Void, onLog: @escaping (String, Date) -> Void,
+                                executor: (UnsafePointer<CChar>, UnsafePointer<CChar>, LineCallback, LogCallback, UnsafeMutableRawPointer) -> Void) {
         guard let scriptC = input.cString(using: .utf8),
               let planC = planName.cString(using: .utf8) else { return }
         
         class RunContext {
             let onStep: (Int) -> Void
-            let onLog: (String) -> Void
-            init(step: @escaping (Int) -> Void, log: @escaping (String) -> Void) {
+            let onLog: (String, Date) -> Void
+            init(step: @escaping (Int) -> Void, log: @escaping (String, Date) -> Void) {
                 self.onStep = step
                 self.onLog = log
             }
@@ -84,21 +97,26 @@ struct HippocratesParser {
         let context = Unmanaged.passRetained(box).toOpaque()
         
         let lineCb: LineCallback = { line, ctx in
-            if let ctx = ctx {
+            // Handle context and call onStep
+             if let ctx = ctx {
                  let box = Unmanaged<RunContext>.fromOpaque(ctx).takeUnretainedValue()
+                 // Ensure UI updates on main thread if needed, but callback usually background.
+                 // Swift side handles dispatch.
                  box.onStep(Int(line))
             }
         }
         
-        let logCb: LogCallback = { msgPtr, ctx in
+        let logCb: LogCallback = { msgPtr, timestamp, ctx in
             if let ctx = ctx, let msgPtr = msgPtr {
                 let box = Unmanaged<RunContext>.fromOpaque(ctx).takeUnretainedValue()
                 let msg = String(cString: msgPtr)
-                box.onLog(msg)
+                // Convert timestamp (millis) to Date
+                let date = Date(timeIntervalSince1970: TimeInterval(timestamp) / 1000.0)
+                box.onLog(msg, date)
             }
         }
         
-        hippocrates_run(scriptC, planC, lineCb, logCb, context)
+        executor(scriptC, planC, lineCb, logCb, context)
         
         Unmanaged<RunContext>.fromOpaque(context).release()
     }

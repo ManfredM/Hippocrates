@@ -12,6 +12,24 @@ fn test_treating_copd_parsing() {
 }
 
 #[test]
+fn test_vas_parsing() {
+    let input = r#"
+"use of rescue medication" is a number:
+    valid values: 0 ... 10
+    question:
+        ask "How severe?":
+            validate answer once.
+            question style is visual analogue scale:
+                best value is 0:
+                    text for best value is "No breathlessness".
+                worst value is 10:
+                    text for worst value is "Severe breathlessness".
+"#;
+    let result = parser::parse_plan(input);
+    assert!(result.is_ok(), "Failed to parse VAS: {:?}", result.err());
+}
+
+#[test]
 fn test_simple_plan_parsing() {
     let script = "\"body weight\" is a number:
     valid values: 0 ... 200

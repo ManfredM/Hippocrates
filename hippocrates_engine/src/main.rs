@@ -26,6 +26,11 @@ fn main() {
             println!("Plan validated successfully.");
 
             let mut engine = Engine::new();
+            if args.contains(&"--sim".to_string()) {
+                println!("Running in Simulation Mode (5 days)");
+                engine.set_mode(hippocrates_engine::runtime::executor::ExecutionMode::Simulation(std::time::Duration::from_secs(5 * 86400)));
+            }
+
             engine.load_plan(plan.clone());
             
             // Register output handler to stream updates to console

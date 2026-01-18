@@ -476,6 +476,25 @@ fn parse_value_property(pair: pest::iterators::Pair<Rule>) -> Result<Property, P
             let cases = parse_assessment_cases(inner.into_inner())?;
             Ok(Property::Meaning(cases))
         }
+        Rule::timeframe_prop => {
+            let inner_node = inner.into_inner(); 
+            // timeframe_prop children are timeframe_line+
+            let mut all_timeframes = Vec::new();
+            for line in inner_node {
+                if line.as_rule() == Rule::timeframe_line {
+                    let mut selectors = Vec::new();
+                    for sel in line.into_inner() {
+                        if sel.as_rule() == Rule::range_selector {
+                            selectors.push(parse_range_selector(sel)?);
+                        }
+                    }
+                    if !selectors.is_empty() {
+                         all_timeframes.push(selectors);
+                    }
+                }
+            }
+            Ok(Property::Timeframe(all_timeframes))
+        }
         Rule::question_prop => {
             let stmt_pair = inner.into_inner().next().unwrap(); // statement
             let action_pair = stmt_pair.into_inner().next().unwrap(); // action
@@ -958,6 +977,9 @@ fn parse_expression(pair: pest::iterators::Pair<Rule>) -> Result<Expression, Par
         },
         Rule::multi_word_identifier => {
                Ok(Expression::Variable(parse_multi_word_identifier(pair)))
+        },
+        Rule::time_literal => {
+               Ok(Expression::Literal(Literal::TimeOfDay(pair.as_str().to_string())))
         },
         _ => {
              Ok(Expression::Literal(Literal::String(pair.as_str().to_string())))

@@ -8,9 +8,10 @@ NEWLINE = _{ "\n" | "\r\n" }
 integer = @{ "-"? ~ ASCII_DIGIT+ }
 float = @{ integer ~ "." ~ ASCII_DIGIT+ }
 number = @{ float | integer }
+time_literal = @{ ASCII_DIGIT{1,2} ~ ":" ~ ASCII_DIGIT{2} }
 
 string_literal = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
-keyword = @{ "is" | "during" | "between" | "with" | "begin" | "every" | "after" | "assess" | "for" }
+keyword = @{ "is" | "during" | "between" | "with" | "begin" | "every" | "after" | "assess" | "for" | "question" | "style" }
 raw_identifier = @{ !keyword ~ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 identifier = { raw_identifier | string_literal }
 multi_word_identifier = { identifier ~ (identifier | number)* }
@@ -40,6 +41,7 @@ value_definition = {
 
 value_property = {
     (valid_values_prop |
+    timeframe_prop |
     meaning_prop |
     question_prop |
     calculation_prop |
@@ -97,7 +99,7 @@ safe_range_item = { range_selector ~ !":" }
 
 valid_values_prop = { 
     "valid value" ~ "s"? ~ (
-        (":" ~ NEWLINE* ~ INDENT ~ valid_values_block ~ DEDENT) | 
+        (":" ~ NEWLINE* ~ INDENT ~ valid_values_block ~ NEWLINE* ~ DEDENT) | 
         (":" ~ inline_valid_values) |
         flexible_block
     )
@@ -110,8 +112,10 @@ question_prop = { "question" ~ flexible_block }
 calculation_prop = { "calculation" ~ flexible_block }
 reuse_prop = { "reuse" ~ flexible_block } 
 
-documentation_prop = { "documentation" ~ ":" ~ NEWLINE* ~ INDENT ~ "english" ~ flexible_string_block ~ NEWLINE? ~ DEDENT }
+documentation_prop = { "documentation" ~ ":" ~ NEWLINE* ~ INDENT ~ "english" ~ flexible_string_block ~ NEWLINE* ~ DEDENT }
 flexible_string_block = _{ (":" ~ NEWLINE* ~ INDENT ~ string_literal ~ "."? ~ NEWLINE? ~ DEDENT) | (":" ~ string_literal ~ "."?) }
+timeframe_prop = { "timeframe" ~ ":" ~ NEWLINE* ~ INDENT ~ timeframe_line+ ~ DEDENT }
+timeframe_line = { range_selector ~ (";" ~ range_selector)* ~ NEWLINE* }
 
 generic_property = { !reserved_prop_keyword ~ identifier ~ flexible_property_content }
 reserved_prop_keyword = { 
@@ -122,6 +126,7 @@ reserved_prop_keyword = {
     "calculation" | 
     "reuse" | 
     "documentation" |
+    "timeframe" |
     "definition is the same as for"
 }
 flexible_property_content = _{ (":" ~ NEWLINE* ~ INDENT ~ property_content ~ DEDENT) | (":" ~ property_line) }
@@ -211,7 +216,7 @@ question_modifier = {
     ("validate" ~ "answer" ~ ("once" | "twice") ~ "."? ~ flexible_block?) |
     ("type" ~ "of" ~ "question" ~ "is" ~ string_literal ~ "."?) |
     ("style" ~ "of" ~ "question" ~ "is" ~ multi_word_identifier ~ "."?) |
-    ("question" ~ "style" ~ "is" ~ "visual" ~ "analogue" ~ "scale" ~ ":" ~ NEWLINE* ~ INDENT ~ vas_block ~ DEDENT)
+    ("question" ~ "style" ~ "is" ~ "visual" ~ ("analogue" | "analog") ~ "scale" ~ ":" ~ NEWLINE* ~ INDENT ~ vas_block ~ DEDENT)
 }
 
 vas_block = { (best_value_def | worst_value_def)+ }
@@ -253,6 +258,7 @@ term = {
     (quantity ~ relative_time_modifier) |
     statistical_func |
     quantity | 
+    time_literal |
     number | 
     string_literal | 
     multi_word_identifier |

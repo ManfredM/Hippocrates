@@ -106,10 +106,7 @@
                     "log" = "Rescue medication usage is stable or decreasing.".
 
 
-    every 1 day:
-        documentation:
-            english: "Every day we provide a feedback based on a rolling review of past 5 days.".
-        
+
         assess "inhaler used in past 5 days on time":
             4; 5:
                 show message to patient "You are doing a great job in using the inhaler right on time".
@@ -127,11 +124,4 @@
                     11 ... 1000:
                         show message to patient "We have recorded more than 10 uses of the inhaler. Please contact us to investigate the reason for that.".
 
-    every 3 seconds:
-        documentation:
-            english: "A purport is sent to treating physician (every 3s for demo)".
-        
-        assess "inhaler used in past 5 days":
-            0 ... 1000:
-                show message to physician ("Inhaler usage in past 5 days: " + "inhaler used in past 5 days").
-                show message to physician ("Total number of usage:" + "inhaler used in past 5 days").
+

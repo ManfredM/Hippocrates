@@ -5,7 +5,57 @@ struct ContentView: View {
     
     @State private var parseStatus: String = "Ready"
     @State private var isError: Bool = false
+    @State private var simulationDays: Int = 30
     
+    func runPlan(simulate: Bool) {
+        let code = appState.planCode
+        parseStatus = simulate ? "Simulating..." : "Running..."
+        
+        DispatchQueue.global(qos: .userInitiated).async {
+            // 1. Identify Plan Name
+            var planName = "TreatmentPlan"
+            let parseResult = HippocratesParser.parse(input: code)
+            
+            if case .success(let plan) = parseResult {
+                // Find first plan definition
+                for def in plan.definitions {
+                    if let planDef = def.Plan {
+                        planName = planDef.name
+                        break
+                    }
+                }
+            }
+            
+            DispatchQueue.main.async {
+                appState.executionLogs.removeAll()
+            }
+            
+            let onStep: (Int) -> Void = { line in
+                 DispatchQueue.main.async {
+                     appState.currentExecutionLine = line
+                 }
+            }
+            
+            let onLog: (String, Date) -> Void = { msg, date in
+                 let event = ExecutionEvent(name: msg, time: date, category: "Log")
+                 DispatchQueue.main.async {
+                     appState.executionLogs.append(event)
+                 }
+            }
+            
+            if simulate {
+                HippocratesEditor.HippocratesParser.simulate(input: code, planName: planName, days: simulationDays, onStep: onStep, onLog: onLog)
+            } else {
+                HippocratesEditor.HippocratesParser.run(input: code, planName: planName, onStep: onStep, onLog: onLog)
+            }
+
+            DispatchQueue.main.async {
+                appState.currentExecutionLine = nil
+                parseStatus = simulate ? "Simulation Finished" : "Execution Finished"
+            }
+        }
+    }
+
     var body: some View {
         HSplitView {
             // Editor / Visualizer Area
@@ -14,48 +64,26 @@ struct ContentView: View {
                     Text(appState.currentFileURL?.lastPathComponent ?? "Untitled Plan")
                         .font(.headline)
                     Spacer()
-                    Button(action: {
-                        let code = appState.planCode
-                        parseStatus = "Running..."
-                        
-                        DispatchQueue.global(qos: .userInitiated).async {
-                            // 1. Identify Plan Name
-                            var planName = "TreatmentPlan"
-                            let parseResult = HippocratesParser.parse(input: code)
-                            
-                            if case .success(let plan) = parseResult {
-                                // Find first plan definition
-                                for def in plan.definitions {
-                                    if let planDef = def.Plan {
-                                        planName = planDef.name
-                                        break
-                                    }
-                                }
-                            }
-                            
-                            DispatchQueue.main.async {
-                                appState.executionLogs.removeAll()
-                            }
-                            
-                            HippocratesEditor.HippocratesParser.run(input: code, planName: planName, onStep: { line in
-                                DispatchQueue.main.async {
-                                    appState.currentExecutionLine = line
-                                }
-                            }, onLog: { msg in
-                                let event = ExecutionEvent(name: msg, time: Date(), category: "Log")
-                                DispatchQueue.main.async {
-                                    appState.executionLogs.append(event)
-                                }
-                            })
-                            DispatchQueue.main.async {
-                                appState.currentExecutionLine = nil
-                                parseStatus = "Execution Finished"
-                            }
+                    
+                    HStack(spacing: 12) {
+                        Button(action: { runPlan(simulate: false) }) {
+                            Label("Run", systemImage: "play.fill")
                         }
-                    }) {
-                        Label("Run", systemImage: "play.fill")
+                        .keyboardShortcut("r", modifiers: .command)
+                        
+                        Divider().frame(height: 20)
+                        
+                        Text("Simulate:")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        
+                        Stepper("\(simulationDays) days", value: $simulationDays, in: 1...365)
+                            .fixedSize()
+                        
+                        Button(action: { runPlan(simulate: true) }) {
+                            Label("Go", systemImage: "clock.arrow.2.circlepath")
+                        }
                     }
-                    .keyboardShortcut("r", modifiers: .command)
                 }
                 .padding(.horizontal)
                 .padding(.top)

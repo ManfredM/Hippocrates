@@ -2,23 +2,31 @@ pub mod environment;
 pub mod evaluator;
 pub mod executor;
 pub mod validator;
+pub mod scheduler;
 
 pub use environment::Environment;
 pub use evaluator::Evaluator;
 pub use executor::Executor;
+pub use executor::ExecutionMode;
 
 use crate::ast::Plan;
 
 
 pub struct Engine {
     pub env: Environment,
+    pub mode: ExecutionMode,
 }
 
 impl Engine {
     pub fn new() -> Self {
         Engine {
             env: Environment::new(),
+            mode: ExecutionMode::RealTime,
         }
+    }
+    
+    pub fn set_mode(&mut self, mode: ExecutionMode) {
+        self.mode = mode;
     }
 
     pub fn load_plan(&mut self, plan: Plan) {
@@ -27,6 +35,7 @@ impl Engine {
 
     pub fn execute(&mut self, plan_name: &str) {
         let mut executor = Executor::new();
+        executor.set_mode(self.mode);
         executor.execute_plan(&mut self.env, plan_name);
     }
     
