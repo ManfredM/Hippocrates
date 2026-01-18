@@ -1,0 +1,6 @@
+"daily wellness check" is a plan:
+    during plan:
+        show message "Welcome to your wellness check.".
+
+    every 1 day:
+        show message "Remember to drink water!".

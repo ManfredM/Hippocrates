@@ -1,0 +1,18 @@
+fn parse_condition(pair: pest::iterators::Pair<Rule>) -> Result<RangeSelector, ParseError> {
+    let mut inner = pair.into_inner();
+    let left = parse_expression(inner.next().unwrap())?;
+    let op = inner.next().unwrap(); 
+    let right = parse_expression(inner.next().unwrap())?;
+
+    let operator = match op.as_str() {
+        "is" | "=" => crate::ast::ConditionOperator::Equals,
+        "is not" | "!=" => crate::ast::ConditionOperator::NotEquals,
+        ">" => crate::ast::ConditionOperator::GreaterThan,
+        "<" => crate::ast::ConditionOperator::LessThan,
+        ">=" => crate::ast::ConditionOperator::GreaterThanOrEquals,
+        "<=" => crate::ast::ConditionOperator::LessThanOrEquals,
+        _ => return Err(ParseError::UnknownRule(format!("Unknown op {}", op.as_str()))),
+    };
+
+    Ok(RangeSelector::Comparison(left, operator, right))
+}

@@ -1,0 +1,35 @@
+Painkiller is a drug:
+    ingredients:
+        Paracetamol 500.0 mg
+    dosage safety:
+        maximum single dose = 1000.0 mg
+        minimum time between doses = 4 hours
+    administration:
+        form of administration is "Tablet"
+
+DrSmith is an addressee:
+    contact information:
+        email is "drsmith@example.com"
+    order of contacting:
+        contact all addressees in parallel
+
+SymptomScore is a number.
+
+AnalysisPlan is a plan:
+    during plan:
+        context:
+            timeframe: 2 years ago
+            data: SymptomScore
+        
+        assess confidence of SymptomScore:
+            > 90%:
+                show message "High confidence in score".
+            in all other cases:
+                show message "Low confidence".
+
+        assess count of SymptomScore:
+            > 5:
+                show message "Enough data points".
+                ask "How do you feel?"
+        
+        show message to DrSmith "Analysis complete".

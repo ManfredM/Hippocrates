@@ -1,0 +1,30 @@
+"bottle" is an enumeration:
+    valid values:
+        assess value:
+            "empty"; "full": value is valid.
+
+"empty bottles" is a number:
+    valid values:
+        value is between 0 ... 100.
+
+"99 bottles of beer" is a plan:
+    every 1 second for 99 seconds:
+
+        assess "empty bottles":
+            0 ... 97:
+                show message to patient (99 - "empty bottles") + " bottles of beer on the wall.".
+                bottle = "empty".
+                "empty bottles" = "empty bottles" + 1.
+            
+            98:
+                show message to patient "1 bottle of beer on the wall...".
+                bottle = "empty".
+                "empty bottles" = "empty bottles" + 1.
+            
+            99:
+                show message to patient "No more bottles of beer on the wall.".
+                "empty bottles" = 0.
+
+            100:
+                 show message to patient "Go to the store and buy some more.".
+                 "empty bottles" = 0.

@@ -1,0 +1,37 @@
+pub mod environment;
+pub mod evaluator;
+pub mod executor;
+pub mod validator;
+
+pub use environment::Environment;
+pub use evaluator::Evaluator;
+pub use executor::Executor;
+
+use crate::ast::Plan;
+
+
+pub struct Engine {
+    pub env: Environment,
+}
+
+impl Engine {
+    pub fn new() -> Self {
+        Engine {
+            env: Environment::new(),
+        }
+    }
+
+    pub fn load_plan(&mut self, plan: Plan) {
+        self.env.load_plan(plan);
+    }
+
+    pub fn execute(&mut self, plan_name: &str) {
+        let mut executor = Executor::new();
+        executor.execute_plan(&mut self.env, plan_name);
+    }
+    
+    // Helper for testing
+    pub fn set_value(&mut self, name: &str, val: crate::domain::RuntimeValue) {
+        self.env.set_value(name, val);
+    }
+}

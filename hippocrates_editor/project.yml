@@ -1,0 +1,42 @@
+name: HippocratesEditor
+options:
+  bundleIdPrefix: com.manfred
+targets:
+  HippocratesEditor:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Sources/HippocratesEditor
+    settings:
+      SWIFT_OBJC_BRIDGING_HEADER: Sources/HippocratesEditor/HippocratesEditor-Bridging-Header.h
+      HEADER_SEARCH_PATHS: 
+        - $(PROJECT_DIR)/Sources/CHippocratesEngine/include
+      LIBRARY_SEARCH_PATHS:
+        - $(PROJECT_DIR)/lib
+      OTHER_LDFLAGS:
+        - -lhippocrates_engine
+      INFOPLIST_FILE: Sources/Info.plist
+    preBuildScripts:
+      - script: "${PROJECT_DIR}/../hippocrates_engine/build_for_xcode.sh"
+        name: Build Rust Engine
+
+  CHippocratesEngine:
+    type: library.static
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Sources/CHippocratesEngine
+    settings:
+      SKIP_INSTALL: YES
+
+  HippocratesEditorTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Tests/HippocratesEditorTests
+    dependencies:
+      - target: HippocratesEditor
+    settings:
+      GENERATE_INFOPLIST_FILE: YES

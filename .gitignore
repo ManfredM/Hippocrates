@@ -13,3 +13,20 @@ __pycache__/
 # Temporary
 read_pdf.py
 extracted_content.txt
+
+# Rust
+target/
+**/*.rs.bk
+
+# Xcode / Swift
+.build/
+.swiftpm/
+DerivedData/
+*.xcodeproj/project.xcworkspace
+*.xcodeproj/xcuserdata
+HippocratesEditor.app/
+*.d
+*.o
+
+# Generated Libs
+hippocrates_editor/lib/

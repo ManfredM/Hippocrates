@@ -1,0 +1,267 @@
+WHITESPACE = _{ " " | "\t" | "\r" }
+COMMENT = _{ "(*" ~ (!"*)" ~ ANY)* ~ "*)" }
+
+INDENT = _{ "《" ~ "\n"? }
+DEDENT = _{ "》" ~ "\n"? }
+NEWLINE = _{ "\n" | "\r\n" }
+
+integer = @{ "-"? ~ ASCII_DIGIT+ }
+float = @{ integer ~ "." ~ ASCII_DIGIT+ }
+number = @{ float | integer }
+
+string_literal = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+keyword = @{ "is" | "during" | "between" | "with" | "begin" | "every" | "after" | "assess" | "for" }
+raw_identifier = @{ !keyword ~ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
+identifier = { raw_identifier | string_literal }
+multi_word_identifier = { identifier ~ (identifier | number)* }
+
+// Extended units to support plurals as seen in test files
+unit = { 
+    "°F" | "°C" | 
+    "mg" | "kg" | "g" | "lb" | "oz" |
+    "ml" | "l" | "fl oz" | "gal" |
+    "m" | "cm" | "mm" | "km" | "inch" | "foot" | "mile" |
+    "years" | "months" | "weeks" | "days" | "hours" | "minutes" | "seconds" |
+    "year" | "month" | "week" | "day" | "hour" | "minute" | "second"
+}
+
+value_type = { "a number" | "an enumeration" | "a time indication" | "a period" | "a plan" | "a drug" | "an addressee" }
+
+file = { SOI ~ definition* ~ EOI }
+// Reordered to prioritize specific definitions
+definition = { (drug_definition | addressee_definition | context_definition | plan_definition | period_definition | value_definition) ~ NEWLINE* }
+
+value_definition = { 
+    identifier ~ "is" ~ value_type ~ (
+        (":" ~ NEWLINE ~ INDENT ~ value_property+ ~ DEDENT) |
+        ("."?)
+    )
+}
+
+value_property = {
+    (valid_values_prop |
+    meaning_prop |
+    question_prop |
+    calculation_prop |
+    reuse_prop |
+    inheritance_prop |
+    documentation_prop |
+    generic_property) ~ NEWLINE*
+}
+
+drug_definition = { identifier ~ "is a drug" ~ ":" ~ NEWLINE ~ INDENT ~ 
+    (ingredients_block | dosage_block | admin_block | interaction_block)* ~ 
+    DEDENT 
+}
+
+addressee_definition = { 
+    identifier ~ ("is an addressee" | "is an addressee group") ~ ":" ~ NEWLINE ~ INDENT ~ 
+    (contact_info_prop | grouped_addressees_prop | contact_logic_prop | after_consent_prop)* ~
+    DEDENT
+}
+
+context_definition = { "context" ~ ":" ~ NEWLINE ~ INDENT ~ context_item+ ~ DEDENT } 
+context_item = { 
+    ("timeframe" ~ ":" ~ range_selector) | 
+    ("data" ~ ":" ~ identifier) | 
+    ("value filter" ~ ":" ~ assessment_case) 
+~ NEWLINE* }
+
+ingredients_block = { "ingredients" ~ ":" ~ NEWLINE ~ INDENT ~ ingredient+ ~ DEDENT }
+ingredient = { identifier ~ float ~ unit ~ NEWLINE* }
+
+dosage_block = { "dosage safety" ~ ":" ~ NEWLINE ~ INDENT ~ dosage_rule+ ~ DEDENT }
+dosage_rule = { ("maximum single dose" | "maximum daily dose" | "minimum time between doses") ~ "=" ~ expression ~ NEWLINE* }
+
+admin_block = { "administration" ~ ":" ~ NEWLINE ~ INDENT ~ admin_rule+ ~ DEDENT }
+admin_rule = { 
+    ("form of administration is" ~ identifier) |
+    (identifier ~ quantity ~ "after" ~ identifier)
+~ NEWLINE* }
+
+interaction_block = { "interactions" ~ ":" ~ NEWLINE ~ INDENT ~ interaction_rule+ ~ DEDENT }
+interaction_rule = { "assess interaction with" ~ identifier ~ ":" ~ NEWLINE ~ INDENT ~ block ~ DEDENT }
+
+contact_info_prop = { "contact information" ~ ":" ~ NEWLINE ~ INDENT ~ contact_detail+ ~ DEDENT }
+contact_detail = { contact_type ~ "is" ~ string_literal ~ NEWLINE* }
+contact_type = { "email" | "phone" | "hippocrates id" }
+
+after_consent_prop = { "after consent has been rejected" ~ ":" ~ NEWLINE ~ INDENT ~ block ~ DEDENT }
+grouped_addressees_prop = { "grouped addressees are" ~ identifier ~ (";" ~ identifier)* ~ NEWLINE* }
+contact_logic_prop = { "order of contacting" ~ ":" ~ NEWLINE ~ INDENT ~ contact_logic ~ DEDENT }
+contact_logic = { "contact all addressees in parallel" | ("sequence of contacting is" ~ identifier ~ (";" ~ identifier)*) }
+
+inheritance_prop = { "definition is the same as for" ~ identifier ~ ("except" ~ ":" ~ NEWLINE ~ INDENT ~ value_property+ ~ DEDENT)? }
+
+safe_range_item = { range_selector ~ !":" }
+
+valid_values_prop = { 
+    "valid value" ~ "s"? ~ (
+        (":" ~ NEWLINE ~ INDENT ~ valid_values_block ~ DEDENT) | 
+        (":" ~ inline_valid_values) |
+        flexible_block
+    )
+}
+valid_values_block = { (safe_range_item ~ (";" | NEWLINE)? )+ }
+inline_valid_values = { safe_range_item ~ ((";" | NEWLINE)? ~ safe_range_item)* }
+
+meaning_prop = { "meaning" ~ ":" ~ NEWLINE ~ INDENT ~ assessment_case+ ~ DEDENT }
+question_prop = { "question" ~ flexible_block } 
+calculation_prop = { "calculation" ~ flexible_block }
+reuse_prop = { "reuse" ~ flexible_block } 
+
+documentation_prop = { "documentation" ~ ":" ~ NEWLINE ~ INDENT ~ "english" ~ flexible_string_block ~ NEWLINE? ~ DEDENT }
+flexible_string_block = _{ (":" ~ NEWLINE ~ INDENT ~ string_literal ~ "."? ~ NEWLINE? ~ DEDENT) | (":" ~ string_literal ~ "."?) }
+
+generic_property = { !reserved_prop_keyword ~ identifier ~ flexible_property_content }
+reserved_prop_keyword = { 
+    "question" | 
+    "valid values" | 
+    "valid value" | 
+    "meaning" | 
+    "calculation" | 
+    "reuse" | 
+    "documentation" |
+    "definition is the same as for"
+}
+flexible_property_content = _{ (":" ~ NEWLINE ~ INDENT ~ property_content ~ DEDENT) | (":" ~ property_line) }
+property_content = { ( (!DEDENT ~ !INDENT ~ ANY)+ | INDENT ~ property_content ~ DEDENT )* }
+property_line = { (!NEWLINE ~ ANY)+ }
+
+period_definition = { identifier ~ "is a period" ~ ":" ~ NEWLINE ~ INDENT ~ period_property+ ~ DEDENT }
+period_property = {
+    ("timeframe" ~ ":" ~ safe_range_item ~ (NEWLINE? ~ safe_range_item)*) |
+    ("customization" ~ ":" ~ NEWLINE ~ INDENT ~ block_text ~ DEDENT)
+}
+block_text = { (!DEDENT ~ ANY)+ } 
+
+plan_definition = { identifier ~ "is a plan" ~ ":" ~ NEWLINE ~ INDENT ~ plan_block+ ~ DEDENT }
+
+plan_block = {
+    (during_plan_block |
+    trigger_block |
+    event_block) ~ NEWLINE*
+}
+
+flexible_block = _{ (":" ~ NEWLINE ~ INDENT ~ block_body ~ DEDENT) | (":" ~ block_body) }
+block_body = { statement+ }
+
+during_plan_block = { "during plan" ~ flexible_block }
+event_block = { string_literal ~ "with" ~ event_trigger ~ flexible_block } 
+trigger_block = { event_trigger ~ flexible_block }
+
+event_trigger = {
+    "change of" ~ multi_word_identifier |
+    "begin of" ~ multi_word_identifier |
+    "every" ~ quantity ~ identifier? ~ ("for" ~ quantity)? | 
+    "every" ~ multi_word_identifier ~ ( "after" ~ identifier)? ~ ("for" ~ quantity)?
+}
+
+assessment_case = { 
+    selector_list ~ flexible_block
+}
+selector_list = { (condition | range_selector) ~ (";" ~ (condition | range_selector))* }
+
+condition = { expression ~ condition_op ~ expression }
+condition_op = { "is" | "is not" | "=" | "!=" | ">" | "<" | ">=" | "<=" }
+
+range_selector = {
+    "between" ~ expression ~ "..." ~ expression | 
+    expression ~ "..." ~ expression | 
+    expression
+}
+
+block = { statement+ }
+
+// Prioritize documentation_prop over generic identifiers
+statement = {
+    (timeframe_block |
+    documentation_prop |
+    event_progression |
+    conditional |
+    context_block |
+    assignment |
+    constraint |
+    action |
+    NEWLINE) ~ NEWLINE*
+}
+
+constraint = { expression ~ ("is" | "during" | "after") ~ range_selector ~ ("!" | "?" | ".")? }
+timeframe_block = { "timeframe" ~ ("for" ~ "analysis")? ~ constraint_tail? ~ ":" ~ NEWLINE ~ INDENT ~ statement+ ~ DEDENT }
+constraint_tail = _{ ("is" | "during" | "after") ~ range_selector }
+
+event_progression = { "assess event progression" ~ ":" ~ NEWLINE ~ INDENT ~ (assessment_case | statement)+ ~ DEDENT }
+context_block = { "context" ~ ("for" ~ "analysis")? ~ ":" ~ NEWLINE ~ INDENT ~ (context_item | statement)+ ~ DEDENT } 
+
+assignment = { multi_word_identifier ~ "=" ~ expression ~ "." }
+
+action = {
+    show_message |
+    ask_question |
+    listen_for |
+    send_info |
+    question_modifier |
+    message_expiration |
+    start_period |
+    simple_command
+}
+
+question_modifier = { 
+    ("question expires after" ~ period_expr ~ "."? ~ flexible_block?) |
+    ("validate answer" ~ ("once" | "twice") ~ "."? ~ flexible_block?) |
+    ("type of question is" ~ string_literal ~ "."?) |
+    ("style of question is" ~ multi_word_identifier ~ "."?) |
+    ("question style is" ~ "visual analogue scale" ~ ":" ~ NEWLINE ~ INDENT ~ vas_block ~ DEDENT)
+}
+
+vas_block = { (best_value_def | worst_value_def)+ }
+
+best_value_def = { "best value is" ~ number ~ ":" ~ NEWLINE ~ INDENT ~ best_value_prop+ ~ DEDENT }
+best_value_prop = { "text for best value is" ~ string_literal ~ "."? ~ NEWLINE* }
+
+worst_value_def = { "worst value is" ~ number ~ ":" ~ NEWLINE ~ INDENT ~ worst_value_prop+ ~ DEDENT }
+worst_value_prop = { "text for worst value is" ~ string_literal ~ "."? ~ NEWLINE* }
+
+start_period = { "start" ~ identifier ~ "."? }
+message_expiration = { "message expires after" ~ range_selector ~ "."? }
+
+show_message = { 
+    "show message" ~ ("to" ~ ("patient" | "physician" | identifier))? ~ (
+        ( ":" ~ NEWLINE ~ INDENT ~ flexible_message_content ~ DEDENT ) |
+        ( NEWLINE ~ INDENT ~ flexible_message_content ~ DEDENT ) |
+        flexible_message_content
+    ) ~ flexible_block? ~ "."? 
+}
+flexible_message_content = _{ (string_literal | expression) ~ (NEWLINE ~ !DEDENT ~ (string_literal | expression))* }
+
+ask_question = { "ask" ~ ("for" | "patient" | "physician")? ~ (string_literal | multi_word_identifier) ~ flexible_block? ~ "."? }
+listen_for = { "listen for" ~ identifier ~ flexible_block }
+send_info = { "send information" ~ string_literal ~ (expression | NEWLINE)* ~ "."? } 
+simple_command = { multi_word_identifier ~ "."? }
+
+period_expr = { quantity | ("until" ~ event_trigger) }
+
+conditional = {
+    "assess" ~ (confidence_target | expression) ~ ":" ~ NEWLINE ~ INDENT ~
+    assessment_case* ~
+    DEDENT
+}
+confidence_target = { "confidence of" ~ identifier }
+
+expression = { term ~ (infix_op ~ term)* }
+term = { 
+    (quantity ~ relative_time_modifier) |
+    statistical_func |
+    quantity | 
+    number | 
+    string_literal | 
+    multi_word_identifier |
+    "(" ~ expression ~ ")"
+}
+statistical_func = { 
+    ("count of" | "min of" | "max of" | "trend of") ~ multi_word_identifier ~ ("is" ~ term)? |
+    "average of" ~ multi_word_identifier ~ ("over" | "for") ~ quantity 
+}
+infix_op = { "+" | "-" | "*" | "/" }
+relative_time_modifier = { "ago" | "from now" }
+quantity = { number ~ unit }
