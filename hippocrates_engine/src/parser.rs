@@ -56,7 +56,8 @@ pub fn preprocess_indentation(input: &str) -> String {
     for line in input.lines() {
         let trimmed = line.trim();
         if trimmed.is_empty() {
-            continue; // Skip empty lines
+            output.push('\n'); 
+            continue; 
         }
         
         // Calculate indentation (assuming spaces)
@@ -66,13 +67,13 @@ pub fn preprocess_indentation(input: &str) -> String {
         if indent > current {
              indent_stack.push(indent);
              output.push('《'); 
-             output.push('\n'); // Add newline after indent token
+             // output.push('\n'); // REMOVED to preserve line count
         }
         
         while indent < *indent_stack.last().unwrap() {
              indent_stack.pop();
              output.push('》');
-             output.push('\n');
+             // output.push('\n'); // REMOVED
         }
         
         output.push_str(trimmed);
@@ -83,7 +84,7 @@ pub fn preprocess_indentation(input: &str) -> String {
     while indent_stack.len() > 1 {
          indent_stack.pop();
          output.push('》');
-         output.push('\n');
+         // output.push('\n'); // REMOVED
     }
     
     output
@@ -449,10 +450,13 @@ fn parse_value_property(pair: pest::iterators::Pair<Rule>) -> Result<Property, P
                          // AssessmentCase { condition: sel, block: [] }.
                          // Statement::EventProgression(vec![case]).
                          // This preserves the logic "if matches selector, valid".
-                         use crate::ast::{AssessmentCase, Statement};
-                         stmts.push(Statement::EventProgression("value".to_string(), vec![
-                             AssessmentCase { condition: sel, block: vec![] }
-                         ]));
+                         use crate::ast::{AssessmentCase, Statement, StatementKind};
+                         stmts.push(Statement {
+                             kind: StatementKind::EventProgression("value".to_string(), vec![
+                                 AssessmentCase { condition: sel, block: vec![] }
+                             ]),
+                             line: 0,
+                         });
                      }
                      Ok(Property::ValidValues(stmts))
                 },
@@ -577,17 +581,20 @@ fn parse_block(pair: pest::iterators::Pair<Rule>) -> Result<Block, ParseError> {
 }
 
 fn parse_statement(pair: pest::iterators::Pair<Rule>) -> Result<Statement, ParseError> {
+    let span = pair.as_span();
+    let line = span.start_pos().line_col().0;
+
     let inner = pair.into_inner().next().unwrap();
-    match inner.as_rule() {
+    let kind = match inner.as_rule() {
         Rule::assignment => {
              let mut a_inner = inner.into_inner();
              let target_pair = a_inner.next().unwrap();
              let target = parse_multi_word_identifier(target_pair);
              let expr = parse_expression(a_inner.next().unwrap())?;
-             Ok(Statement::Assignment(Assignment { target, expression: expr }))
+             StatementKind::Assignment(Assignment { target, expression: expr })
         }
         Rule::action => match parse_action(inner)? {
-            act => Ok(Statement::Action(act)) 
+            act => StatementKind::Action(act) 
         },
         Rule::conditional => {
              let mut c_inner = inner.into_inner();
@@ -602,7 +609,7 @@ fn parse_statement(pair: pest::iterators::Pair<Rule>) -> Result<Statement, Parse
                      _ => {}
                  }
              }
-             Ok(Statement::Conditional(Conditional { condition: ConditionalTarget::Expression(condition), cases }))
+             StatementKind::Conditional(Conditional { condition: ConditionalTarget::Expression(condition), cases })
         },
         Rule::context_block => {
              let mut items = Vec::new();
@@ -615,7 +622,6 @@ fn parse_statement(pair: pest::iterators::Pair<Rule>) -> Result<Statement, Parse
                          let s = p.as_str().trim().to_string();
                          let i_inner = p.into_inner();
                          
-                         // Check keywords. Ideally we match inner rules, but structure is fixed in grammar.
                          if s.starts_with("timeframe") {
                               for child in i_inner {
                                   if child.as_rule() == Rule::range_selector {
@@ -648,16 +654,13 @@ fn parse_statement(pair: pest::iterators::Pair<Rule>) -> Result<Statement, Parse
                      _ => {}
                  }
              }
-             Ok(Statement::ContextBlock(ContextBlock { items, statements }))
+             StatementKind::ContextBlock(ContextBlock { items, statements })
         },
         Rule::timeframe_block => {
-             // Treat timeframe block as a ContextBlock with a Timeframe item
              let mut inner = inner.into_inner();
              let mut items = Vec::new();
              let mut statements = Vec::new();
 
-             // Iterate children. They can be "timeframe" (literal), "for analysis" (optional), constraint_tail, or statements.
-             // We just look for specific rules.
              for p in inner {
                  match p.as_rule() {
                      Rule::range_selector => {
@@ -669,12 +672,11 @@ fn parse_statement(pair: pest::iterators::Pair<Rule>) -> Result<Statement, Parse
                      _ => {}
                  }
              }
-             Ok(Statement::ContextBlock(ContextBlock { items, statements }))
+             StatementKind::ContextBlock(ContextBlock { items, statements })
         },
         Rule::event_progression => {
              let mut e_inner = inner.into_inner();
              let ident_pair = e_inner.next().unwrap();
-             // Assuming multi_word_identifier or identifier or string_literal
              let ident = if ident_pair.as_rule() == Rule::multi_word_identifier {
                  parse_multi_word_identifier(ident_pair)
              } else if ident_pair.as_rule() == Rule::string_literal {
@@ -684,18 +686,17 @@ fn parse_statement(pair: pest::iterators::Pair<Rule>) -> Result<Statement, Parse
              };
              
              let cases = parse_assessment_cases(e_inner)?;
-             Ok(Statement::EventProgression(ident, cases))
+             StatementKind::EventProgression(ident, cases)
         },
         Rule::documentation_prop => {
-            // Treat documentation as a no-op command for now
-            Ok(Statement::Command("Documentation".to_string()))
+            StatementKind::Command("Documentation".to_string())
         },
         Rule::constraint => {
-             // Treat constraints as no-op commands for now (or TODO)
-             Ok(Statement::Command("Constraint".to_string()))
+             StatementKind::Command("Constraint".to_string())
         },
-        _ => Ok(Statement::Command("Unknown".to_string())),
-    }
+        _ => StatementKind::Command("Unknown".to_string()),
+    };
+    Ok(Statement { kind, line })
 }
 
 

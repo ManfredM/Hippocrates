@@ -1,6 +1,13 @@
 import SwiftUI
 import Combine
 
+struct ExecutionEvent: Identifiable {
+    let id = UUID()
+    let name: String
+    let time: Date
+    let category: String
+}
+
 class AppState: ObservableObject {
     @Published var planCode: String = """
     TreatmentPlan is a plan:
@@ -16,6 +23,8 @@ class AppState: ObservableObject {
     """
     
     @Published var currentFileURL: URL?
+    @Published var currentExecutionLine: Int?
+    @Published var executionLogs: [ExecutionEvent] = []
     
     func load(url: URL) {
         do {

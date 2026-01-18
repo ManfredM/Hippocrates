@@ -145,7 +145,13 @@ pub enum ContextItem {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Statement {
+pub struct Statement {
+    pub kind: StatementKind,
+    pub line: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum StatementKind {
     Assignment(Assignment),
     Action(Action),
     Conditional(Conditional),

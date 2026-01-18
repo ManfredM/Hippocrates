@@ -16,6 +16,19 @@ char* hippocrates_parse_json(const char* input);
 /// Frees a string allocated by `hippocrates_parse_json`.
 void hippocrates_free_string(char* s);
 
+typedef void (*LineCallback)(int, void* user_data);
+typedef void (*LogCallback)(const char*, void*);
+
+/// Executes a plan by name from the provided source code.
+/// Calls the `callback` with the line number of each statement executed.
+void hippocrates_run(
+    const char* input,
+    const char* plan_name,
+    LineCallback callback,
+    LogCallback log_callback,
+    void* user_data
+);
+
 #ifdef __cplusplus
 }
 #endif

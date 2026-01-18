@@ -128,3 +128,41 @@ fn test_trend_analysis() {
     
     env.pop_context();
 }
+
+#[test]
+fn test_execution_callback() {
+    use std::sync::{Arc, Mutex};
+    
+    let input = r#"
+"callback plan" is a plan:
+    during plan:
+        show message "Line 4".
+        show message "Line 5".
+"#;
+    let plan = parser::parse_plan(input).expect("Failed to parse");
+    let mut env = Environment::new();
+    env.load_plan(plan);
+    
+    let visited_lines = Arc::new(Mutex::new(Vec::new()));
+    let visited_clone = visited_lines.clone();
+    
+    let callback = Box::new(move |line: usize| {
+        visited_clone.lock().unwrap().push(line);
+    });
+    
+    let mut executor = Executor::with_activites(
+        callback,
+        Box::new(|_| {}) // No-op log callback
+    );
+    executor.execute_plan(&mut env, "callback plan");
+    
+    let lines = visited_lines.lock().unwrap();
+    // Verify that we visited lines. 
+    // "callback plan" is line 2 (offset)
+    // "during plan" is line 3
+    // "show message" is line 4
+    // "show message" is line 5
+    
+    assert!(lines.contains(&4), "Should visit line 4, visited: {:?}", lines);
+    assert!(lines.contains(&5), "Should visit line 5, visited: {:?}", lines);
+}

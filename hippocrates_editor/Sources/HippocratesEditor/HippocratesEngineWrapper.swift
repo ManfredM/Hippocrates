@@ -67,4 +67,39 @@ struct HippocratesParser {
             return .failure(error)
         }
     }
+    static func run(input: String, planName: String, onStep: @escaping (Int) -> Void, onLog: @escaping (String) -> Void) {
+        guard let scriptC = input.cString(using: .utf8),
+              let planC = planName.cString(using: .utf8) else { return }
+        
+        class RunContext {
+            let onStep: (Int) -> Void
+            let onLog: (String) -> Void
+            init(step: @escaping (Int) -> Void, log: @escaping (String) -> Void) {
+                self.onStep = step
+                self.onLog = log
+            }
+        }
+        
+        let box = RunContext(step: onStep, log: onLog)
+        let context = Unmanaged.passRetained(box).toOpaque()
+        
+        let lineCb: LineCallback = { line, ctx in
+            if let ctx = ctx {
+                 let box = Unmanaged<RunContext>.fromOpaque(ctx).takeUnretainedValue()
+                 box.onStep(Int(line))
+            }
+        }
+        
+        let logCb: LogCallback = { msgPtr, ctx in
+            if let ctx = ctx, let msgPtr = msgPtr {
+                let box = Unmanaged<RunContext>.fromOpaque(ctx).takeUnretainedValue()
+                let msg = String(cString: msgPtr)
+                box.onLog(msg)
+            }
+        }
+        
+        hippocrates_run(scriptC, planC, lineCb, logCb, context)
+        
+        Unmanaged<RunContext>.fromOpaque(context).release()
+    }
 }

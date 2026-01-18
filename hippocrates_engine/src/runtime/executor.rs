@@ -1,26 +1,32 @@
-use crate::ast::{Statement, Action, Block};
+use crate::ast::{Statement, StatementKind, Action, Block};
 use crate::runtime::{Environment, Evaluator};
 use crate::domain::Unit;
 
 
 pub struct Executor {
-    // Could hold state here if needed
+    pub on_step: Option<Box<dyn Fn(usize) + Send>>,
+    pub on_log: Option<Box<dyn Fn(String) + Send>>,
 }
 
 impl Executor {
     pub fn new() -> Self {
-        Executor {}
+        Executor { on_step: None, on_log: None }
+    }
+    
+    pub fn with_activites(
+        line_cb: Box<dyn Fn(usize) + Send>,
+        log_cb: Box<dyn Fn(String) + Send>
+    ) -> Self {
+        Executor { 
+            on_step: Some(line_cb),
+            on_log: Some(log_cb)
+        }
     }
 
     pub fn execute_plan(&mut self, env: &mut Environment, plan_name: &str) {
         env.log(format!("Starting plan: {}", plan_name));
         
-        // Find the plan definition
-        // (In a real engine, we'd clone the PlanDef or use RC, for now simple lookup)
-        // Accessing env.definitions requires borrowing env.
-        // We need to be careful about borrowing rules.
-
-        // Hacky clone for prototype to avoid borrow checker hell in this simple pass
+        // Hacky clone for prototype
         let defs = env.definitions.clone(); 
         
         if let Some(crate::ast::Definition::Plan(plan_def)) = defs.get(plan_name) {
@@ -96,16 +102,22 @@ impl Executor {
     }
 
     pub fn execute_statement(&mut self, env: &mut Environment, stmt: &Statement) {
-        match stmt {
-            Statement::Action(action) => self.execute_action(env, action),
-            Statement::Assignment(assign) => {
+        if stmt.line > 0 {
+             if let Some(cb) = &self.on_step {
+                 cb(stmt.line);
+             }
+        }
+
+        match &stmt.kind {
+            StatementKind::Action(action) => self.execute_action(env, action),
+            StatementKind::Assignment(assign) => {
                 let val = Evaluator::evaluate(env, &assign.expression);
                 env.set_value(&assign.target, val);
             }
-            Statement::Command(cmd) => {
+            StatementKind::Command(cmd) => {
                 env.log(format!("Command: {}", cmd));
             }
-            Statement::EventProgression(target_name, cases) => {
+            StatementKind::EventProgression(target_name, cases) => {
                  let val = if let Some(v) = env.get_value(target_name) {
                      v.clone()
                  } else {
@@ -148,10 +160,10 @@ impl Executor {
                      }
                  }
             }
-            Statement::Conditional(cond) => {
+            StatementKind::Conditional(cond) => {
                  self.execute_conditional(env, cond);
             }
-            Statement::ContextBlock(cb) => {
+            StatementKind::ContextBlock(cb) => {
                  // Build evaluation context
                  let mut timeframe = None;
                  for item in &cb.items {
@@ -178,11 +190,9 @@ impl Executor {
              }
         }; 
         
-        // Context-aware resolution: If we evaluated to a String, it might be a variable name (legacy Hippocrates style)
-        // e.g. assess "empty bottles" -> "empty bottles" -> lookup value.
+        // Context-aware resolution
         let val = if let crate::domain::RuntimeValue::String(s) = &val {
              if let Some(resolved) = env.get_value(s) {
-                 // println!("DEBUG: Resolved string '{}' to value {:?}", s, resolved);
                  resolved.clone()
              } else {
                  val
@@ -191,12 +201,8 @@ impl Executor {
             val
         };
 
-        
-        
-        // println!("DEBUG: Conditional check logic. Value: {:?}", val);
-        
         for case in &cond_stmt.cases {
-             let selector = &case.condition; // Single condition per (flattened) case
+             let selector = &case.condition; 
              let is_match = match selector {
                  crate::ast::RangeSelector::Equals(v_expr) => {
                      let v = Evaluator::evaluate(env, v_expr);
@@ -215,7 +221,6 @@ impl Executor {
                          _ => false, 
                      }
                  }
-                 // range_selector can parse plain expression as RangeSelector::Equals
                  _ => false, 
              };
              
@@ -226,27 +231,40 @@ impl Executor {
         }
     }
 
+    fn emit_log(&self, msg: String) {
+        if let Some(cb) = &self.on_log {
+            cb(msg);
+        }
+    }
+
     fn execute_action(&mut self, env: &mut Environment, action: &Action) {
         match action {
             Action::ShowMessage(parts, _) => {
                 let mut full_msg = String::new();
                 for part in parts {
                     let val = Evaluator::evaluate(env, part);
-                    let s = val.to_string(); // Use Display impl
+                    let s = val.to_string(); 
                     full_msg.push_str(&s);
                 }
-                env.log(full_msg);
+                let msg = full_msg;
+                env.log(msg.clone());
+                self.emit_log(format!("Message: {}", msg));
             }
-// ... rest matches existing
             Action::AskQuestion(q, _) => {
-                env.log(format!("Action: Ask Question '{}'", q));
+                let msg = format!("Action: Ask Question '{}'", q);
+                env.log(msg.clone());
+                self.emit_log(msg);
             }
-            Action::SendInfo(msg, vars) => {
+            Action::SendInfo(msg_text, vars) => {
                  let vals: Vec<String> = vars.iter().map(|e| format!("{:?}", Evaluator::evaluate(env, e))).collect();
-                 env.log(format!("Action: Send Info '{}' with values: {:?}", msg, vals));
+                 let msg = format!("Action: Send Info '{}' with values: {:?}", msg_text, vals);
+                 env.log(msg.clone());
+                 self.emit_log(msg);
             }
             Action::ListenFor(val) => {
-                env.log(format!("Action: Listen For '{}'", val));
+                let msg = format!("Action: Listen For '{}'", val);
+                env.log(msg.clone());
+                self.emit_log(msg);
             }
              _ => {}
         }

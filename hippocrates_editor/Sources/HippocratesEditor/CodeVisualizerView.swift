@@ -3,6 +3,7 @@ import AppKit
 
 struct CodeVisualizerView: NSViewRepresentable {
     let code: String
+    let highlightedLine: Int?
     
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
@@ -35,10 +36,7 @@ struct CodeVisualizerView: NSViewRepresentable {
         
         // Prepare storage
         let storage = textView.textStorage ?? NSTextStorage()
-        if textView.textStorage == nil {
-            // Should not happen if correctly initialized but good to handle
-            return
-        }
+        // Always recreate the attributed string to ensure clean state
         
         // Create attributed string with syntax highlighting (Regex from previous implementation)
         let attributed = NSMutableAttributedString(string: code)
@@ -74,10 +72,10 @@ struct CodeVisualizerView: NSViewRepresentable {
         
         // --- SMART LINE WRAP LOGIC ---
         // Iterate through each line to apply paragraph style
-        // Measure character width (monospaced) for indentation calculation
-        // Or simpler: measure the width of " "
         let spaceWidth = " ".size(withAttributes: [.font: font]).width
-        let wrapExtraIndent: CGFloat = spaceWidth * 2 // Indent wrapped lines by exactly 2 characters
+        let wrapExtraIndent: CGFloat = spaceWidth * 2 
+        
+        var currentLine = 1
         
         nsString.enumerateSubstrings(in: fullRange, options: .byLines) { (substring, substringRange, _, _) in
             guard let line = substring else { return }
@@ -87,14 +85,25 @@ struct CodeVisualizerView: NSViewRepresentable {
             let indentPoints = CGFloat(leadingSpaces) * spaceWidth
             
             let paragraphStyle = NSMutableParagraphStyle()
-            paragraphStyle.firstLineHeadIndent = 0 // Don't double-indent; existing spaces handle first line
-            paragraphStyle.headIndent = indentPoints + wrapExtraIndent // Wrapped lines get extra indent relative to THIS line's start
+            paragraphStyle.firstLineHeadIndent = 0 
+            paragraphStyle.headIndent = indentPoints + wrapExtraIndent 
             
             attributed.addAttribute(.paragraphStyle, value: paragraphStyle, range: substringRange)
+            
+            // Execution Highlighting
+            if let hl = highlightedLine, currentLine == hl {
+                attributed.addAttribute(.backgroundColor, value: NSColor.systemYellow.withAlphaComponent(0.3), range: substringRange)
+                
+                // Auto-scroll to the highlighted line
+                DispatchQueue.main.async {
+                    textView.scrollRangeToVisible(substringRange)
+                }
+            }
+            currentLine += 1
         }
         
         // Update storage
-        if storage.string != code {
+        if storage.string != code || highlightedLine != nil {
             storage.setAttributedString(attributed)
         }
     }

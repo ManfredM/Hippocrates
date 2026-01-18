@@ -1,4 +1,4 @@
-use crate::ast::{Plan, Statement, Definition, Property, RangeSelector, Expression, Literal, ConditionalTarget};
+use crate::ast::{Plan, Statement, StatementKind, Definition, Property, RangeSelector, Expression, Literal, ConditionalTarget};
 
 pub fn validate_file(plan: &Plan) -> Result<(), String> {
     // 1. Collect Value Definitions and their Valid Ranges
@@ -13,7 +13,7 @@ pub fn validate_file(plan: &Plan) -> Result<(), String> {
                       // Typically ValidValues uses Statement::EventProgression (hack) or just storage.
                       // Based on parser hack: Statement::EventProgression("value", cases)
                       for s in stmts {
-                          if let Statement::EventProgression(_, cases) = s {
+                          if let StatementKind::EventProgression(_, cases) = &s.kind {
                               let mut selectors = Vec::new();
                               for case in cases {
                                   selectors.push(case.condition.clone());
@@ -47,11 +47,11 @@ pub fn validate_file(plan: &Plan) -> Result<(), String> {
 }
 
 fn validate_statement(stmt: &Statement, value_ranges: &std::collections::HashMap<String, Vec<RangeSelector>>) -> Result<(), String> {
-    match stmt {
-        Statement::Conditional(cond) => {
+    match &stmt.kind {
+        StatementKind::Conditional(cond) => {
             validate_conditional(cond, value_ranges)?;
         }
-        Statement::EventProgression(target, cases) => {
+        StatementKind::EventProgression(target, cases) => {
              // Similar validation for EventProgression
              // Reconstruct a dummy Conditional-like structure or validate directly
              // validate_coverage(target, cases, value_ranges)?;

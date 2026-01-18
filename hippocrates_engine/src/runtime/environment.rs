@@ -67,14 +67,28 @@ impl Environment {
     pub fn load_plan(&mut self, plan: Plan) {
         for def in plan.definitions {
             let name = match &def {
-                Definition::Value(v) => v.name.clone(),
+                Definition::Value(v) => {
+                    let default = self.default_value_for(&v.value_type);
+                    self.set_value(&v.name, default);
+                    v.name.clone()
+                },
                 Definition::Period(p) => p.name.clone(),
                 Definition::Plan(p) => p.name.clone(),
                 Definition::Drug(d) => d.name.clone(),
                 Definition::Addressee(a) => a.name.clone(),
-                Definition::Context(_c) => "context".to_string(), // Stub name
+                Definition::Context(_c) => "context".to_string(),
             };
             self.definitions.insert(name, def);
+        }
+    }
+
+    fn default_value_for(&self, vt: &crate::domain::ValueType) -> RuntimeValue {
+        use crate::domain::{ValueType, RuntimeValue};
+        match vt {
+            ValueType::Number => RuntimeValue::Number(0.0),
+            ValueType::Enumeration => RuntimeValue::Enumeration("".to_string()),
+            // Initialize others as needed
+            _ => RuntimeValue::Void,
         }
     }
 
