@@ -895,6 +895,9 @@ fn parse_identifier_str(pair: pest::iterators::Pair<Rule>) -> String {
     } else if pair.as_rule() == Rule::angled_identifier {
         let s = pair.as_str();
         s[1..s.len()-1].to_string()
+    } else if pair.as_rule() == Rule::string_literal {
+        let s = pair.as_str();
+        s[1..s.len()-1].to_string()
     } else {
         pair.as_str().to_string()
     }

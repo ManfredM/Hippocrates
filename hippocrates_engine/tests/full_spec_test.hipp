@@ -4,8 +4,7 @@
     dosage safety:
         maximum single dose = 1000.0 mg
         minimum time between doses = 4 hours
-    administration:
-        form of administration is "Tablet"
+
 
 <DrSmith> is an addressee:
     contact information:

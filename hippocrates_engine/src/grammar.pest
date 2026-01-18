@@ -20,7 +20,7 @@ angled_identifier = @{ "<" ~ (!">" ~ ANY)+ ~ ">" }
 
 keyword = @{ "is" | "during" | "between" | "with" | "begin" | "every" | "after" | "assess" | "for" | "question" | "style" }
 raw_identifier = @{ !keyword ~ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
-identifier = { raw_identifier | angled_identifier }
+identifier = { angled_identifier | raw_identifier }
 multi_word_identifier = { identifier ~ (identifier | number)* }
 
 // Extended units to support plurals as seen in test files
@@ -84,7 +84,7 @@ dosage_rule = { ("maximum single dose" | "maximum daily dose" | "minimum time be
 
 admin_block = { "administration" ~ ":" ~ NEWLINE* ~ INDENT ~ admin_rule+ ~ DEDENT }
 admin_rule = { 
-    ("form of administration is" ~ identifier) |
+    ("form of administration is" ~ (identifier | string_literal)) |
     (identifier ~ quantity ~ "after" ~ identifier)
 ~ NEWLINE* }
 

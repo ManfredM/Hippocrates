@@ -100,10 +100,7 @@ impl Evaluator {
                                      }
                                  }
 
-                                 match (&i.value, &target) {
-                                     (RuntimeValue::String(s1), RuntimeValue::String(s2)) => s1.eq_ignore_ascii_case(s2),
-                                     _ => i.value == target
-                                 }
+                                 Self::fuzzy_equals(&i.value, &target)
                              } else {
                                  true
                              }
@@ -209,7 +206,7 @@ impl Evaluator {
         match selector {
             RangeSelector::Equals(expr) => {
                 let target = Self::evaluate(env, expr);
-                value == &target
+                Self::fuzzy_equals(value, &target)
             }
             RangeSelector::Range(min, max) => {
                 let min_val = Self::evaluate(env, min).as_number();
@@ -246,7 +243,7 @@ impl Evaluator {
                      // TODO: Need recursive check ideally, but `Expression` isn't `RangeSelector`
                      // For now, treat list as list of Equals
                      let target = Self::evaluate(env, h);
-                     if value == &target {
+                     if Self::fuzzy_equals(value, &target) {
                          return true;
                      }
                  }
@@ -260,8 +257,8 @@ impl Evaluator {
                 let l_num = l_val.as_number();
                 let r_num = r_val.as_number();
                 match op {
-                    crate::ast::ConditionOperator::Equals => l_val == r_val, // Or loose equality?
-                    crate::ast::ConditionOperator::NotEquals => l_val != r_val,
+                    crate::ast::ConditionOperator::Equals => Self::fuzzy_equals(&l_val, &r_val),
+                    crate::ast::ConditionOperator::NotEquals => !Self::fuzzy_equals(&l_val, &r_val),
                     crate::ast::ConditionOperator::GreaterThan => l_num > r_num,
                     crate::ast::ConditionOperator::LessThan => l_num < r_num,
                     crate::ast::ConditionOperator::GreaterThanOrEquals => l_num >= r_num,
@@ -269,6 +266,16 @@ impl Evaluator {
                 }
             }
             RangeSelector::Default => true,
+        }
+    }
+
+    fn fuzzy_equals(v1: &RuntimeValue, v2: &RuntimeValue) -> bool {
+        match (v1, v2) {
+            (RuntimeValue::String(s1), RuntimeValue::String(s2)) => s1.eq_ignore_ascii_case(s2),
+            (RuntimeValue::Enumeration(s1), RuntimeValue::String(s2)) => s1.eq_ignore_ascii_case(s2),
+            (RuntimeValue::String(s1), RuntimeValue::Enumeration(s2)) => s1.eq_ignore_ascii_case(s2),
+            (RuntimeValue::Enumeration(s1), RuntimeValue::Enumeration(s2)) => s1.eq_ignore_ascii_case(s2),
+            _ => v1 == v2
         }
     }
 }

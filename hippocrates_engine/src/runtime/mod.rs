@@ -3,6 +3,7 @@ pub mod evaluator;
 pub mod executor;
 pub mod validator;
 pub mod scheduler;
+mod evaluator_tests;
 
 pub use environment::Environment;
 pub use evaluator::Evaluator;
