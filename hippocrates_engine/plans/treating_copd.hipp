@@ -101,7 +101,7 @@
         
 
         ask for severity of breathlessness.
-        ask for "inhaler used".
+        ask for inhaler used.
         ask for use of rescue medication.
 
         context for analysis:
