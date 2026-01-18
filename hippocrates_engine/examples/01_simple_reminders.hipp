@@ -1,4 +1,4 @@
-"daily wellness check" is a plan:
+<daily wellness check> is a plan:
     during plan:
         show message "Welcome to your wellness check.".
 

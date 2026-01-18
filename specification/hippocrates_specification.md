@@ -25,7 +25,7 @@ integer = [ "-" ], digit, { digit };
 float = integer, [ ".", digit, { digit } ];
 word = character, { character };
 string_literal = '"', { character }, '"';
-identifier = word, { " ", word }; (* Identifiers can contain spaces *)
+identifier = ( "<", { character - ">" }, ">" ) | ( word, { " ", word } );
 
 (* Basic Types *)
 percentage = ( "0" | "100" | digit, [ digit ] ), "%";
@@ -132,7 +132,7 @@ timeframe_block =
 reuse_prop = "reuse:", newline, indent, "reuse period of value is ", period_of_time, ".", dedent;
 
 (* Example: 
-"body weight" is a number:
+<body weight> is a number:
     valid values: 0 ... 200
     unit: kg
 *)
@@ -265,7 +265,7 @@ interaction_rule = "assess interaction with ", identifier, ":", newline, indent,
 #### Example (Medication)
 
 ```hippocrates
-"Paracetamol" is a drug:
+<Paracetamol> is a drug:
     ingredients:
         acetaminophen 500 mg
     dosage safety:
@@ -398,7 +398,7 @@ Before execution, the runtime validates that:
 ### 7.1. Visual Analogue Scale (VAS)
 
 ```hippocrates
-"pain level" is a number:
+<pain level> is a number:
     valid values: 0 ... 10
     question:
         ask "How severe is your pain?":
@@ -412,7 +412,7 @@ Before execution, the runtime validates that:
 ### 7.2. Filtered Calculations with Timeframes
 
 ```hippocrates
-"inhaler used in past 5 days" is a number:
+<inhaler used in past 5 days> is a number:
     calculation:
         timeframe for analysis is between 5 days ago ... now:
             value = count of inhaler used is yes.

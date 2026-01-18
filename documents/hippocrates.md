@@ -3,19 +3,28 @@ Revision | Date | Changes
 6 | 19-Aug-2014 | - Introduced definition of &lt;addressees&gt;.<br>- Introduced distinction between show and send.
 7 |  | - Changed syntax to angle brackets.
 8 | 08-Oct-2015 | - Removed angle brackets and replaced it with Python like syntax.
+9 | 18-Jan-2026 | - Re-introduced angle brackets for identifiers.
 Hippocrates examples
 Simple adherence reminder
-"simple" is a plan:
+`<simple>` is a plan:
 More complex adherence reminder with automatic extension of a period
-"infection prevention" is a plan:
+`<infection prevention>` is a plan:
 An assessment of the respiratory rate and translation into a meaning according to age
-#------------------------------------------------------------------------
-"age" is a value:
-#------------------------------------------------------------------------
-"pediatric age" ia a value:
-#------------------------------------------------------------------------
-"respiratory rate" is a value:
-#------------------------------------------------------------------------
+
+# ------------------------------------------------------------------------
+
+`<age>` is a value:
+
+# ------------------------------------------------------------------------
+
+`<pediatric age>` is a value:
+
+# ------------------------------------------------------------------------
+
+<respiratory rate> is a value:
+
+# ------------------------------------------------------------------------
+
 In a script the respiratory rate can be used as follows. There will be no need to make all the decisions that are taken within the definition of respiratory rate.
 plan:
 The principles of live
@@ -35,9 +44,9 @@ Readability is one of the primary goals of the language. Therefore, no default v
 Natural spelling. Currently no programming language exists that let programmers use spaces in either function or variable definitions or even let you you define whole sentences that have meaning. Once Hippocrates learned an expression, it can be used as in natural language (some limitations apply).
 Example(s):
 "Teaching" Hippocrates that the term "respiratory rate" is a value is as simple as this.
-&quot;respiratory rate&quot; is a value: ...
+`<respiratory rate>` is a value: ...
 Once the expression is learned, it can be used like this:
-assess respiratory rate: ...
+assess `<respiratory rate>`: ...
 Values need to come with units. Instead of having a command that says ...
 ...between (10 ... 20)...
 ...Hippocrates will require the author to write:
@@ -290,7 +299,9 @@ The range each period can take is in a range that switching to the next higher d
 past
 future
 {mathematical base operator}::
+
 +
+
 /
 ^
 Square root? could be represented as ^0.5?? (Readable?)
@@ -359,7 +370,7 @@ A vocabulary cannot be contained in another vocabulary (example: "infection" and
 Discussion:
 In theory even this problem could be addressed if Hippocrates starts identifying vocabulary from the longest expression down to the shortest expression.
 Example(s):
-&quot;diastolic blood pressure&quot; is a number...
+`<diastolic blood pressure>` is a number...
 In the script the new expression can be used without the parenthesis.
 assess diastolic blood pressure ( ...
 Defining values
@@ -400,7 +411,7 @@ assess unit >
   {{\unit assessment paragraph}}<
 {unit assessment paragraph}::
 \unit[{{; \unit}}] (
-  \unit is valid 
+  \unit is valid
   {{\unit conversion rule}}
 ).
 {unit}::
@@ -835,7 +846,9 @@ Future version
 video}
 {message text}::
 {{[\text] [{{\value|\drug|newline}}] [\text]}} |
-##{{[\HTML text] [{{\value|\drug|newline}}]
+
+## {{[\HTML text] [{{\value|\drug|newline}}]
+
   [\HTML text]}}##
 {message paragraph}::
 \message option\ |
