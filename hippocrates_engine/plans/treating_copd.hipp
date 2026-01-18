@@ -60,7 +60,7 @@
         6 ... 1000: meaning of value = "too many doses taken".
     calculation:
         timeframe for analysis is between 5 days ago ... now:
-            value = count of inhaler used is yes.
+            value = count of <inhaler used> is "Yes".
     (* reuse:
         reuse period of value is 1 day.
     *)
@@ -76,7 +76,7 @@
         5: meaning of value = "all doses taken".
         6 ... 1000: meaning of value = "too many doses taken".
     calculation:
-        value = count of inhaler used.
+        value = count of <inhaler used>.
     (* reuse:
         reuse period of value is 1 day.
     *)
@@ -100,9 +100,9 @@
             event is not finished: abort outstanding actions.
         
 
-        ask for severity of breathlessness.
-        ask for inhaler used.
-        ask for use of rescue medication.
+        ask for <severity of breathlessness>.
+        ask for <inhaler used>.
+        ask for <use of rescue medication>.
 
         context for analysis:
             assess trend of <use of rescue medication>:

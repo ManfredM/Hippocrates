@@ -56,6 +56,9 @@ struct CodeVisualizerView: NSViewRepresentable {
             
             // Numbers & Units (RED)
             ("\\b\\d+(\\.\\d+)?\\s*(°C|°F|mg|kg|g|lb|oz|ml|l|m|cm|mm|km|days|weeks|hours|minutes|seconds)?\\b", .systemRed),
+
+            // Angled Variables (CYAN)
+            ("<[^>]+>", .systemCyan),
             
             // Comments
             ("\\(\\*.*?\\*\\)", .secondaryLabelColor)
