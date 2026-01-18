@@ -461,9 +461,18 @@ fn parse_value_property(pair: pest::iterators::Pair<Rule>) -> Result<Property, P
                      Ok(Property::ValidValues(stmts))
                 },
                 Rule::inline_valid_values => {
-                     // Same logic as block
-                     // Need parse_inline...
-                     Ok(Property::ValidValues(vec![])) // Todo handle inline
+                     let selectors = parse_valid_values_block(inner_node)?; // Reuse block parser as structure is compatible (list of items)
+                     let mut stmts = Vec::new();
+                     for sel in selectors {
+                          use crate::ast::{AssessmentCase, Statement, StatementKind};
+                          stmts.push(Statement {
+                              kind: StatementKind::EventProgression("value".to_string(), vec![
+                                  AssessmentCase { condition: sel, block: vec![] }
+                              ]),
+                              line: 0,
+                          });
+                     }
+                     Ok(Property::ValidValues(stmts))
                 },
                 _ => {
                     // Flexible block (block_body) -> Statements
@@ -694,18 +703,10 @@ fn parse_statement(pair: pest::iterators::Pair<Rule>) -> Result<Statement, Parse
              StatementKind::ContextBlock(ContextBlock { items, statements })
         },
         Rule::event_progression => {
-             let mut e_inner = inner.into_inner();
-             let ident_pair = e_inner.next().unwrap();
-             let ident = if ident_pair.as_rule() == Rule::multi_word_identifier {
-                 parse_multi_word_identifier(ident_pair)
-             } else if ident_pair.as_rule() == Rule::string_literal {
-                 parse_string_literal(ident_pair)
-             } else {
-                 parse_identifier_str(ident_pair)
-             };
-             
-             let cases = parse_assessment_cases(e_inner)?;
-             StatementKind::EventProgression(ident, cases)
+             // "assess event progression" has no variable target in grammar (it's a literal string in rule)
+             // So inner parts are just cases.
+             let cases = parse_assessment_cases(inner.into_inner())?;
+             StatementKind::EventProgression("event progression".to_string(), cases)
         },
         Rule::documentation_prop => {
             StatementKind::Command("Documentation".to_string())

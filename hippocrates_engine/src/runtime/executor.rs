@@ -1,8 +1,9 @@
 use crate::runtime::{Environment, Evaluator, scheduler::Scheduler};
 use crate::ast::{Statement, StatementKind, Action, Block};
 use crate::domain::Unit;
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, HashMap};
 use std::cmp::Ordering;
+use rand::Rng;
 
 #[derive(Debug, Clone)]
 struct ScheduledEvent {
@@ -424,6 +425,79 @@ impl Executor {
                 let msg = format!("Action: Ask Question '{}'", q);
                 env.log(msg.clone());
                 self.emit_log(msg, env.now);
+
+                if let ExecutionMode::Simulation(_) = self.mode {
+                    // Find definition for 'q' (subject) to determine valid values
+                    let defs = env.definitions.clone(); // Borrow check workaround
+                    if let Some(crate::ast::Definition::Value(val_def)) = defs.get(q) {
+                        let mut candidates = Vec::new();
+                        let mut ranges = Vec::new();
+
+                        for prop in &val_def.properties {
+                             if let crate::ast::Property::ValidValues(stmts) = prop {
+                                 for stmt in stmts {
+                                     if let StatementKind::EventProgression(_, cases) = &stmt.kind {
+                                         for case in cases {
+                                              match &case.condition {
+                                                  crate::ast::RangeSelector::Equals(expr) => {
+                                                      let v = Evaluator::evaluate(env, expr);
+                                                      candidates.push(v);
+                                                  },
+                                                  crate::ast::RangeSelector::Range(min, max) => {
+                                                       let min_v = Evaluator::evaluate(env, min);
+                                                       let max_v = Evaluator::evaluate(env, max);
+                                                       if let (crate::domain::RuntimeValue::Number(mn), crate::domain::RuntimeValue::Number(mx)) = (min_v, max_v) {
+                                                           ranges.push((mn, mx));
+                                                       }
+                                                  },
+                                                  _ => {}
+                                              }
+                                         }
+                                     }
+                                 }
+                             }
+                        }
+
+                        let mut rng = rand::rng();
+                        let val = if !candidates.is_empty() {
+                            let idx = rng.random_range(0..candidates.len());
+                            Some(candidates[idx].clone())
+                        } else if !ranges.is_empty() {
+                             let idx = rng.random_range(0..ranges.len());
+                             let (min, max) = ranges[idx];
+                             // Generate random number. integer or float?
+                             // Hippocrates usually implies integer steps if range defined as 0...5?
+                             // But it's f64.
+                             // Let's assume integer if min/max are effectively integers? 
+                             // Or just generate float.
+                             // If I pick 3.5 for 0...5, will it match "3" or "4"?
+                             // My comparisons are strict equality (epsilon) or range.
+                             // For Likert scale (1,2,3,4,5), usually integers expected.
+                             // If ValidValues was parsed from "0...5", it's a range.
+                             // ValidValues: 0, 1, 2...
+                             // The parser parses "0...5" as Range(0, 5).
+                             // I'll round to integer for now to be safe with matchers?
+                             // Or use random_range(min..=max) if I implement integer.
+                             // Let's use integer casting for simulation niceness.
+                             let start = min as i64;
+                             let end = max as i64;
+                             if start <= end {
+                                 let r = rng.random_range(start..=end);
+                                 Some(crate::domain::RuntimeValue::Number(r as f64))
+                             } else {
+                                 Some(crate::domain::RuntimeValue::Number(min))
+                             }
+                        } else {
+                            None
+                        };
+
+                        if let Some(v) = val {
+                            env.log(format!("Simulation: Answering '{}' with {:?}", q, v));
+                            self.emit_log(format!("Simulation Answer: {:?}", v), env.now);
+                            env.set_value(q, v);
+                        }
+                    }
+                }
             }
             Action::SendInfo(msg_text, vars) => {
                  let vals: Vec<String> = vars.iter().map(|e| format!("{:?}", Evaluator::evaluate(env, e))).collect();
