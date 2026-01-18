@@ -42,6 +42,11 @@
         english: "This value records if the inhaler was used.".
     valid values:
         "Yes"; "No"
+    question:
+        ask "Did you use your inhaler today?":
+            validate answer once.
+            question expires after 1 hour.
+            style of question is "Yes/No".
 
 "inhaler used in past 5 days" is a number:
     valid values: 0 ... 1000
@@ -96,6 +101,7 @@
         
 
         ask for severity of breathlessness.
+        ask for "inhaler used".
         ask for use of rescue medication.
 
         context for analysis:
