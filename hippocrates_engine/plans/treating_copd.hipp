@@ -1,18 +1,18 @@
-"best inhalation period" is a period:
+<best inhalation period> is a period:
     timeframe:
         between Monday ... Friday; 07:40 ... 07:50
         between Saturday ... Sunday; 09:00 ... 09:10
     customization:
         begin of best inhalation period can be customized together for all occurrences.
 
-"fill in evening report" is a period:
+<fill in evening report> is a period:
     timeframe:
         between Monday ... Friday; 18:30 ... 18:45
         between Saturday ... Sunday; 19:45 ... 20:00
     customization:
         begin of fill in evening report can be customized together for all occurrences.
 
-"severity of breathlessness" is a number:
+<severity of breathlessness> is a number:
     valid values: 0 ... 5
     meaning:
         1: meaning of value = "Not at all". best value.
@@ -26,7 +26,7 @@
             question expires after 1 hour.
             style of question is Likert scale.
 
-"use of rescue medication" is a number:
+<use of rescue medication> is a number:
     valid values: 0 ... 10
     question:
         ask "How severe was your breathlessness over the past 24 hours":
@@ -37,7 +37,7 @@
                 worst value is 10:
                     text for worst value is "Continuous and severe breathlessness within last 24 hours".
 
-"inhaler used" is an enumeration:
+<inhaler used> is an enumeration:
     documentation:
         english: "This value records if the inhaler was used.".
     valid values:
@@ -46,9 +46,9 @@
         ask "Did you use your inhaler today?":
             validate answer once.
             question expires after 1 hour.
-            style of question is "Yes/No".
+            style of question is <Yes/No>.
 
-"inhaler used in past 5 days" is a number:
+<inhaler used in past 5 days> is a number:
     valid values: 0 ... 1000
     meaning:
         0: meaning of value = "all doses missed".
@@ -65,7 +65,7 @@
         reuse period of value is 1 day.
     *)
 
-"inhaler used in past 5 days on time" is a number:
+<inhaler used in past 5 days on time> is a number:
     valid values: 0 ... 1000
     meaning:
         0: meaning of value = "all doses missed".
@@ -81,18 +81,18 @@
         reuse period of value is 1 day.
     *)
 
-"COPD telehealth" is a plan:
+<COPD telehealth> is a plan:
     during plan:
-        "log" = "Plan started".
+        <log> = "Plan started".
 
-    "inhalation" with begin of best inhalation period:
+    <inhalation> with begin of best inhalation period:
         documentation:
             english: "At the beginning of the inhalation period we show a reminder...".
         
         show message to patient "It's the best time of the day to take your daily shot now":
             message expires after best inhalation period.
 
-    "reporting" with begin of fill in evening report:
+    <reporting> with begin of fill in evening report:
         documentation:
             english: "Ask for the daily reporting...".
         
@@ -105,20 +105,20 @@
         ask for use of rescue medication.
 
         context for analysis:
-            assess trend of "use of rescue medication":
+            assess trend of <use of rescue medication>:
                 "increase":
                     show message to physician "Alert: usage of rescue meds is increasing!".
                 "stable"; "decrease":
-                    "log" = "Rescue medication usage is stable or decreasing.".
+                    <log> = "Rescue medication usage is stable or decreasing.".
 
 
 
-        assess "inhaler used in past 5 days on time":
+        assess <inhaler used in past 5 days on time>:
             4; 5:
                 show message to patient "You are doing a great job in using the inhaler right on time".
             
             0 ... 3; 6 ... 1000:
-                assess "inhaler used in past 5 days":
+                assess <inhaler used in past 5 days>:
                     0:
                         show message to patient "Not using a medication does not lead to improvement!".
                     1 ... 2:

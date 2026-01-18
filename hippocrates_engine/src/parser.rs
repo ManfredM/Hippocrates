@@ -803,9 +803,21 @@ fn parse_show_message(pairs: pest::iterators::Pairs<Rule>) -> Result<Action, Par
                  statements.push(parse_statement(p)?);
             },
             Rule::string_literal => {
-                 // Convert to Expression::Literal
-                 let s = p.as_str().trim_matches('"').to_string();
-                 message_parts.push(Expression::Literal(Literal::String(s)));
+                 // Handle interpolation
+                 let inner = p.into_inner();
+                 for part in inner {
+                     match part.as_rule() {
+                         Rule::text_chunk => {
+                             let s = part.as_str().to_string();
+                             message_parts.push(Expression::Literal(Literal::String(s)));
+                         },
+                         Rule::angled_identifier => {
+                             let name = parse_identifier_str(part);
+                             message_parts.push(Expression::Variable(name));
+                         },
+                         _ => {}
+                     }
+                 }
             },
             _ => {} // Ignore keywords or unknown tokens if any
         }
@@ -871,14 +883,18 @@ fn parse_identifier_str(pair: pest::iterators::Pair<Rule>) -> String {
     if pair.as_rule() == Rule::identifier {
         let inner = pair.into_inner().next().unwrap();
         match inner.as_rule() {
-            Rule::string_literal => inner.as_str().trim_matches('"').to_string(),
+            Rule::angled_identifier => {
+                let s = inner.as_str();
+                s[1..s.len()-1].to_string()
+            },
             Rule::raw_identifier => inner.as_str().to_string(),
             _ => inner.as_str().to_string(),
         }
     } else if pair.as_rule() == Rule::raw_identifier {
         pair.as_str().to_string()
-    } else if pair.as_rule() == Rule::string_literal {
-        pair.as_str().trim_matches('"').to_string()
+    } else if pair.as_rule() == Rule::angled_identifier {
+        let s = pair.as_str();
+        s[1..s.len()-1].to_string()
     } else {
         pair.as_str().to_string()
     }

@@ -184,6 +184,24 @@ impl Evaluator {
                  }
                  _ => RuntimeValue::Number(0.0), // Stub for others
             }
+            Expression::FunctionCall(_, _) => RuntimeValue::Void,
+            Expression::InterpolatedString(parts) => {
+                 let mut result = String::new();
+                 for part in parts {
+                     let val = Self::evaluate(env, part);
+                     match val {
+                         RuntimeValue::String(s) => result.push_str(&s),
+                         RuntimeValue::Number(n) => result.push_str(&n.to_string()),
+                         RuntimeValue::Quantity(q, u) => result.push_str(&format!("{} {:?}", q, u)),
+                         RuntimeValue::Date(d) => result.push_str(&d.to_string()),
+                         RuntimeValue::Boolean(b) => result.push_str(&b.to_string()),
+                         RuntimeValue::Enumeration(e) => result.push_str(&e),
+                         RuntimeValue::List(l) => result.push_str(&format!("{:?}", l)), // Debug format for now
+                         RuntimeValue::Void => {},
+                     }
+                 }
+                 RuntimeValue::String(result)
+            }
         }
     }
 

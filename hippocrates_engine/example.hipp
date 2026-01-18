@@ -1,10 +1,10 @@
-"body weight" is a number:
+<body weight> is a number:
     valid values: 0 ... 200
     unit: kg
 
 patient_age is a number.
 
-treatment is a plan:
+<treatment> is a plan:
     during plan:
-        "body weight" = 75 kg.
+        <body weight> = 75 kg.
         show message "Patient weight recorded".

@@ -10,10 +10,17 @@ float = @{ integer ~ "." ~ ASCII_DIGIT+ }
 number = @{ float | integer }
 time_literal = @{ ASCII_DIGIT{1,2} ~ ":" ~ ASCII_DIGIT{2} }
 
-string_literal = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+// string_literal = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
+// New string literal supporting interpolation
+string_literal = ${ "\"" ~ string_content ~ "\"" }
+string_content = _{ (angled_identifier | text_chunk)* }
+text_chunk = @{ (!"\"" ~ !"<" ~ ANY)+ }
+
+angled_identifier = @{ "<" ~ (!">" ~ ANY)+ ~ ">" }
+
 keyword = @{ "is" | "during" | "between" | "with" | "begin" | "every" | "after" | "assess" | "for" | "question" | "style" }
 raw_identifier = @{ !keyword ~ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
-identifier = { raw_identifier | string_literal }
+identifier = { raw_identifier | angled_identifier }
 multi_word_identifier = { identifier ~ (identifier | number)* }
 
 // Extended units to support plurals as seen in test files
@@ -152,7 +159,7 @@ flexible_block = _{ (":" ~ NEWLINE* ~ INDENT ~ block_body ~ DEDENT) | (":" ~ blo
 block_body = { statement+ }
 
 during_plan_block = { "during plan" ~ flexible_block }
-event_block = { string_literal ~ "with" ~ event_trigger ~ flexible_block } 
+event_block = { identifier ~ "with" ~ event_trigger ~ flexible_block } 
 trigger_block = { event_trigger ~ flexible_block }
 
 event_trigger = {
