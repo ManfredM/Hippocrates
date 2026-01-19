@@ -24,12 +24,13 @@ struct ContentView: View {
     @EnvironmentObject var appState: AppState
     
     @State private var parseStatus: String = "Ready"
-    @State private var isError: Bool = false
+    @State private var currentErrors: [HippocratesParser.EngineError] = []
     @State private var simulationDays: Int = 30
     
     func runPlan(simulate: Bool) {
         let code = appState.planCode
         parseStatus = simulate ? "Simulating..." : "Running..."
+        currentErrors = []
         
         // Clear log file on new run
         try? FileManager.default.removeItem(atPath: "/tmp/hippocrates_debug.log")
@@ -48,6 +49,23 @@ struct ContentView: View {
                         break
                     }
                 }
+                
+                // 2. Validate (Semantics) - Multi-error
+                let validationErrors = HippocratesParser.validate(input: code)
+                if !validationErrors.isEmpty {
+                    DispatchQueue.main.async {
+                        self.parseStatus = "Validation Failed: \(validationErrors.count) error(s)"
+                        self.currentErrors = validationErrors
+                    }
+                    return // Stop if invalid
+                }
+                
+            } else if case .failure(let error) = parseResult {
+                DispatchQueue.main.async {
+                    self.parseStatus = "Syntax Error: \(error.message)"
+                    self.currentErrors = [error]
+                }
+                return
             }
             
             DispatchQueue.main.async {
@@ -204,24 +222,36 @@ struct ContentView: View {
                 .padding(.horizontal)
                 .padding(.top)
                 
-                CodeVisualizerView(code: appState.planCode, highlightedLine: appState.currentExecutionLine)
+                CodeVisualizerView(code: appState.planCode, highlightedLine: appState.currentExecutionLine, errors: currentErrors)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color(nsColor: .textBackgroundColor))
                     .onChange(of: appState.planCode, initial: true) { _, newValue in
+                         // Live Syntax Check
                          let result = HippocratesParser.parse(input: newValue)
                          switch result {
                          case .success(let plan):
-                             parseStatus = "Valid Plan: \(plan.definitions.count) definitions"
-                             isError = false
+                             parseStatus = "Parsing OK"
+                             currentErrors = []
+                             
+                             // Live Validation
+                             let validationErrors = HippocratesParser.validate(input: newValue)
+                             if !validationErrors.isEmpty {
+                                 parseStatus = "Validation Failed: \(validationErrors.count) error(s)"
+                                 currentErrors = validationErrors
+                             } else {
+                                 parseStatus = "Valid Syntax: \(plan.definitions.count) definitions"
+                                 currentErrors = []
+                             }
+                             
                          case .failure(let error):
-                             parseStatus = "Error: \(error.localizedDescription)"
-                             isError = true
+                             parseStatus = "Syntax Error: \(error.message)"
+                             currentErrors = [error]
                          }
                     }
                 
                 Text(parseStatus)
                     .font(.caption)
-                    .foregroundStyle(isError ? .red : .green)
+                    .foregroundStyle(currentErrors.isEmpty ? .green : .red)
                     .padding()
             }
             .layoutPriority(1)
@@ -271,11 +301,21 @@ struct QuestionSheetView: View {
     @State private var textInput: String = ""
     @State private var errorMessage: String?
     
+    // Double-entry validation state
+    @State private var previousValue: String?
+    @State private var confirmationMode: Bool = false
+    
     var body: some View {
         VStack(spacing: 20) {
-            Text(question.question_text)
+            Text(confirmationMode ? "Please confirm your answer" : question.question_text)
                 .font(.headline)
                 .multilineTextAlignment(.center)
+            
+            if confirmationMode {
+                Text("(Enter value again)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             
             switch question.style {
             case .Text:
@@ -285,9 +325,13 @@ struct QuestionSheetView: View {
                     .onChange(of: textInput) { _, _ in errorMessage = nil }
                     
             case .Selection:
+                // Selection doesn't support 'Twice' easily in this UI pattern without clearing buttons?
+                // Or maybe clicking same button twice?
+                // For now, let's assume 'Twice' is primarily for typed input.
+                // If Selection has Twice, we could ask user to click, then clear, then ask "Confirm".
                 ForEach(question.options, id: \.self) { option in
                     Button(option) {
-                        onAnswer(option)
+                        handleSelection(option)
                     }
                     .controlSize(.large)
                 }
@@ -312,7 +356,7 @@ struct QuestionSheetView: View {
             }
             
             if question.style == .Text || question.style == .Numeric {
-                Button("Submit") {
+                Button(confirmationMode ? "Confirm" : "Submit") {
                     validateAndSubmit()
                 }
                 .keyboardShortcut(.defaultAction)
@@ -323,7 +367,29 @@ struct QuestionSheetView: View {
         .frame(minWidth: 300, minHeight: 200)
     }
     
+    func handleSelection(_ value: String) {
+        if question.validation_mode == .Twice {
+            if confirmationMode {
+                if value == previousValue {
+                    onAnswer(value)
+                } else {
+                    errorMessage = "Value mismatch! Please try again."
+                    confirmationMode = false
+                    previousValue = nil
+                }
+            } else {
+                previousValue = value
+                confirmationMode = true
+                errorMessage = nil 
+                // Visual feedback?
+            }
+        } else {
+            onAnswer(value)
+        }
+    }
+    
     func validateAndSubmit() {
+        // 1. Basic Type/Range Validation
         if question.style == .Numeric {
             if let value = Double(textInput) {
                 if let range = question.range, range.count >= 2 {
@@ -334,10 +400,30 @@ struct QuestionSheetView: View {
                         return
                     }
                 }
-                onAnswer(textInput)
             } else {
                 errorMessage = "Please enter a valid number"
+                return
             }
+        }
+        
+        // 2. Double Entry Logic
+        if question.validation_mode == .Twice {
+             if confirmationMode {
+                 if textInput == previousValue {
+                     onAnswer(textInput)
+                 } else {
+                     errorMessage = "Values do not match. Please start over."
+                     confirmationMode = false
+                     previousValue = nil
+                     textInput = ""
+                 }
+             } else {
+                 previousValue = textInput
+                 confirmationMode = true
+                 textInput = ""
+                 errorMessage = nil
+                 // Maybe focus field again? Swift UI automatically keeps focus usually.
+             }
         } else {
             onAnswer(textInput)
         }

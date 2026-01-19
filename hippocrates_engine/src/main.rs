@@ -18,20 +18,22 @@ fn main() {
         Ok(plan) => {
             println!("Plan parsed successfully!");
             println!("Definitions: {}", plan.definitions.len());
-            // Validate plan constraints
-            if let Err(e) = hippocrates_engine::runtime::validator::validate_file(&plan) {
-                eprintln!("Validation Error: {}", e);
+            if let Err(errors) = hippocrates_engine::runtime::validator::validate_file(&plan) {
+                for e in errors {
+                    eprintln!("Validation Error: {}", e);
+                }
                 std::process::exit(1);
             }
             println!("Plan validated successfully.");
 
             let mut engine = Engine::new();
             if args.contains(&"--sim".to_string()) {
-                println!("Running in Simulation Mode (5 days)");
+                println!("Running in Simulation Mode (5 days, timelapse)");
                 engine.set_mode(
-                    hippocrates_engine::runtime::executor::ExecutionMode::Simulation(
-                        std::time::Duration::from_secs(5 * 86400),
-                    ),
+                    hippocrates_engine::runtime::executor::ExecutionMode::Simulation {
+                        speed_factor: None, 
+                        duration: None,
+                    },
                 );
             }
 

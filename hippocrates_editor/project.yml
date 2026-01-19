@@ -8,6 +8,8 @@ targets:
     deploymentTarget: "26.0"
     sources:
       - path: Sources/HippocratesEditor
+    dependencies:
+      - target: CHippocratesEngine
     settings:
       SWIFT_OBJC_BRIDGING_HEADER: Sources/HippocratesEditor/HippocratesEditor-Bridging-Header.h
       HEADER_SEARCH_PATHS: 

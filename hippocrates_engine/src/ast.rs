@@ -159,6 +159,7 @@ pub enum StatementKind {
     ContextBlock(ContextBlock),
     EventProgression(String, Vec<AssessmentCase>),
     Command(String),
+    Constraint(Expression, String, RangeSelector),
     NoOp,
 }
 
@@ -178,6 +179,7 @@ pub enum Action {
     StartPeriod,
     Configure(String),
     MessageExpiration(RangeSelector),
+    ValidateAnswer(crate::domain::ValidationMode, Option<(f64, Unit)>),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -202,6 +204,7 @@ pub struct ContextBlock {
 pub struct AssessmentCase {
     pub condition: RangeSelector,
     pub block: Block,
+    pub line: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -257,9 +260,9 @@ pub enum StatisticalFunc {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Literal {
-    Number(f64),
+    Number(f64, Option<usize>),
     String(String),
-    Quantity(f64, Unit),
+    Quantity(f64, Unit, Option<usize>),
     TimeOfDay(String), // Simplification for now
     Date(String),
 }

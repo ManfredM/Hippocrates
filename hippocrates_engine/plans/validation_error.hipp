@@ -1,0 +1,9 @@
+<val> is a number:
+    valid values: 0 ... 10
+
+<plan> is a plan:
+    during plan:
+        assess <val>:
+            0 ... 5:
+                show message "Lower half covered".
+            (* Error: Missing coverage for 5 ... 10 *)

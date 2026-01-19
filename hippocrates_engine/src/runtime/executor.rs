@@ -346,6 +346,11 @@ impl Executor {
             StatementKind::Command(cmd) => {
                 env.log(format!("Command: {}", cmd));
             }
+            StatementKind::Constraint(expr, op, sel) => {
+                 // For now, constraints are declarative and enforced by validator or specific logic (like ValidValues)
+                 // Just log for debugging
+                 env.log(format!("Constraint: {:?} {} {:?}", expr, op, sel));
+            }
             StatementKind::NoOp => {}
             StatementKind::EventProgression(target_name, cases) => {
                 let val = if let Some(v) = env.get_value(target_name) {
@@ -538,6 +543,60 @@ impl Executor {
                 env.log(msg.clone());
                 self.emit_log(question_text.clone(), crate::domain::EventType::Question, env.now);
 
+                let mut validation_mode = None;
+                let mut validation_timeout = None;
+
+                // Inspect Action Block for Validation
+                if let Action::AskQuestion(_, Some(block)) = action {
+                     for stmt in block {
+                         if let StatementKind::Action(Action::ValidateAnswer(mode, timeout)) = &stmt.kind {
+                             validation_mode = Some(mode.clone());
+                             if let Some((val, unit)) = timeout {
+                                 let secs = match unit {
+                                     Unit::Second => *val,
+                                     Unit::Minute => *val * 60.0,
+                                     _ => *val, // Default logic
+                                 };
+                                 validation_timeout = Some(secs as i64);
+                             }
+                         }
+                     }
+                }
+
+                // Look for block in definition if not in action?
+                // The current Action extraction in executor.rs (line 453) matches keys.
+                // We need to match the action correctly at line 453.
+                // The match currently is: Action::AskQuestion(q, _)
+                // We should capture the second arg: Action::AskQuestion(q, block_opt)
+                
+                // Let's refine the replacement to be correct in context.
+                // We need to look at how we matched `action` in `execute_action`.
+                // It was `match action { Action::AskQuestion(q, _) => ...`
+                
+                // We need to access `block_opt` from `action`. 
+                // Since we are inside the match branch, we can't easily re-match `action` binding unless we use it.
+                // But `action` is `&Action`.
+                
+                // Let's execute logic.
+                
+                if let Action::AskQuestion(_, Some(stmts)) = action {
+                     for stmt in stmts {
+                          if let StatementKind::Action(Action::ValidateAnswer(mode, timeout)) = &stmt.kind {
+                              validation_mode = Some(mode.clone());
+                              if let Some((val, unit)) = timeout {
+                                   let secs = match unit {
+                                     Unit::Second => *val,
+                                     Unit::Minute => *val * 60.0,
+                                     _ => *val,
+                                   };
+                                   validation_timeout = Some(secs as i64);
+                              }
+                          }
+                     }
+                }
+
+                // ... (existing logic) ...
+
                 // Fire Callback
                 if let Some(cb) = &self.on_ask {
                     let req = crate::domain::AskRequest {
@@ -546,6 +605,8 @@ impl Executor {
                         style: style.clone(),
                         options: options.clone(),
                         range,
+                        validation_mode,
+                        validation_timeout,
                         timestamp: env.now.timestamp_millis(),
                     };
                     cb(req);
@@ -553,7 +614,7 @@ impl Executor {
 
                 // Wait for answer via Channel
                 // We take the receiver out to satisfy borrow checker when calling check_triggers (which needs &mut self)
-                let mut rx_opt = self.input_receiver.take();
+                let rx_opt = self.input_receiver.take();
                 
                 if let Some(rx) = &rx_opt {
                     env.log(format!("Waiting for answer to '{}'...", q));

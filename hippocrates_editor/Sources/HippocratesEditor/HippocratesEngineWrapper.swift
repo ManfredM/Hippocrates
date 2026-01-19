@@ -2,9 +2,20 @@ import Foundation
 
 struct HippocratesParser {
     
+    struct EngineError: Decodable, Identifiable, Error, LocalizedError {
+        var id: String { message }
+        let message: String
+        let line: Int
+        let column: Int
+        
+        var errorDescription: String? {
+            return message
+        }
+    }
+
     struct ParseResult: Decodable {
         let Ok: Plan?
-        let Err: String?
+        let Err: EngineError?
     }
     
     // Simplistic Plan model for now, expanded as needed for visualization
@@ -28,17 +39,17 @@ struct HippocratesParser {
         // let blocks: ...
     }
     
-    static func parse(input: String) -> Result<Plan, Error> {
+    static func parse(input: String) -> Result<Plan, EngineError> {
         // Convert Swift String to C String
         guard let cString = input.cString(using: .utf8) else {
-            return .failure(NSError(domain: "HippocratesEngine", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid UTF-8 input"]))
+            return .failure(EngineError(message: "Invalid UTF-8 input", line: 0, column: 0))
         }
         
         // Call Rust
         let resultPtr = hippocrates_parse_json(cString)
         
         guard let resultPtr = resultPtr else {
-            return .failure(NSError(domain: "HippocratesEngine", code: 2, userInfo: [NSLocalizedDescriptionKey: "Received null pointer from engine"]))
+            return .failure(EngineError(message: "Received null pointer from engine", line: 0, column: 0))
         }
         
         defer {
@@ -50,7 +61,7 @@ struct HippocratesParser {
         
         // Decode JSON
         guard let data = resultString.data(using: String.Encoding.utf8) else {
-             return .failure(NSError(domain: "HippocratesEngine", code: 3, userInfo: [NSLocalizedDescriptionKey: "Invalid UTF-8 output"]))
+             return .failure(EngineError(message: "Invalid UTF-8 output", line: 0, column: 0))
         }
         
         do {
@@ -58,14 +69,36 @@ struct HippocratesParser {
             if let plan = result.Ok {
                 return .success(plan)
             } else if let err = result.Err {
-                return .failure(NSError(domain: "HippocratesEngine", code: 4, userInfo: [NSLocalizedDescriptionKey: err]))
+                return .failure(err)
             } else {
-                 return .failure(NSError(domain: "HippocratesEngine", code: 5, userInfo: [NSLocalizedDescriptionKey: "Unknown result format"]))
+                 return .failure(EngineError(message: "Unknown result format", line: 0, column: 0))
             }
         } catch {
-            return .failure(error)
+            return .failure(EngineError(message: "JSON Decode Error: \(error.localizedDescription)", line: 0, column: 0))
         }
     }
+
+    static func validate(input: String) -> [EngineError] {
+        guard let cString = input.cString(using: .utf8) else {
+             return [EngineError(message: "Invalid UTF-8", line: 0, column: 0)]
+        }
+        let count = hippocrates_validate_file(cString)
+        if count == 0 { return [] }
+        
+        var errors = [EngineError]()
+        for i in 0..<count {
+            if let ptr = hippocrates_get_error(Int32(i)) {
+                 defer { hippocrates_free_string(ptr) }
+                 let jsonStr = String(cString: ptr)
+                 if let data = jsonStr.data(using: String.Encoding.utf8),
+                    let err = try? JSONDecoder().decode(EngineError.self, from: data) {
+                     errors.append(err)
+                 }
+            }
+        }
+        return errors
+    }
+
     static func prepareEngine(_ source: String, simulate: Bool = false, simulationDays: Int = 30, onStep: @escaping (Int) -> Void, onLog: @escaping (String, Int, Date) -> Void, onAsk: @escaping (AskRequest) -> Void) -> HippocratesEngine? {
         let engine = HippocratesEngine()
         
@@ -128,6 +161,11 @@ enum QuestionStyle: Decodable, Equatable {
     }
 }
 
+enum ValidationMode: String, Decodable {
+    case Once
+    case Twice
+}
+
 struct AskRequest: Decodable, Identifiable {
     var id: String { variable_name }
     let variable_name: String
@@ -135,6 +173,8 @@ struct AskRequest: Decodable, Identifiable {
     let style: QuestionStyle
     let options: [String]
     let range: [Double]?
+    let validation_mode: ValidationMode?
+    let validation_timeout: Int64?
     let timestamp: Int64
 }
 
@@ -195,7 +235,17 @@ class HippocratesEngine {
     
     func load(source: String) -> Bool {
         guard let ctx = ctx, let cSource = source.cString(using: .utf8) else { return false }
-        return hippocrates_engine_load(ctx, cSource) == 0
+        
+        let resultPtr = hippocrates_engine_load(ctx, cSource)
+        guard let ptr = resultPtr else { return false }
+        defer { hippocrates_free_string(ptr) }
+        
+        let jsonStr = String(cString: ptr)
+        // We can check if it starts with {"Ok"
+        if jsonStr.contains("\"Ok\"") {
+            return true
+        }
+        return false
     }
     
     func setSimulationMode(days: Int = 30) {

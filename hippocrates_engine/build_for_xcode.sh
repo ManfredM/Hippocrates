@@ -18,21 +18,34 @@ PROJECT_ROOT="$SCRIPT_DIR/.."
 RUST_PROJECT_DIR="$PROJECT_ROOT/hippocrates_engine"
 
 # Editor Libs Path (where Xcode expects to find the library)
+# Editor Libs Path (where Xcode expects to find the library)
 EDITOR_LIBS_DIR="$PROJECT_ROOT/hippocrates_editor/lib"
+# Header Include Path (where Xcode expects headers)
+EDITOR_INCLUDE_DIR="$PROJECT_ROOT/hippocrates_editor/Sources/CHippocratesEngine/include"
 
 echo "Building Rust engine..."
 cd "$RUST_PROJECT_DIR"
 
-# Build for the target architecture (x86_64 or arm64 depending on Xcode build, 
-# but for now we let cargo decide based on the current machine or force universal if needed)
-# Simply running cargo build --release handles the current arch.
-cargo build --release
+# Determine Build Profile based on Xcode CONFIGURATION
+if [ "$CONFIGURATION" = "Debug" ]; then
+    echo "Building for Debug..."
+    cargo build
+    TARGET_DIR="debug"
+else
+    echo "Building for Release..."
+    cargo build --release
+    TARGET_DIR="release"
+fi
 
-# Ensure destination exists
+# Ensure destinations exist
 mkdir -p "$EDITOR_LIBS_DIR"
+mkdir -p "$EDITOR_INCLUDE_DIR"
 
-# Copy library and header
-cp "$RUST_PROJECT_DIR/target/release/libhippocrates_engine.a" "$EDITOR_LIBS_DIR/"
+# Copy library
+cp "$RUST_PROJECT_DIR/target/$TARGET_DIR/libhippocrates_engine.a" "$EDITOR_LIBS_DIR/"
+
+# Copy header to both locations to be safe (lib for search paths, include for target reference)
 cp "$RUST_PROJECT_DIR/include/hippocrates_engine.h" "$EDITOR_LIBS_DIR/"
+cp "$RUST_PROJECT_DIR/include/hippocrates_engine.h" "$EDITOR_INCLUDE_DIR/"
 
-echo "Rust engine built and copied to $EDITOR_LIBS_DIR"
+echo "Rust engine built ($TARGET_DIR) and copied to $EDITOR_LIBS_DIR and $EDITOR_INCLUDE_DIR"

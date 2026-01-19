@@ -39,7 +39,10 @@ temperature_unit = "°F" | "°C";
 weight_unit = "mg" | "g" | "kg" | "lb" | "oz";
 length_unit = "m" | "cm" | "mm" | "km" | "inch" | "foot" | "mile";
 volume_unit = "l" | "ml" | "fl oz" | "gal";
-unit = temperature_unit | weight_unit | length_unit | volume_unit | time_unit;
+unit = temperature_unit | weight_unit | length_unit | volume_unit | time_unit | identifier; (* Custom units allowed, auto-normalized to singular form *)
+number = integer | float;
+(* Precision Rule: Ranges like 0 ... 10 imply integer steps; 0.0 ... 10.0 imply float steps *)
+quantity = number, [ " " ], unit;
 ```
 
 ### 3.2. Program Structure
@@ -108,18 +111,17 @@ question_prop = "question:", newline, indent, ask_question_block, dedent;
 ask_question_block = 
     ask_question_statement, 
     [ "question expires after ", period_of_time, [ ":", newline, indent, block, dedent ] ],
-    [ "validate answer ", ("once" | "twice"), [ ":", newline, indent, block, dedent ] ],
-    [ "validate answer ", ("once" | "twice"), [ ":", newline, indent, block, dedent ] ],
+    [ "validate answer ", ("once" | "twice"), [ " within ", period_of_time ], [ ":", newline, indent, block, dedent ] ],
     [ "type of question is ", string_literal, "." ],
     [ "style of question is ", identifier, "." ],
     [ "question style is visual analogue scale:", newline, indent, vas_block, dedent ];
 
 vas_block = 
-    ( "best value is ", number, ":", newline, indent, "text for best value is ", string_literal, ".", dedent ),
-    ( "worst value is ", number, ":", newline, indent, "text for worst value is ", string_literal, ".", dedent );
+    ( "best value is ", ( number | quantity ), ":", newline, indent, "text for best value is ", string_literal, ".", dedent ),
+    ( "worst value is ", ( number | quantity ), ":", newline, indent, "text for worst value is ", string_literal, ".", dedent );
 
 
-question_style = "Likert" | "visual analogue scale" | "selection" | "direct input";
+question_style = "Likert" | "visual analogue scale" | "selection" | "text" | "number" | "date";
 
 valid_values_prop = "valid values: ", { range_selector };
 
@@ -133,8 +135,8 @@ reuse_prop = "reuse:", newline, indent, "reuse period of value is ", period_of_t
 
 (* Example: 
 <body weight> is a number:
-    valid values: 0 ... 200
-    unit: kg
+    valid values: 0 kg ... 200 kg
+
 *)
 ```
 
@@ -346,6 +348,13 @@ The runtime natively understands and automatically converts between units within
 * **Temperature**: °C, °F
 
 The runtime MUST ensure that values compared or assigned have compatible units (belong to the same group). Conversions (e.g., `lb` to `kg`) are performed automatically.
+
+#### Unit Normalization
+
+For custom units (e.g., `points`, `tablets`), the runtime automatically normalizes plural forms to singular.
+
+* "10 points" becomes value `10` with unit `point`.
+* Checks for literal equality ignore pluralization differences.
 
 ### 4.2. Confidence and History
 

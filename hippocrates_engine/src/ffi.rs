@@ -2,7 +2,7 @@ use crate::parser::parse_plan;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int};
 
-/// Parses a Hippocrates plan string and returns the AST as a JSON string.
+// Parses a Hippocrates plan string and returns the AST as a JSON string.
 /// The returned string must be freed using `hippocrates_free_string`.
 #[unsafe(no_mangle)]
 pub extern "C" fn hippocrates_parse_json(input: *const c_char) -> *mut c_char {
@@ -12,22 +12,25 @@ pub extern "C" fn hippocrates_parse_json(input: *const c_char) -> *mut c_char {
     };
     let input_str = match c_str.to_str() {
         Ok(s) => s,
-        Err(_) => return CString::new(r#"{"Err": "Invalid UTF-8 input"}"#).unwrap().into_raw(),
+        Err(_) => return CString::new(r#"{"Err": {"message": "Invalid UTF-8 input", "line": 0, "column": 0}}"#).unwrap().into_raw(),
     };
     let result = parse_plan(input_str);
     let json_str = match result {
         Ok(plan) => match serde_json::to_string(&plan) {
             Ok(s) => format!("{{\"Ok\":{}}}", s),
-            Err(e) => format!("{{\"Err\":\"Serialization Error: {}\"}}", e),
+            Err(e) => format!("{{\"Err\":{{\"message\": \"Serialization Error: {}\", \"line\": 0, \"column\": 0}}}}", e),
         },
         Err(e) => {
-            let err_val = serde_json::Value::String(e.to_string());
-            format!("{{\"Err\":{}}}", err_val)
+            // EngineError serializes to {message, line, column}
+            match serde_json::to_string(&e) {
+                Ok(s) => format!("{{\"Err\":{}}}", s),
+                Err(_) => r#"{"Err": {"message": "Error serialization failed", "line": 0, "column": 0}}"#.to_string(),
+            }
         }
     };
     match CString::new(json_str) {
         Ok(c_string) => c_string.into_raw(),
-        Err(_) => CString::new(r#"{"Err": "Null byte"}"#).unwrap().into_raw(),
+        Err(_) => CString::new(r#"{"Err": {"message": "Null byte", "line": 0, "column": 0}}"#).unwrap().into_raw(),
     }
 }
 
@@ -77,19 +80,34 @@ pub unsafe extern "C" fn hippocrates_engine_free(ctx: *mut EngineContext) { unsa
 }}
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn hippocrates_engine_load(ctx: *mut EngineContext, source: *const c_char) -> c_int { unsafe {
+pub unsafe extern "C" fn hippocrates_engine_load(ctx: *mut EngineContext, source: *const c_char) -> *mut c_char { unsafe {
     let context = &mut *ctx;
     let c_str = CStr::from_ptr(source);
     let s = match c_str.to_str() {
         Ok(s) => s,
-        Err(_) => return -1,
+        Err(_) => return CString::new(r#"{"Err": {"message": "Invalid UTF-8 input", "line": 0, "column": 0}}"#).unwrap().into_raw(),
     };
     match parse_plan(s) {
         Ok(plan) => {
+            // Validate before loading
+            if let Err(errors) = crate::runtime::validator::validate_file(&plan) {
+                 // For legacy load, return the first error
+                 if let Some(first) = errors.first() {
+                     match serde_json::to_string(first) {
+                        Ok(s) => return CString::new(format!("{{\"Err\":{}}}", s)).unwrap().into_raw(),
+                        Err(_) => return CString::new(r#"{"Err": {"message": "Error serialization failed", "line": 0, "column": 0}}"#).unwrap().into_raw(),
+                    }
+                 }
+            }
             context.env.load_plan(plan);
-            0
+            CString::new(r#"{"Ok": "Loaded"}"#).unwrap().into_raw()
         }
-        Err(_) => 1,
+        Err(e) => {
+            match serde_json::to_string(&e) {
+                Ok(s) => CString::new(format!("{{\"Err\":{}}}", s)).unwrap().into_raw(),
+                Err(_) => CString::new(r#"{"Err": {"message": "Error serialization failed", "line": 0, "column": 0}}"#).unwrap().into_raw(),
+            }
+        }
     }
 }}
 
@@ -214,9 +232,26 @@ pub extern "C" fn hippocrates_run(
     unsafe {
         let ctx = hippocrates_engine_new(user_data);
         hippocrates_engine_set_callbacks(ctx, callback, log_callback, None);
-        if hippocrates_engine_load(ctx, input) == 0 {
-            hippocrates_engine_execute(ctx, plan_name);
+        
+        // Handle new return type of load
+        let result = hippocrates_engine_load(ctx, input);
+        if !result.is_null() {
+            let s = CStr::from_ptr(result).to_string_lossy();
+            if s.contains("\"Ok\"") {
+                hippocrates_engine_execute(ctx, plan_name);
+            } else {
+                // If log callback exists, maybe log the error?
+                // For now just ignore as this is legacy.
+                if let Some(cb) = log_callback {
+                    // Try to extract message
+                     if let Ok(c_msg) = CString::new(format!("Load Error: {}", s)) {
+                        cb(c_msg.as_ptr(), 0, 0, user_data);
+                    }
+                }
+            }
+            hippocrates_free_string(result);
         }
+        
         hippocrates_engine_free(ctx);
     }
 }
@@ -237,9 +272,23 @@ pub extern "C" fn hippocrates_simulate(
             speed_factor: None, // Instant execution / max speed
             duration: None,
         });
-        if hippocrates_engine_load(ctx, input) == 0 {
-            hippocrates_engine_execute(ctx, plan_name);
+        
+        // Handle new return type of load
+        let result = hippocrates_engine_load(ctx, input);
+        if !result.is_null() {
+            let s = CStr::from_ptr(result).to_string_lossy();
+            if s.contains("\"Ok\"") {
+                 hippocrates_engine_execute(ctx, plan_name);
+            } else {
+                 if let Some(cb) = log_callback {
+                     if let Ok(c_msg) = CString::new(format!("Load Error: {}", s)) {
+                        cb(c_msg.as_ptr(), 0, 0, user_data);
+                    }
+                }
+            }
+             hippocrates_free_string(result);
         }
+        
         hippocrates_engine_free(ctx);
     }
 }
@@ -258,3 +307,66 @@ pub unsafe extern "C" fn hippocrates_engine_enable_simulation(ctx: *mut EngineCo
             .set_mode(crate::runtime::ExecutionMode::Simulation { speed_factor: None, duration: limit });
     }
 }
+
+// Validation FFI
+
+use std::sync::Mutex;
+
+static LAST_ERRORS: Mutex<Vec<crate::domain::EngineError>> = Mutex::new(Vec::new());
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hippocrates_validate_file(input: *const c_char) -> c_int {
+    let input_str = unsafe {
+        if input.is_null() { return 0; }
+        match CStr::from_ptr(input).to_str() {
+            Ok(s) => s,
+            Err(_) => return 0,
+        }
+    };
+
+    // lock and clear errors
+    let mut errors_guard = LAST_ERRORS.lock().unwrap();
+    errors_guard.clear();
+
+    match parse_plan(input_str) {
+        Ok(plan) => {
+             match crate::runtime::validator::validate_file(&plan) {
+                 Ok(_) => 0,
+                 Err(errs) => {
+                     let count = errs.len() as c_int;
+                     *errors_guard = errs;
+                     count
+                 }
+             }
+        },
+        Err(e) => {
+            // Parser error is single, but treat as one error
+            errors_guard.push(e);
+            1
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hippocrates_get_error_count() -> c_int {
+    let errors_guard = LAST_ERRORS.lock().unwrap();
+    errors_guard.len() as c_int
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn hippocrates_get_error(index: c_int) -> *mut c_char {
+    let errors_guard = LAST_ERRORS.lock().unwrap();
+    if index < 0 || index as usize >= errors_guard.len() {
+        return std::ptr::null_mut();
+    }
+    
+    let err = &errors_guard[index as usize];
+    match serde_json::to_string(err) {
+        Ok(s) => match CString::new(s) {
+            Ok(c) => c.into_raw(),
+            Err(_) => std::ptr::null_mut(),
+        },
+        Err(_) => std::ptr::null_mut(),
+    }
+}
+

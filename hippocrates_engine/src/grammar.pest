@@ -22,14 +22,18 @@ identifier = { angled_identifier | raw_identifier | string_literal }
 multi_word_identifier = { identifier ~ (identifier | number)* }
 
 // Extended units to support plurals as seen in test files
-unit = { 
+unit = { standard_unit | custom_unit }
+
+standard_unit = { 
     "°F" | "°C" | "%" | 
     "mg" | "kg" | "g" | "lb" | "oz" |
     "ml" | "l" | "fl oz" | "gal" |
-    "m" | "cm" | "mm" | "km" | "inch" | "foot" | "mile" |
+    "cm" | "mm" | "km" | "inch" | "foot" | "mile" | "m" |
     "years" | "months" | "weeks" | "days" | "hours" | "minutes" | "seconds" |
     "year" | "month" | "week" | "day" | "hour" | "minute" | "second"
 }
+
+custom_unit = { raw_identifier }
 
 value_type = { "a number" | "an enumeration" | "a time indication" | "a period" | "a plan" | "a drug" | "an addressee" }
 
@@ -106,8 +110,8 @@ safe_range_item = { range_selector ~ !":" }
 valid_values_prop = { 
     "valid value" ~ "s"? ~ (
         (":" ~ NEWLINE* ~ INDENT ~ valid_values_block ~ NEWLINE* ~ DEDENT) | 
-        (":" ~ inline_valid_values) |
-        flexible_block
+        flexible_block |
+        (":" ~ inline_valid_values)
     )
 }
 valid_values_block = { (safe_range_item ~ (";" | NEWLINE)? )+ }
@@ -200,7 +204,8 @@ statement = {
     NEWLINE) ~ NEWLINE*
 }
 
-constraint = { expression ~ ("is" | "during" | "after") ~ range_selector ~ ("!" | "?" | ".")? }
+constraint = { expression ~ constraint_operator ~ range_selector ~ ("!" | "?" | ".")? }
+constraint_operator = { "is" | "during" | "after" }
 timeframe_block = { "timeframe" ~ ("for" ~ "analysis")? ~ constraint_tail? ~ ":" ~ NEWLINE* ~ INDENT ~ statement+ ~ DEDENT }
 constraint_tail = _{ ("is" | "during" | "after") ~ range_selector }
 
@@ -222,18 +227,21 @@ action = {
 
 question_modifier = { 
     ("question" ~ "expires" ~ "after" ~ period_expr ~ "."? ~ flexible_block?) |
-    ("validate" ~ "answer" ~ ("once" | "twice") ~ "."? ~ flexible_block?) |
+    validate_modifier |
     ("type" ~ "of" ~ "question" ~ "is" ~ string_literal ~ "."?) |
     ("style" ~ "of" ~ "question" ~ "is" ~ multi_word_identifier ~ "."?) |
     ("question" ~ "style" ~ "is" ~ "visual" ~ ("analogue" | "analog") ~ "scale" ~ ":" ~ NEWLINE* ~ INDENT ~ vas_block ~ DEDENT)
 }
 
+validate_modifier = { "validate" ~ "answer" ~ validation_mode ~ ("within" ~ quantity)? ~ "."? ~ flexible_block? }
+validation_mode = { "once" | "twice" }
+
 vas_block = { (best_value_def | worst_value_def)+ }
 
-best_value_def = { "best value is" ~ number ~ ":" ~ NEWLINE* ~ INDENT ~ best_value_prop+ ~ DEDENT }
+best_value_def = { "best value is" ~ (quantity | number) ~ ":" ~ NEWLINE* ~ INDENT ~ best_value_prop+ ~ DEDENT }
 best_value_prop = { "text for best value is" ~ string_literal ~ "."? ~ NEWLINE* }
 
-worst_value_def = { "worst value is" ~ number ~ ":" ~ NEWLINE* ~ INDENT ~ worst_value_prop+ ~ DEDENT }
+worst_value_def = { "worst value is" ~ (quantity | number) ~ ":" ~ NEWLINE* ~ INDENT ~ worst_value_prop+ ~ DEDENT }
 worst_value_prop = { "text for worst value is" ~ string_literal ~ "."? ~ NEWLINE* }
 
 start_period = { "start" ~ identifier ~ "."? }

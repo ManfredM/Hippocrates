@@ -3,13 +3,16 @@ use crate::ast::{
     Statement, StatementKind,
 };
 
-pub fn validate_file(plan: &Plan) -> Result<(), String> {
+pub fn validate_file(plan: &Plan) -> Result<(), Vec<crate::domain::EngineError>> {
     // 1. Collect Value Definitions and their Valid Ranges
     use std::collections::{HashMap, HashSet};
+    
     let mut value_ranges: HashMap<String, Vec<RangeSelector>> = HashMap::new();
-
     let mut timeframe_vars: HashSet<String> = HashSet::new();
     let mut enum_vars: HashSet<String> = HashSet::new();
+    let mut numeric_vars: HashSet<String> = HashSet::new();
+
+    let mut errors: Vec<crate::domain::EngineError> = Vec::new();
 
     for def in &plan.definitions {
         if let Definition::Value(vd) = def {
@@ -40,18 +43,22 @@ pub fn validate_file(plan: &Plan) -> Result<(), String> {
                         }
                         // Validate statements in calculation
                         for stmt in stmts {
-                            validate_statement(stmt, &value_ranges, &timeframe_vars, &enum_vars)?;
+                            validate_statement(stmt, &value_ranges, &timeframe_vars, &enum_vars, &numeric_vars, &mut errors);
                         }
                     }
                     _ => {}
                 }
             }
 
-             if let crate::domain::ValueType::Enumeration = vd.value_type {
+            if let crate::domain::ValueType::Enumeration = vd.value_type {
                 enum_vars.insert(vd.name.clone());
             }
+            if let crate::domain::ValueType::Number = vd.value_type {
+                numeric_vars.insert(vd.name.clone());
+                check_numeric_units(&vd.name, &vd.properties, &mut errors);
+            }
         }
-        }
+    }
 
 
     // 2. Validate Statements in Plan Definition
@@ -65,87 +72,106 @@ pub fn validate_file(plan: &Plan) -> Result<(), String> {
                 };
 
                 for stmt in statements {
-                    validate_statement(stmt, &value_ranges, &timeframe_vars, &enum_vars)?;
+                    validate_statement(stmt, &value_ranges, &timeframe_vars, &enum_vars, &numeric_vars, &mut errors);
                 }
             }
         }
     }
 
-    Ok(())
+    errors.sort();
+    errors.dedup();
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors)
+    }
 }
 
 fn validate_statement(
     stmt: &Statement,
     value_ranges: &std::collections::HashMap<String, Vec<RangeSelector>>,
     timeframe_vars: &std::collections::HashSet<String>,
+
     enum_vars: &std::collections::HashSet<String>,
-) -> Result<(), String> {
+    numeric_vars: &std::collections::HashSet<String>,
+    errors: &mut Vec<crate::domain::EngineError>,
+) {
     match &stmt.kind {
         StatementKind::Assignment(assign) => {
-             validate_expression(&assign.expression, enum_vars)?;
+             validate_expression(&assign.expression, enum_vars, stmt.line, errors);
         }
         StatementKind::Conditional(cond) => {
-            validate_conditional(cond, value_ranges, timeframe_vars, enum_vars)?;
+            validate_conditional(cond, value_ranges, timeframe_vars, enum_vars, numeric_vars, stmt.line, errors);
         }
         StatementKind::ContextBlock(cb) => {
             for s in &cb.statements {
-                 validate_statement(s, value_ranges, timeframe_vars, enum_vars)?;
+                 validate_statement(s, value_ranges, timeframe_vars, enum_vars, numeric_vars, errors);
             }
         }
         _ => {}
     }
-    Ok(())
 }
 
 fn validate_expression(
     expr: &Expression,
     enum_vars: &std::collections::HashSet<String>,
-) -> Result<(), String> {
+    line: usize,
+    errors: &mut Vec<crate::domain::EngineError>,
+) {
+    use crate::domain::EngineError;
     match expr {
         Expression::Binary(left, _, right) => {
-            validate_expression(left, enum_vars)?;
-            validate_expression(right, enum_vars)?;
+            validate_expression(left, enum_vars, line, errors);
+            validate_expression(right, enum_vars, line, errors);
         }
         Expression::Statistical(func) => match func {
             crate::ast::StatisticalFunc::CountOf(name, filter) => {
                 if enum_vars.contains(name) {
                     if filter.is_none() {
-                        return Err(format!(
-                            "Validation Error: 'count of {}' requires a specific value to count (e.g. 'count of {} is \"Yes\"') because it is an Enumeration.",
-                            name, name
-                        ));
+                        errors.push(EngineError {
+                            message: format!(
+                                "Validation Error: 'count of {}' requires a specific value to count (e.g. 'count of {} is \"Yes\"') because it is an Enumeration.",
+                                name, name
+                            ),
+                            line,
+                            column: 0
+                        });
                     }
                 }
                  if let Some(f_expr) = filter {
-                    validate_expression(f_expr, enum_vars)?;
+                    validate_expression(f_expr, enum_vars, line, errors);
                 }
             }
             crate::ast::StatisticalFunc::TrendOf(name) => {
                  if enum_vars.contains(name) {
-                    return Err(format!(
-                        "Validation Error: 'trend of {}' is not supported because it is an Enumeration. Trend analysis requires numeric values.",
-                        name
-                    ));
+                    errors.push(EngineError {
+                        message: format!(
+                            "Validation Error: 'trend of {}' is not supported because it is an Enumeration. Trend analysis requires numeric values.",
+                            name
+                        ),
+                        line,
+                        column: 0
+                    });
                 }
             }
             crate::ast::StatisticalFunc::AverageOf(_, period) => {
-                validate_expression(period, enum_vars)?;
+                validate_expression(period, enum_vars, line, errors);
             }
             _ => {}
         },
         Expression::FunctionCall(_, args) => {
             for arg in args {
-                validate_expression(arg, enum_vars)?;
+                validate_expression(arg, enum_vars, line, errors);
             }
         }
         Expression::InterpolatedString(parts) => {
             for part in parts {
-                validate_expression(part, enum_vars)?;
+                validate_expression(part, enum_vars, line, errors);
             }
         }
         _ => {}
     }
-    Ok(())
 }
 
 fn validate_conditional(
@@ -153,7 +179,10 @@ fn validate_conditional(
     value_ranges: &std::collections::HashMap<String, Vec<RangeSelector>>,
     timeframe_vars: &std::collections::HashSet<String>,
     enum_vars: &std::collections::HashSet<String>,
-) -> Result<(), String> {
+    numeric_vars: &std::collections::HashSet<String>,
+    line: usize,
+    errors: &mut Vec<crate::domain::EngineError>,
+) {
     let target_name = match &cond.condition {
         ConditionalTarget::Expression(Expression::Variable(name)) => Some(name.clone()),
         ConditionalTarget::Expression(Expression::Literal(Literal::String(s))) => Some(s.clone()),
@@ -163,67 +192,96 @@ fn validate_conditional(
     if let Some(name) = target_name {
         // 1. Check Numeric Coverage
         if let Some(valid_selectors) = value_ranges.get(&name) {
-            check_coverage(&name, valid_selectors, &cond.cases)?;
+            check_coverage(&name, valid_selectors, &cond.cases, line, errors);
         }
         // 2. Check Data Sufficiency Coverage
         if timeframe_vars.contains(&name) {
-            check_data_sufficiency(&name, &cond.cases)?;
+            check_data_sufficiency(&name, &cond.cases, line, errors);
+        }
+        // 3. Check Units for Numeric Variables
+        if numeric_vars.contains(&name) {
+             for case in &cond.cases {
+                 check_selector_units(&name, &case.condition, case.line, errors);
+             }
         }
     }
 
     // Recurse into blocks
     for case in &cond.cases {
         for s in &case.block {
-            validate_statement(s, value_ranges, timeframe_vars, enum_vars)?;
+            validate_statement(s, value_ranges, timeframe_vars, enum_vars, numeric_vars, errors);
         }
     }
-
-    Ok(())
 }
 
 fn check_data_sufficiency(
     name: &str,
     cases: &[crate::ast::AssessmentCase],
-) -> Result<(), String> {
+    line: usize,
+    errors: &mut Vec<crate::domain::EngineError>,
+) {
     let has_not_enough_data = cases.iter().any(|c| matches!(c.condition, RangeSelector::NotEnoughData));
 
     if !has_not_enough_data {
-        return Err(format!(
-            "Missing Case: Assessment for '{}' depends on a timeframe calculation but does not handle 'Not enough data'.",
-            name
-        ));
+        errors.push(crate::domain::EngineError {
+            message: format!(
+                "Missing Case: Assessment for '{}' depends on a timeframe calculation but does not handle 'Not enough data'.",
+                name
+            ),
+            line,
+            column: 0
+        });
     }
-    Ok(())
 }
 
 fn check_coverage(
     name: &str,
     valid: &[RangeSelector],
     cases: &[crate::ast::AssessmentCase],
-) -> Result<(), String> {
-    // interval-based coverage check for f64 ranges.
-    
-    // 1. Determine Universe [min, max]
+    line: usize,
+    errors: &mut Vec<crate::domain::EngineError>,
+) {
+    // 1. Determine Universe [min, max] and Precision
     let mut universe_min = f64::NEG_INFINITY;
     let mut universe_max = f64::INFINITY;
     let mut has_range = false;
+    let mut max_precision: Option<usize> = None;
+
+    let extract_val_prec = |expr: &Expression| -> Option<(f64, Option<usize>)> {
+        if let Expression::Literal(lit) = expr {
+             match lit {
+                 Literal::Number(v, p) => Some((*v, *p)),
+                 Literal::Quantity(v, _, p) => Some((*v, *p)),
+                 _ => None
+             }
+        } else { None }
+    };
 
     for sel in valid {
-        if let RangeSelector::Range(
-            Expression::Literal(Literal::Number(min)),
-            Expression::Literal(Literal::Number(max)),
-        ) = sel
-        {
-            universe_min = *min;
-            universe_max = *max;
-            has_range = true;
-            break; 
+        match sel {
+             RangeSelector::Range(min_expr, max_expr) | RangeSelector::Between(min_expr, max_expr) => {
+                 if let (Some((min, p1)), Some((max, p2))) = (extract_val_prec(min_expr), extract_val_prec(max_expr)) {
+                     universe_min = min;
+                     universe_max = max;
+                     has_range = true;
+                     if let Some(p) = p1 { max_precision = std::cmp::max(max_precision, Some(p)); }
+                     if let Some(p) = p2 { max_precision = std::cmp::max(max_precision, Some(p)); }
+                     break; 
+                 }
+             }
+             _ => {}
         }
     }
 
     if !has_range {
-        return Ok(());
+        return;
     }
+
+    let step = if let Some(p) = max_precision {
+        if p == 0 { 1.0 } else { 10f64.powi(-(p as i32)) }
+    } else {
+        1.0 // Implicit integer
+    };
 
     // 2. Collect Intervals from Cases
     struct Interval { start: f64, end: f64 }
@@ -231,24 +289,26 @@ fn check_coverage(
 
     for case in cases {
         match &case.condition {
-            RangeSelector::Range(
-                Expression::Literal(Literal::Number(min)),
-                Expression::Literal(Literal::Number(max)),
-            ) => {
-                intervals.push(Interval { start: *min, end: *max });
-            }
-            RangeSelector::Condition(op, Expression::Literal(Literal::Number(val))) => {
-                let v = *val;
-                match op {
-                    crate::ast::ConditionOperator::GreaterThan => intervals.push(Interval { start: v, end: f64::INFINITY }),
-                    crate::ast::ConditionOperator::GreaterThanOrEquals => intervals.push(Interval { start: v, end: f64::INFINITY }),
-                    crate::ast::ConditionOperator::LessThan => intervals.push(Interval { start: f64::NEG_INFINITY, end: v }),
-                    crate::ast::ConditionOperator::LessThanOrEquals => intervals.push(Interval { start: f64::NEG_INFINITY, end: v }),
-                    _ => {}
+            RangeSelector::Range(min_expr, max_expr) | RangeSelector::Between(min_expr, max_expr) => {
+                if let (Some((min, _)), Some((max, _))) = (extract_val_prec(min_expr), extract_val_prec(max_expr)) {
+                    intervals.push(Interval { start: min, end: max });
                 }
             }
-            RangeSelector::Equals(Expression::Literal(Literal::Number(v))) => {
-                intervals.push(Interval { start: *v, end: *v });
+            RangeSelector::Condition(op, expr) => {
+                if let Some((v, _)) = extract_val_prec(expr) {
+                    match op {
+                        crate::ast::ConditionOperator::GreaterThan => intervals.push(Interval { start: v, end: f64::INFINITY }),
+                        crate::ast::ConditionOperator::GreaterThanOrEquals => intervals.push(Interval { start: v, end: f64::INFINITY }),
+                        crate::ast::ConditionOperator::LessThan => intervals.push(Interval { start: f64::NEG_INFINITY, end: v }),
+                        crate::ast::ConditionOperator::LessThanOrEquals => intervals.push(Interval { start: f64::NEG_INFINITY, end: v }),
+                        _ => {}
+                    }
+                }
+            }
+            RangeSelector::Equals(expr) => {
+                if let Some((v, _)) = extract_val_prec(expr) {
+                    intervals.push(Interval { start: v, end: v });
+                }
             }
             _ => {}
         }
@@ -259,39 +319,128 @@ fn check_coverage(
     for i in intervals {
         let start = i.start.max(universe_min);
         let end = i.end.min(universe_max);
-        if start <= end { // Valid overlap
+        if start <= end { 
              clamped.push(Interval { start, end });
         }
     }
 
     // 4. Sort and Sweep
-    // Sort by start
     clamped.sort_by(|a, b| a.start.partial_cmp(&b.start).unwrap_or(std::cmp::Ordering::Equal));
 
     let mut current = universe_min;
+    let mut is_first = true;
     let epsilon = 0.00001; 
 
+    // Helper to format based on precision
+    let format_val = |v: f64| -> String {
+        if let Some(p) = max_precision {
+            format!("{:.1$}", v, p)
+        } else {
+            // Integer default
+            format!("{:.0}", v)
+        }
+    };
+
     for i in clamped {
-        // If there's a significant gap before this interval starts
+        // Overlap Check 
+        if !is_first {
+            if i.start < current + step - epsilon {
+                 errors.push(crate::domain::EngineError {
+                    message: format!(
+                    "Constraint Violation: Assessment for '{}' has overlapping or ambiguous ranges. Value {} is covered multiple times. Next range should start at {}.",
+                    name, format_val(i.start), format_val(current + step)
+                    ),
+                    line,
+                    column: 0
+                });
+            }
+        }
+
+        // Check for gap
         if i.start > current + epsilon {
-            return Err(format!(
-                "Constraint Violation: Assessment for '{}' is incomplete. Uncovered gap detected between {:.2} and {:.2}. Valid range is {:.1}...{:.1}.",
-                name, current, i.start, universe_min, universe_max
-            ));
+            let gap_size = i.start - current;
+            let is_valid_step = (gap_size - step).abs() < epsilon;
+            
+            if !is_valid_step {
+                errors.push(crate::domain::EngineError {
+                    message: format!(
+                    "Constraint Violation: Assessment for '{}' is incomplete. Uncovered gap detected: {} ... {}. Valid range is {}...{}.",
+                    name, format_val(current + step), format_val(i.start), format_val(universe_min), format_val(universe_max)
+                    ),
+                    line,
+                    column: 0
+                });
+            } else {
+                // Bridge the gap
+                current = i.end; 
+            }
         }
         // Extend current reach
         if i.end > current {
             current = i.end;
         }
+        is_first = false;
     }
 
     // Check end gap
     if current < universe_max - epsilon {
-        return Err(format!(
-            "Constraint Violation: Assessment for '{}' is incomplete. Uncovered gap at the end between {:.2} and {:.2}. Valid range is {:.1}...{:.1}.",
-            name, current, universe_max, universe_min, universe_max
-        ));
+         let start_gap = current + step;
+         let end_gap = universe_max;
+         
+        errors.push(crate::domain::EngineError {
+            message: format!(
+                "Constraint Violation: Assessment for '{}' is incomplete. Uncovered gap at the end: {} ... {}. Valid range is {}...{}.",
+                name, format_val(start_gap), format_val(end_gap), format_val(universe_min), format_val(universe_max)
+            ),
+            line,
+            column: 0
+        });
     }
+}
 
-    Ok(())
+fn check_numeric_units(name: &str, props: &[Property], errors: &mut Vec<crate::domain::EngineError>) {
+    for prop in props {
+        if let Property::ValidValues(stmts) = prop {
+            for stmt in stmts {
+                if let StatementKind::EventProgression(_, cases) = &stmt.kind {
+                    for case in cases {
+                        check_selector_units(name, &case.condition, stmt.line, errors);
+                    }
+                } else if let StatementKind::Constraint(_, _, sel) = &stmt.kind {
+                     check_selector_units(name, sel, stmt.line, errors);
+                }
+            }
+        }
+    }
+}
+
+fn check_selector_units(name: &str, sel: &RangeSelector, line: usize, errors: &mut Vec<crate::domain::EngineError>) {
+    match sel {
+        RangeSelector::Range(min, max) => {
+            check_expression_unit(name, min, line, errors);
+            check_expression_unit(name, max, line, errors);
+        }
+        RangeSelector::Between(min, max) => {
+             check_expression_unit(name, min, line, errors);
+             check_expression_unit(name, max, line, errors);
+        }
+        RangeSelector::Condition(_, expr) => check_expression_unit(name, expr, line, errors),
+        RangeSelector::Equals(expr) => check_expression_unit(name, expr, line, errors),
+        RangeSelector::List(exprs) => {
+             for e in exprs { check_expression_unit(name, e, line, errors); }
+        }
+        _ => {}
+    }
+}
+
+fn check_expression_unit(name: &str, expr: &Expression, line: usize, errors: &mut Vec<crate::domain::EngineError>) {
+    if let Expression::Literal(lit) = expr {
+        if let Literal::Number(..) = lit {
+             errors.push(crate::domain::EngineError {
+                 message: format!("Validation Error: Numeric values must have a unit in '{}'.", name),
+                 line, 
+                 column: 0
+             });
+        }
+    }
 }

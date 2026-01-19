@@ -9,9 +9,9 @@ impl Evaluator {
     pub fn evaluate(env: &Environment, expr: &Expression) -> RuntimeValue {
         match expr {
             Expression::Literal(lit) => match lit {
-                Literal::Number(n) => RuntimeValue::Number(*n),
+                Literal::Number(n, _) => RuntimeValue::Number(*n),
                 Literal::String(s) => RuntimeValue::String(s.clone()),
-                Literal::Quantity(n, unit) => RuntimeValue::Quantity(*n, unit.clone()),
+                Literal::Quantity(n, unit, _) => RuntimeValue::Quantity(*n, unit.clone()),
                 Literal::TimeOfDay(s) => RuntimeValue::String(s.clone()),
                 Literal::Date(s) => RuntimeValue::String(s.clone()),
             },

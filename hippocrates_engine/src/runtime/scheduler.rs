@@ -4,26 +4,49 @@ use chrono::{DateTime, Datelike, NaiveTime, Utc, Weekday};
 pub struct Scheduler;
 
 impl Scheduler {
-    pub fn next_occurrence(def: &ValueDef, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
-        // Find Timeframe property
+    pub fn next_occurrence(def: &Definition, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
         let mut timeframe_groups = None;
-        for prop in &def.properties {
-            if let Property::Timeframe(groups) = prop {
-                timeframe_groups = Some(groups);
-                break;
+
+        match def {
+            Definition::Value(v) => {
+                for prop in &v.properties {
+                    if let Property::Timeframe(groups) = prop {
+                        timeframe_groups = Some(groups);
+                        break;
+                    }
+                }
             }
+            Definition::Period(p) => {
+                // Temporary support for flattened PeriodDef timeframes
+                // Treating single Vec as one group.
+                // TODO: Fix AST to support multiple timeframe groups in PeriodDef
+                // let groups = vec![p.timeframes.clone()]; // Unused
+                // We construct a temporary structure to iterate?
+                // Actually we can just return next_for_group directly if we assume one group.
+                // But let's fit into the groups iteration logic.
+                
+                // Hack: We can't return ref to local vec.
+                // We'll iterate manually here or change logic.
+                
+                if let Some(next) = Self::next_for_group(&p.timeframes, now) {
+                     return Some(next);
+                }
+                return None;
+            }
+            _ => return None,
         }
 
-        let groups = timeframe_groups?;
-        let mut next_times = Vec::new();
-
-        for group in groups {
-            if let Some(next) = Self::next_for_group(group, now) {
-                next_times.push(next);
+        if let Some(groups) = timeframe_groups {
+            let mut next_times = Vec::new();
+            for group in groups {
+                if let Some(next) = Self::next_for_group(group, now) {
+                    next_times.push(next);
+                }
             }
+            next_times.into_iter().min()
+        } else {
+            None
         }
-
-        next_times.into_iter().min()
     }
 
     fn next_for_group(selectors: &Vec<RangeSelector>, now: DateTime<Utc>) -> Option<DateTime<Utc>> {

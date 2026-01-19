@@ -20,52 +20,95 @@ pub enum ParseError {
     ValidationError(String),
 }
 
-pub fn parse_plan(input: &str) -> Result<Plan, ParseError> {
+pub fn parse_plan(input: &str) -> Result<Plan, EngineError> {
     let processed = preprocess_indentation(input);
     println!("DEBUG: Preprocessed Input:\n{}", processed);
-    let mut pairs = HippocratesParser::parse(Rule::file, &processed)?;
+    
+    let pairs = match HippocratesParser::parse(Rule::file, &processed) {
+        Ok(p) => p,
+        Err(e) => {
+            let line_col = match e.line_col {
+                pest::error::LineColLocation::Pos((line, col)) => (line, col),
+                pest::error::LineColLocation::Span((line, col), _) => (line, col),
+            };
+            return Err(EngineError {
+                message: format!("Parsing error: {}", e),
+                line: line_col.0,
+                column: line_col.1,
+            });
+        }
+    };
+
     let mut definitions = Vec::new();
 
-    let root = pairs.next().unwrap();
+    let root = pairs.into_iter().next().unwrap();
     for pair in root.into_inner() {
         match pair.as_rule() {
             Rule::definition => {
                 let inner = pair.into_inner().next().unwrap();
                 match inner.as_rule() {
                     Rule::value_definition => {
-                        definitions.push(Definition::Value(parse_value_def(inner)?))
+                        definitions.push(Definition::Value(parse_value_def(inner).map_err(to_engine_error)?))
                     }
                     Rule::period_definition => {
-                        definitions.push(Definition::Period(parse_period_def(inner)?))
+                        definitions.push(Definition::Period(parse_period_def(inner).map_err(to_engine_error)?))
                     }
                     Rule::plan_definition => {
-                        definitions.push(Definition::Plan(parse_plan_def(inner)?))
+                        definitions.push(Definition::Plan(parse_plan_def(inner).map_err(to_engine_error)?))
                     }
                     Rule::drug_definition => {
-                        definitions.push(Definition::Drug(parse_drug_def(inner)?))
+                        definitions.push(Definition::Drug(parse_drug_def(inner).map_err(to_engine_error)?))
                     }
                     Rule::addressee_definition => {
-                        definitions.push(Definition::Addressee(parse_addressee_def(inner)?))
+                        definitions.push(Definition::Addressee(parse_addressee_def(inner).map_err(to_engine_error)?))
                     }
                     Rule::context_definition => {
-                        definitions.push(Definition::Context(parse_context_def(inner)?))
+                        definitions.push(Definition::Context(parse_context_def(inner).map_err(to_engine_error)?))
                     }
                     _ => (),
                 }
             }
             Rule::EOI => (),
-            _ => (),
+             _ => (),
         }
     }
 
     let plan = Plan { definitions };
     
-    // Validate the plan
-    if let Err(msg) = crate::runtime::validator::validate_file(&plan) {
-        return Err(ParseError::ValidationError(msg));
-    }
-
+    // Validation is now the responsibility of the caller (to support multi-error)
+    
     Ok(plan)
+}
+
+fn to_engine_error(e: ParseError) -> EngineError {
+    match e {
+        ParseError::PestError(pe) => {
+            let line_col = match pe.line_col {
+                pest::error::LineColLocation::Pos((line, col)) => (line, col),
+                pest::error::LineColLocation::Span((line, col), _) => (line, col),
+            };
+            EngineError {
+                message: format!("{}", pe),
+                line: line_col.0,
+                column: line_col.1,
+            }
+        },
+        ParseError::ValidationError(msg) => EngineError {
+            message: msg,
+            line: 0,
+            column: 0,
+        },
+        ParseError::UnknownRule(msg) => EngineError {
+            message: format!("Unknown rule: {}", msg),
+            line: 0,
+            column: 0,
+        },
+        ParseError::UnknownUnit(msg) => EngineError {
+            message: format!("Unknown unit: {}", msg),
+            line: 0,
+            column: 0,
+        }
+    }
 }
 
 /// Converts indentation to explicit tokens '《' (INDENT) and '》' (DEDENT)
@@ -491,6 +534,7 @@ fn parse_value_property(pair: pest::iterators::Pair<Rule>) -> Result<Property, P
     let inner = pair.into_inner().next().unwrap();
     match inner.as_rule() {
         Rule::valid_values_prop => {
+            let line = inner.line_col().0;
             let inner_node = inner.into_inner().next().unwrap();
             match inner_node.as_rule() {
                 Rule::valid_values_block => {
@@ -531,9 +575,10 @@ fn parse_value_property(pair: pest::iterators::Pair<Rule>) -> Result<Property, P
                                 vec![AssessmentCase {
                                     condition: sel,
                                     block: vec![],
+                                    line,
                                 }],
                             ),
-                            line: 0,
+                            line,
                         });
                     }
                     Ok(Property::ValidValues(stmts))
@@ -549,9 +594,10 @@ fn parse_value_property(pair: pest::iterators::Pair<Rule>) -> Result<Property, P
                                 vec![AssessmentCase {
                                     condition: sel,
                                     block: vec![],
+                                    line,
                                 }],
                             ),
-                            line: 0,
+                            line,
                         });
                     }
                     Ok(Property::ValidValues(stmts))
@@ -656,9 +702,10 @@ fn parse_assessment_case(
 
     let mut selectors = Vec::new();
     for sel in selector_list.into_inner() {
+        let line = sel.as_span().start_pos().line_col().0;
         match sel.as_rule() {
-            Rule::range_selector => selectors.push(parse_range_selector(sel)?),
-            Rule::condition => selectors.push(parse_condition(sel)?),
+            Rule::range_selector => selectors.push((parse_range_selector(sel)?, line)),
+            Rule::condition => selectors.push((parse_condition(sel)?, line)),
             _ => {
                 return Err(ParseError::UnknownRule(format!(
                     "Unexpected selector rule: {:?}",
@@ -671,10 +718,11 @@ fn parse_assessment_case(
     let block = parse_block(block_rule)?;
 
     let mut cases = Vec::new();
-    for cond in selectors {
+    for (cond, line) in selectors {
         cases.push(AssessmentCase {
             condition: cond,
             block: block.clone(),
+            line,
         });
     }
 
@@ -864,7 +912,13 @@ fn parse_statement(pair: pest::iterators::Pair<Rule>) -> Result<Statement, Parse
             StatementKind::EventProgression("event progression".to_string(), cases)
         }
         Rule::documentation_prop => StatementKind::Command("Documentation".to_string()),
-        Rule::constraint => StatementKind::Command("Constraint".to_string()),
+        Rule::constraint => {
+            let mut c_inner = inner.into_inner();
+            let expr = parse_expression(c_inner.next().unwrap())?;
+            let op = c_inner.next().unwrap().as_str().to_string();
+            let sel = parse_range_selector(c_inner.next().unwrap())?;
+            StatementKind::Constraint(expr, op, sel)
+        }
         _ => StatementKind::Command("Unknown".to_string()),
     };
     Ok(Statement { kind, line })
@@ -896,6 +950,12 @@ fn parse_action(pair: pest::iterators::Pair<Rule>) -> Result<Action, ParseError>
             Ok(Action::ListenFor(s))
         }
         Rule::question_modifier => {
+            let mut q_check = inner.clone().into_inner();
+            if let Some(first) = q_check.next() {
+                if first.as_rule() == Rule::validate_modifier {
+                    return parse_validate_modifier(first);
+                }
+            }
             let s = inner.as_str().trim().to_string();
             Ok(Action::Configure(s))
         }
@@ -1001,6 +1061,11 @@ fn parse_ask_question(pairs: pest::iterators::Pairs<Rule>) -> Result<Action, Par
             Rule::statement => {
                 statements.push(parse_statement(p)?);
             }
+            Rule::block_body => {
+                for sub in p.into_inner() {
+                    statements.push(parse_statement(sub)?);
+                }
+            }
             _ => {}
         }
     }
@@ -1012,6 +1077,27 @@ fn parse_ask_question(pairs: pest::iterators::Pairs<Rule>) -> Result<Action, Par
     };
 
     Ok(Action::AskQuestion(subject, opt_stmts))
+}
+
+fn parse_validate_modifier(pair: pest::iterators::Pair<Rule>) -> Result<Action, ParseError> {
+    let mut inner = pair.into_inner();
+    // first child is validation_mode ("once" | "twice")
+    let mode_pair = inner.next().unwrap();
+    let mode = match mode_pair.as_str() {
+        "twice" => ValidationMode::Twice,
+        _ => ValidationMode::Once,
+    };
+
+    let mut timeout = None;
+    for p in inner {
+        if p.as_rule() == Rule::quantity {
+            let q_expr = parse_expression(p)?;
+            if let Expression::Literal(Literal::Quantity(v, u, _)) = q_expr {
+                timeout = Some((v, u));
+            }
+        }
+    }
+    Ok(Action::ValidateAnswer(mode, timeout))
 }
 
 // -----------------------------------------------------------------------------
@@ -1087,7 +1173,7 @@ fn parse_expression(pair: pest::iterators::Pair<Rule>) -> Result<Expression, Par
                         // Parse quantity by calling parse_expression (it handles Rule::quantity)
                         let qty_expr = parse_expression(first)?;
                         let (val, unit) = match qty_expr {
-                            Expression::Literal(Literal::Quantity(v, u)) => (v, u),
+                            Expression::Literal(Literal::Quantity(v, u, _)) => (v, u),
                             _ => unreachable!("Parsed quantity but got distinct expression"),
                         };
 
@@ -1103,8 +1189,14 @@ fn parse_expression(pair: pest::iterators::Pair<Rule>) -> Result<Expression, Par
             parse_expression(first)
         }
         Rule::number => {
-            let val = pair.as_str().trim().parse::<f64>().unwrap_or(0.0);
-            Ok(Expression::Literal(Literal::Number(val)))
+            let s = pair.as_str().trim();
+            let val = s.parse::<f64>().unwrap_or(0.0);
+            let precision = if let Some(idx) = s.find('.') {
+                Some(s.len() - idx - 1)
+            } else {
+                None
+            };
+            Ok(Expression::Literal(Literal::Number(val, precision)))
         }
         Rule::string_literal => Ok(Expression::Literal(Literal::String(
             pair.as_str().trim_matches('"').to_string(),
@@ -1112,10 +1204,16 @@ fn parse_expression(pair: pest::iterators::Pair<Rule>) -> Result<Expression, Par
         Rule::quantity => {
             let mut q_inner = pair.into_inner();
             let num_pair = q_inner.next().unwrap();
-            let val = num_pair.as_str().trim().parse::<f64>().unwrap_or(0.0);
+            let s = num_pair.as_str().trim();
+            let val = s.parse::<f64>().unwrap_or(0.0);
+            let precision = if let Some(idx) = s.find('.') {
+                Some(s.len() - idx - 1)
+            } else {
+                None
+            };
             let unit_pair = q_inner.next().unwrap();
             let unit = parse_unit(unit_pair)?;
-            Ok(Expression::Literal(Literal::Quantity(val, unit)))
+            Ok(Expression::Literal(Literal::Quantity(val, unit, precision)))
         }
         Rule::statistical_func => {
             let s = pair.as_str();
@@ -1217,6 +1315,13 @@ fn parse_unit(pair: pest::iterators::Pair<Rule>) -> Result<Unit, ParseError> {
         "hour" | "hours" => Ok(Unit::Hour),
         "minute" | "minutes" => Ok(Unit::Minute),
         "second" | "seconds" => Ok(Unit::Second),
-        _ => Err(ParseError::UnknownUnit(pair.as_str().to_string())),
+        _ => {
+            let s = pair.as_str();
+            if s.len() > 1 && s.ends_with('s') && !s.ends_with("ss") {
+                Ok(Unit::Custom(s[..s.len() - 1].to_string()))
+            } else {
+                Ok(Unit::Custom(s.to_string()))
+            }
+        }
     }
 }

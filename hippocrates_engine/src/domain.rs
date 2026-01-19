@@ -44,11 +44,16 @@ pub enum Unit {
     Hour,
     Minute,
     Second,
+    // Custom
+    Custom(String),
 }
 
 impl fmt::Display for Unit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{:?}", self)
+        match self {
+            Unit::Custom(s) => write!(f, "{}", s),
+            _ => write!(f, "{:?}", self),
+        }
     }
 }
 
@@ -156,11 +161,34 @@ pub struct InputMessage {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum ValidationMode {
+    Once,
+    Twice,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AskRequest {
     pub variable_name: String,
     pub question_text: String,
     pub style: QuestionStyle,
     pub options: Vec<String>,
     pub range: Option<(f64, f64)>,
+    pub validation_mode: Option<ValidationMode>,
+    pub validation_timeout: Option<i64>,
     pub timestamp: i64,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+pub struct EngineError {
+    pub message: String,
+    pub line: usize,
+    pub column: usize, // Optional, default 0
+}
+
+impl std::fmt::Display for EngineError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Error at line {}, col {}: {}", self.line, self.column, self.message)
+    }
+}
+
+impl std::error::Error for EngineError {}
