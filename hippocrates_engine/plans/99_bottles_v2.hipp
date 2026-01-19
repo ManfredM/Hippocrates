@@ -15,6 +15,10 @@
                 show message "Take one down and pass it around, no more bottles of beer on the wall.".
                 <bottle count> = 0 bottles.
             2 bottles ... 99 bottles:
-                show message <bottle count> + " bottles of beer on the wall, " + <bottle count> + " bottles of beer.".
+                show message <bottle count> + "s of beer on the wall, " + <bottle count> + "s of beer.".
                 <bottle count> = <bottle count> - 1 bottle.
-                show message "Take one down and pass it around, " + <bottle count> + " bottles of beer on the wall.".
+                assess <bottle count>:
+                    1 bottle:
+                        show message "Take one down and pass it around, 1 bottle of beer on the wall.".
+                    2 bottles ... 99 bottles:
+                        show message "Take one down and pass it around, " + <bottle count> + "s of beer on the wall.".

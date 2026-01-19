@@ -96,6 +96,17 @@ impl Evaluator {
                     }
                 }
 
+                // Check for unit preservation (Same Unit Math)
+                let preserved_unit = if let (RuntimeValue::Quantity(_, u1), RuntimeValue::Quantity(_, u2)) = (&l_val, &r_val) {
+                    if u1 == u2 {
+                        Some(u1.clone())
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                };
+
                 let l = l_val.as_number().unwrap_or(0.0);
                 let r = r_val.as_number().unwrap_or(0.0);
 
@@ -112,7 +123,12 @@ impl Evaluator {
                     } // Simple safety
                     _ => 0.0,
                 };
-                RuntimeValue::Number(result)
+
+                if let Some(u) = preserved_unit {
+                    RuntimeValue::Quantity(result, u)
+                } else {
+                    RuntimeValue::Number(result)
+                }
             }
             Expression::RelativeTime(val, unit, dir) => {
                 let duration = match unit {

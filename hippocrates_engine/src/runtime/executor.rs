@@ -182,11 +182,22 @@ impl Executor {
                                 });
                             }
                             crate::ast::Trigger::StartOf(target) => {
-                                if let Some(def) = defs.get(target) {
+                                if target == plan_name {
+                                    println!("DEBUG: Scheduling immediate StartOf trigger for {}", target);
+                                    events.push(ScheduledEvent {
+                                        time: start_time,
+                                        kind: EventKind::Periodic {
+                                            block: block.clone(),
+                                            iteration: 0,
+                                            interval_secs: 0.0, // 0.0 means one-shot/no repeat
+                                            max_duration: None,
+                                        },
+                                    });
+                                } else if let Some(def) = defs.get(target) {
                                     if let Some(_next) = Scheduler::next_occurrence(def, start_time) {
                                         // ...
                                         println!(
-                                            "DEBUG: StartOf in TriggerBlock not fully supported yet."
+                                            "DEBUG: StartOf in TriggerBlock for other plans not fully supported yet."
                                         );
                                     }
                                 }
@@ -282,7 +293,7 @@ impl Executor {
                             false
                         };
 
-                        if !stop {
+                        if !stop && interval_secs > 0.0 {
                             events.push(ScheduledEvent {
                                 time: next_time,
                                 kind: EventKind::Periodic {
