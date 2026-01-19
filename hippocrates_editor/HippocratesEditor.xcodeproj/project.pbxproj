@@ -11,6 +11,7 @@
 		2262FAD096E6ED839E5CDD13 /* ExecutionTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AD272C2471F0D89101BF7A8 /* ExecutionTimelineView.swift */; };
 		506A0A06810C48A4AC508EF0 /* CodeVisualizerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54C4B3DDB94D863D6291DC40 /* CodeVisualizerView.swift */; };
 		6C8B415D7FFE1B00FBD7D2BD /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E98C145FB107AE4B3492E799 /* ContentView.swift */; };
+		6C98584C6E26F4D71CC53531 /* libCHippocratesEngine.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 483F2176F26DAC504C94CAAC /* libCHippocratesEngine.a */; };
 		76138C756A9D2D768D301412 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F7E1D7BE59CDA4EC6C5EAAD /* AppState.swift */; };
 		83745AB19758B8F7D1D0791E /* dummy.c in Sources */ = {isa = PBXBuildFile; fileRef = 94FC3D488C10771ABB3CA160 /* dummy.c */; };
 		929C2DCC83262ADDC06D11AE /* HippocratesEngineWrapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56B879D78DB12CE40D724F75 /* HippocratesEngineWrapper.swift */; };
@@ -25,6 +26,13 @@
 			proxyType = 1;
 			remoteGlobalIDString = 84B9BF14D77039AF25D0302B;
 			remoteInfo = HippocratesEditor;
+		};
+		D15DA48A8190EC9A0F5F5982 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A3AD5249E03D65D8F6B5C0A3 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D5058AEAF02E38A635245D2E;
+			remoteInfo = CHippocratesEngine;
 		};
 /* End PBXContainerItemProxy section */
 
@@ -56,6 +64,17 @@
 		A54D6F4B590EFEBC34A434A3 /* HippocratesEditor-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "HippocratesEditor-Bridging-Header.h"; sourceTree = "<group>"; };
 		E98C145FB107AE4B3492E799 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		4646D00348CBF9FB121F63B2 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				6C98584C6E26F4D71CC53531 /* libCHippocratesEngine.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		3564411F9EFBC1EEB7EDED92 = {
@@ -129,10 +148,12 @@
 			buildPhases = (
 				76FF935FE34A25256550ACC9 /* Build Rust Engine */,
 				4A3AA942E4433EE9CCA4A495 /* Sources */,
+				4646D00348CBF9FB121F63B2 /* Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				421A33DD89AC4C8A94B74155 /* PBXTargetDependency */,
 			);
 			name = HippocratesEditor;
 			packageProductDependencies = (
@@ -221,7 +242,6 @@
 			outputFileListPaths = (
 			);
 			outputPaths = (
-				"${PROJECT_DIR}/lib/libhippocrates_engine.a",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -262,6 +282,11 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		421A33DD89AC4C8A94B74155 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D5058AEAF02E38A635245D2E /* CHippocratesEngine */;
+			targetProxy = D15DA48A8190EC9A0F5F5982 /* PBXContainerItemProxy */;
+		};
 		7421A46188BC958A234DF00D /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 84B9BF14D77039AF25D0302B /* HippocratesEditor */;
@@ -369,6 +394,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				OTHER_LDFLAGS = (
 					"-lhippocrates_engine",
+					"-ObjC",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.manfred.HippocratesEditor;
 				SDKROOT = macosx;
@@ -413,6 +439,7 @@
 				MACOSX_DEPLOYMENT_TARGET = 26.0;
 				OTHER_LDFLAGS = (
 					"-lhippocrates_engine",
+					"-ObjC",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.manfred.HippocratesEditor;
 				SDKROOT = macosx;

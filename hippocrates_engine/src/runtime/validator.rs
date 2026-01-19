@@ -201,38 +201,33 @@ fn check_coverage(
     valid: &[RangeSelector],
     cases: &[crate::ast::AssessmentCase],
 ) -> Result<(), String> {
-    // Simplified Logic: Integer Range Coverage [min, max]
-    // 1. Identify the "Universe" from valid definitions.
-    //    Assume simple case: Single Range(min, max).
-    // 2. Collect covered intervals from cases.
-    // 3. Verify Union(cases) covers Universe.
-
-    // Determine Universe
-    let mut universe_min = 0; // Default
-    let mut universe_max = 0;
+    // interval-based coverage check for f64 ranges.
+    
+    // 1. Determine Universe [min, max]
+    let mut universe_min = f64::NEG_INFINITY;
+    let mut universe_max = f64::INFINITY;
     let mut has_range = false;
 
-    // Support single range for now
     for sel in valid {
         if let RangeSelector::Range(
             Expression::Literal(Literal::Number(min)),
             Expression::Literal(Literal::Number(max)),
         ) = sel
         {
-            universe_min = *min as i64;
-            universe_max = *max as i64;
+            universe_min = *min;
+            universe_max = *max;
             has_range = true;
-            break; // Handle primary range
+            break; 
         }
     }
 
     if !has_range {
-        // Maybe it's an Enumeration? (List of Equals) or just Open
         return Ok(());
     }
 
-    // Check Case Coverage for Range
-    let mut covered = std::collections::HashSet::new();
+    // 2. Collect Intervals from Cases
+    struct Interval { start: f64, end: f64 }
+    let mut intervals: Vec<Interval> = Vec::new();
 
     for case in cases {
         match &case.condition {
@@ -240,31 +235,62 @@ fn check_coverage(
                 Expression::Literal(Literal::Number(min)),
                 Expression::Literal(Literal::Number(max)),
             ) => {
-                let start = *min as i64;
-                let end = *max as i64;
-                for i in start..=end {
-                    covered.insert(i);
+                intervals.push(Interval { start: *min, end: *max });
+            }
+            RangeSelector::Condition(op, Expression::Literal(Literal::Number(val))) => {
+                let v = *val;
+                match op {
+                    crate::ast::ConditionOperator::GreaterThan => intervals.push(Interval { start: v, end: f64::INFINITY }),
+                    crate::ast::ConditionOperator::GreaterThanOrEquals => intervals.push(Interval { start: v, end: f64::INFINITY }),
+                    crate::ast::ConditionOperator::LessThan => intervals.push(Interval { start: f64::NEG_INFINITY, end: v }),
+                    crate::ast::ConditionOperator::LessThanOrEquals => intervals.push(Interval { start: f64::NEG_INFINITY, end: v }),
+                    _ => {}
                 }
             }
             RangeSelector::Equals(Expression::Literal(Literal::Number(v))) => {
-                covered.insert(*v as i64);
+                intervals.push(Interval { start: *v, end: *v });
             }
-            RangeSelector::NotEnoughData => {
-                 // Does not contribute to numeric coverage of valid range
-            }
-            // Handle others
             _ => {}
         }
     }
 
-    // Verify Universe
-    for i in universe_min..=universe_max {
-        if !covered.contains(&i) {
+    // 3. Clamp Intervals to Universe
+    let mut clamped: Vec<Interval> = Vec::new();
+    for i in intervals {
+        let start = i.start.max(universe_min);
+        let end = i.end.min(universe_max);
+        if start <= end { // Valid overlap
+             clamped.push(Interval { start, end });
+        }
+    }
+
+    // 4. Sort and Sweep
+    // Sort by start
+    clamped.sort_by(|a, b| a.start.partial_cmp(&b.start).unwrap_or(std::cmp::Ordering::Equal));
+
+    let mut current = universe_min;
+    let epsilon = 0.00001; 
+
+    for i in clamped {
+        // If there's a significant gap before this interval starts
+        if i.start > current + epsilon {
             return Err(format!(
-                "Constraint Violation: Assessment for '{}' is missing coverage for value {}. Valid range is {}...{}.",
-                name, i, universe_min, universe_max
+                "Constraint Violation: Assessment for '{}' is incomplete. Uncovered gap detected between {:.2} and {:.2}. Valid range is {:.1}...{:.1}.",
+                name, current, i.start, universe_min, universe_max
             ));
         }
+        // Extend current reach
+        if i.end > current {
+            current = i.end;
+        }
+    }
+
+    // Check end gap
+    if current < universe_max - epsilon {
+        return Err(format!(
+            "Constraint Violation: Assessment for '{}' is incomplete. Uncovered gap at the end between {:.2} and {:.2}. Valid range is {:.1}...{:.1}.",
+            name, current, universe_max, universe_min, universe_max
+        ));
     }
 
     Ok(())

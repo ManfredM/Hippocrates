@@ -16,6 +16,8 @@ pub enum ParseError {
     UnknownUnit(String),
     #[error("Unknown rule: {0}")]
     UnknownRule(String),
+    #[error("Validation error: {0}")]
+    ValidationError(String),
 }
 
 pub fn parse_plan(input: &str) -> Result<Plan, ParseError> {
@@ -56,7 +58,14 @@ pub fn parse_plan(input: &str) -> Result<Plan, ParseError> {
         }
     }
 
-    Ok(Plan { definitions })
+    let plan = Plan { definitions };
+    
+    // Validate the plan
+    if let Err(msg) = crate::runtime::validator::validate_file(&plan) {
+        return Err(ParseError::ValidationError(msg));
+    }
+
+    Ok(plan)
 }
 
 /// Converts indentation to explicit tokens '《' (INDENT) and '》' (DEDENT)

@@ -11,21 +11,35 @@ struct ExecutionEvent: Identifiable {
 
 class AppState: ObservableObject {
     @Published var planCode: String = """
-    TreatmentPlan is a plan:
+    <Temperature> is a number:
+      valid values: 35.0 ... 42.0
+      question:
+        ask "Please enter current temperature":
+            validate answer once.
+
+    <TreatmentPlan> is a plan:
       during plan:
-        show message "Welcome to the treatment".
+        show message to patient "Welcome to the treatment".
+        ask for <Temperature>.
         
-      context:
-        timeframe: today
-        
-      MyEvent with change of Fever:
-        assess Temperature > 38°C:
-          show message "Fever detected".
+      <Monitor Fever> with change of <Temperature>:
+        assess <Temperature>:
+          38.0 ... 42.0:
+            show message to patient "Fever detected!".
+          35.0 ... 38.0:
+            show message to patient "Temperature normal".
     """
     
     @Published var currentFileURL: URL?
     @Published var currentExecutionLine: Int?
     @Published var executionLogs: [ExecutionEvent] = []
+    @Published var pendingQuestion: AskRequest? = nil
+    @Published var currentEngine: HippocratesEngine? = nil
+    
+    func answerQuestion(value: String) {
+        // This will be handled by the Wrapper/View bridging
+        self.pendingQuestion = nil
+    }
     
     func load(url: URL) {
         do {

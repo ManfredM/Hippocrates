@@ -241,62 +241,106 @@ struct ContentView: View {
 
         .frame(minWidth: 900, minHeight: 600)
         .sheet(item: $appState.pendingQuestion) { question in
-            VStack(spacing: 20) {
-                Text(question.question_text)
-                    .font(.headline)
-                    .multilineTextAlignment(.center)
-                
-                switch question.style {
-                case .Text:
-                     TextField("Answer", text: .constant("")) // Placeholder
-                        .textFieldStyle(.roundedBorder)
-                case .Selection:
-                    ForEach(question.options, id: \.self) { option in
-                        Button(option) {
-                             answer(question: question, value: option)
-                        }
-                    }
-                case .Numeric:
-                     // Simple numeric input
-                     Text("Numeric Input here")
-                default:
-                    Text("Unsupported question type")
-                }
-                
-                if question.style == .Text || question.style == .Numeric {
-                    // Submit button needed for text/numeric
-                    Button("Submit") {
-                        // stub
-                        answer(question: question, value: "10") // Test value
-                    }
-                }
+            QuestionSheetView(question: question) { answerValue in
+                answer(question: question, value: answerValue)
             }
-            .padding()
-            .frame(minWidth: 300)
         }
     }
     
     func answer(question: AskRequest, value: String) {
-        // We need access to the running engine instance to set value.
-        // Currently `HippocratesParser.run` returns the engine but we don't store it.
-        // Quick Fix: Make `appState` hold the active engine or use a singleton for this prototype.
-        // Given `appState` is EnvironmentObject, let's store engine there?
-        // But `HippocratesEngine` is not ObservableObject (yet).
-        // Let's update `runPlan` to store engine in `appState` via a wrapper or direct reference if we make it public.
-        
-        // Actually, `HippocratesEngine` wrapper creates a new instance every run.
-        // We need to store that instance to call `setValue`.
-        
-        // TODO: Refactor `runPlan` to store engine in `@State` or `appState`.
-        // For now, I'll update `AppState` to hold `currentEngine`.
         if let engine = appState.currentEngine {
-            // valueJson depends on type.
-            // For boolean/text, we wrap in JSON.
-            // Simple string for now:
-            let json = "\"\(value)\"" // Wrap as JSON string
+            // Determine if value is number or string and format JSON accordingly
+            // For now, if it parses as double, treat as number (raw), else string (quoted)
+            let json: String
+            if let _ = Double(value) {
+                json = value
+            } else {
+                json = "\"\(value)\""
+            }
+            
             _ = engine.setValue(name: question.variable_name, valueJson: json)
             appState.answerQuestion(value: value)
         }
     }
-
 }
+
+struct QuestionSheetView: View {
+    let question: AskRequest
+    let onAnswer: (String) -> Void
+    
+    @State private var textInput: String = ""
+    @State private var errorMessage: String?
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Text(question.question_text)
+                .font(.headline)
+                .multilineTextAlignment(.center)
+            
+            switch question.style {
+            case .Text:
+                TextField("Your Answer", text: $textInput)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 200)
+                    .onChange(of: textInput) { _, _ in errorMessage = nil }
+                    
+            case .Selection:
+                ForEach(question.options, id: \.self) { option in
+                    Button(option) {
+                        onAnswer(option)
+                    }
+                    .controlSize(.large)
+                }
+                
+            case .Numeric:
+                 TextField("Number", text: $textInput)
+                    #if os(iOS)
+                    .keyboardType(.decimalPad)
+                    #endif
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 120)
+                    .onChange(of: textInput) { _, _ in errorMessage = nil }
+                
+            default:
+                Text("Unsupported question type")
+            }
+            
+            if let error = errorMessage {
+                Text(error)
+                    .foregroundStyle(.red)
+                    .font(.caption)
+            }
+            
+            if question.style == .Text || question.style == .Numeric {
+                Button("Submit") {
+                    validateAndSubmit()
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(textInput.isEmpty)
+            }
+        }
+        .padding()
+        .frame(minWidth: 300, minHeight: 200)
+    }
+    
+    func validateAndSubmit() {
+        if question.style == .Numeric {
+            if let value = Double(textInput) {
+                if let range = question.range, range.count >= 2 {
+                    let min = range[0]
+                    let max = range[1]
+                    if value < min || value > max {
+                        errorMessage = "Value must be between \(String(format: "%.1f", min)) and \(String(format: "%.1f", max))"
+                        return
+                    }
+                }
+                onAnswer(textInput)
+            } else {
+                errorMessage = "Please enter a valid number"
+            }
+        } else {
+            onAnswer(textInput)
+        }
+    }
+}
+

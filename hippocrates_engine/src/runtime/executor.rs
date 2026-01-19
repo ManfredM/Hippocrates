@@ -448,7 +448,7 @@ impl Executor {
                 // env.log is internal debug log, keep as is
                 env.log(msg.clone());
                 // Emit log with current env time
-                self.emit_log(format!("Message: {}", msg), crate::domain::EventType::Message, env.now);
+                self.emit_log(msg, crate::domain::EventType::Message, env.now);
             }
             Action::AskQuestion(q, _) => {
 
@@ -534,8 +534,9 @@ impl Executor {
 
                 // Emit log with actual question text
                 let msg = format!("Action: Ask Question '{}'", question_text);
+
                 env.log(msg.clone());
-                self.emit_log(msg, crate::domain::EventType::Question, env.now);
+                self.emit_log(question_text.clone(), crate::domain::EventType::Question, env.now);
 
                 // Fire Callback
                 if let Some(cb) = &self.on_ask {
@@ -551,19 +552,26 @@ impl Executor {
                 }
 
                 // Wait for answer via Channel
-                if let Some(rx) = &self.input_receiver {
+                // We take the receiver out to satisfy borrow checker when calling check_triggers (which needs &mut self)
+                let mut rx_opt = self.input_receiver.take();
+                
+                if let Some(rx) = &rx_opt {
                     env.log(format!("Waiting for answer to '{}'...", q));
                     loop {
                         match rx.recv() {
                             Ok(msg) => {
                                 if msg.variable == *q {
                                     env.set_value(&msg.variable, msg.value.clone());
-                                    // env.log(format!("Received answer for '{}': {:?}", msg.variable, msg.value));
                                     self.emit_log(format!("Received Answer: {:?}", msg.value), crate::domain::EventType::Answer, env.now);
+                                    
+                                    // Trigger Event Checks - Now safe because we don't hold valid reference to self.input_receiver
+                                    self.check_triggers(env, &msg.variable);
+                                    
                                     break;
                                 } else {
                                     // Handle out-of-order updates (e.g. setting other variables)
                                     env.set_value(&msg.variable, msg.value);
+                                    self.check_triggers(env, &msg.variable);
                                 }
                             }
                             Err(_) => {
@@ -575,6 +583,9 @@ impl Executor {
                 } else {
                     env.log("Warning: No input receiver configured. Skipping wait for answer.".to_string());
                 }
+                
+                // Put receiver back
+                self.input_receiver = rx_opt;
             }
             Action::SendInfo(msg_text, vars) => {
                 let vals: Vec<String> = vars
@@ -591,6 +602,44 @@ impl Executor {
                 self.emit_log(msg, crate::domain::EventType::Log, env.now);
             }
             _ => {}
+        }
+    }
+
+    fn check_triggers(&mut self, env: &mut Environment, changed_var: &str) {
+        let mut blocks_to_run = Vec::new();
+        
+        for def in env.definitions.values() {
+             if let crate::ast::Definition::Plan(plan_def) = def {
+                 for block in &plan_def.blocks {
+                     match block {
+                         crate::ast::PlanBlock::Trigger(trigger_block) => {
+                             match &trigger_block.trigger {
+                                 crate::ast::Trigger::ChangeOf(var) => {
+                                     if var == changed_var {
+                                         blocks_to_run.push(trigger_block.statements.clone());
+                                     }
+                                 }
+                                 _ => {}
+                             }
+                         },
+                         crate::ast::PlanBlock::Event(event_block) => {
+                             match &event_block.trigger {
+                                 crate::ast::Trigger::ChangeOf(var) => {
+                                     if var == changed_var {
+                                         blocks_to_run.push(event_block.statements.clone());
+                                     }
+                                 }
+                                 _ => {}
+                             }
+                         },
+                         _ => {}
+                     }
+                 }
+             }
+        }
+        
+        for block in blocks_to_run {
+            self.execute_block(env, &block);
         }
     }
 }
