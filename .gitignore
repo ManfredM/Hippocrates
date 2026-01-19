@@ -29,4 +29,7 @@ HippocratesEditor.app/
 *.o
 
 # Generated Libs
-hippocrates_editor/lib/
+
+# Logs
+*.log
+

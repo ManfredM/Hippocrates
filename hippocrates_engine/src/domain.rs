@@ -2,6 +2,15 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[repr(u8)]
+pub enum EventType {
+    Log = 0,
+    Message = 1,
+    Question = 2,
+    Answer = 3,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Unit {
     // Temperature
@@ -61,7 +70,7 @@ pub struct ValueDefinition {
     pub value_type: ValueType,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum RuntimeValue {
     Number(f64),
     Quantity(f64, Unit),
@@ -122,4 +131,29 @@ impl fmt::Display for RuntimeValue {
 pub struct ValueInstance {
     pub value: RuntimeValue,
     pub timestamp: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum QuestionStyle {
+    Text,
+    Selection,
+    Likert,
+    VisualAnalogueScale {
+        min: f64,
+        max: f64,
+        min_label: String,
+        max_label: String,
+    },
+    Numeric,
+    Date,
+    Unknown,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AskRequest {
+    pub variable_name: String,
+    pub question_text: String,
+    pub style: QuestionStyle,
+    pub options: Vec<String>,
+    pub range: Option<(f64, f64)>,
 }

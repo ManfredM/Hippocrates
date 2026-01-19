@@ -17,10 +17,23 @@ char* hippocrates_parse_json(const char* input);
 void hippocrates_free_string(char* s);
 
 typedef void (*LineCallback)(int, void* user_data);
-typedef void (*LogCallback)(const char*, int64_t, void*);
+typedef void (*LogCallback)(const char*, uint8_t, int64_t, void*);
+typedef void (*AskCallback)(const char* request_json, void* user_data);
 
-/// Executes a plan by name from the provided source code.
-/// Calls the `callback` with the line number of each statement executed.
+typedef struct EngineContext EngineContext;
+
+EngineContext* hippocrates_engine_new(void* user_data);
+void hippocrates_engine_free(EngineContext* ctx);
+int hippocrates_engine_load(EngineContext* ctx, const char* source);
+void hippocrates_engine_set_callbacks(
+    EngineContext* ctx, 
+    LineCallback line_cb, 
+    LogCallback log_cb,
+    AskCallback ask_cb
+);
+void hippocrates_engine_execute(EngineContext* ctx, const char* plan_name);
+int hippocrates_engine_set_value(EngineContext* ctx, const char* var_name, const char* json_val);
+
 void hippocrates_run(
     const char* input,
     const char* plan_name,
@@ -29,8 +42,6 @@ void hippocrates_run(
     void* user_data
 );
 
-/// Simulates a plan execution over a specified number of days.
-/// Fast-forwards time without sleeping.
 void hippocrates_simulate(
     const char* input,
     const char* plan_name,

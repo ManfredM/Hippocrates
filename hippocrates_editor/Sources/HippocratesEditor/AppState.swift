@@ -6,6 +6,7 @@ struct ExecutionEvent: Identifiable {
     let name: String
     let time: Date
     let category: String
+    let type: Int
 }
 
 class AppState: ObservableObject {

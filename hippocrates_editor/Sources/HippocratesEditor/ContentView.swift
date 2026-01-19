@@ -36,8 +36,15 @@ struct ContentView: View {
                  }
             }
             
-            let onLog: (String, Date) -> Void = { msg, date in
-                 let event = ExecutionEvent(name: msg, time: date, category: "Log")
+            let onLog: (String, Int, Date) -> Void = { msg, type, date in
+                 let category: String
+                 switch type {
+                 case 1: category = "Message"
+                 case 2: category = "Question"
+                 case 3: category = "Answer"
+                 default: category = "Log"
+                 }
+                 let event = ExecutionEvent(name: msg, time: date, category: category, type: type)
                  DispatchQueue.main.async {
                      appState.executionLogs.append(event)
                  }

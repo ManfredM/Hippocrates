@@ -5,7 +5,7 @@ targets:
   HippocratesEditor:
     type: application
     platform: macOS
-    deploymentTarget: "14.0"
+    deploymentTarget: "26.0"
     sources:
       - path: Sources/HippocratesEditor
     settings:
@@ -20,11 +20,13 @@ targets:
     preBuildScripts:
       - script: "${PROJECT_DIR}/../hippocrates_engine/build_for_xcode.sh"
         name: Build Rust Engine
+        outputFiles:
+          - "${PROJECT_DIR}/lib/libhippocrates_engine.a"
 
   CHippocratesEngine:
     type: library.static
     platform: macOS
-    deploymentTarget: "14.0"
+    deploymentTarget: "26.0"
     sources:
       - path: Sources/CHippocratesEngine
     settings:
@@ -33,7 +35,7 @@ targets:
   HippocratesEditorTests:
     type: bundle.unit-test
     platform: macOS
-    deploymentTarget: "14.0"
+    deploymentTarget: "26.0"
     sources:
       - path: Tests/HippocratesEditorTests
     dependencies:

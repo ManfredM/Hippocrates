@@ -54,7 +54,8 @@ pub enum ExecutionMode {
 
 pub struct Executor {
     pub on_step: Option<Box<dyn Fn(usize) + Send>>,
-    pub on_log: Option<Box<dyn Fn(String, chrono::DateTime<chrono::Utc>) + Send>>,
+    pub on_log: Option<Box<dyn Fn(String, crate::domain::EventType, chrono::DateTime<chrono::Utc>) + Send>>,
+    pub on_ask: Option<Box<dyn Fn(crate::domain::AskRequest) + Send>>,
     pub mode: ExecutionMode,
 }
 
@@ -63,17 +64,19 @@ impl Executor {
         Executor {
             on_step: None,
             on_log: None,
+            on_ask: None,
             mode: ExecutionMode::RealTime,
         }
     }
 
     pub fn with_activites(
         line_cb: Box<dyn Fn(usize) + Send>,
-        log_cb: Box<dyn Fn(String, chrono::DateTime<chrono::Utc>) + Send>,
+        log_cb: Box<dyn Fn(String, crate::domain::EventType, chrono::DateTime<chrono::Utc>) + Send>,
     ) -> Self {
         Executor {
             on_step: Some(line_cb),
             on_log: Some(log_cb),
+            on_ask: None,
             mode: ExecutionMode::RealTime,
         }
     }
@@ -413,10 +416,14 @@ impl Executor {
         }
     }
 
-    fn emit_log(&self, msg: String, timestamp: chrono::DateTime<chrono::Utc>) {
+    fn emit_log(&self, msg: String, event_type: crate::domain::EventType, timestamp: chrono::DateTime<chrono::Utc>) {
         if let Some(cb) = &self.on_log {
-            cb(msg, timestamp);
+            cb(msg, event_type, timestamp);
         }
+    }
+
+    pub fn set_ask_callback(&mut self, cb: Box<dyn Fn(crate::domain::AskRequest) + Send>) {
+        self.on_ask = Some(cb);
     }
 
     fn execute_action(&mut self, env: &mut Environment, action: &Action) {
@@ -432,40 +439,52 @@ impl Executor {
                 // env.log is internal debug log, keep as is
                 env.log(msg.clone());
                 // Emit log with current env time
-                self.emit_log(format!("Message: {}", msg), env.now);
+                self.emit_log(format!("Message: {}", msg), crate::domain::EventType::Message, env.now);
             }
             Action::AskQuestion(q, _) => {
                 let msg = format!("Action: Ask Question '{}'", q);
                 env.log(msg.clone());
-                self.emit_log(msg, env.now);
+                self.emit_log(msg, crate::domain::EventType::Question, env.now);
 
-                if let ExecutionMode::Simulation(_) = self.mode {
-                    // Find definition for 'q' (subject) to determine valid values
-                    let defs = env.definitions.clone(); // Borrow check workaround
-                    if let Some(crate::ast::Definition::Value(val_def)) = defs.get(q) {
-                        let mut candidates = Vec::new();
-                        let mut ranges = Vec::new();
+                // Build AskRequest
+                let mut style = crate::domain::QuestionStyle::Text;
+                let mut options = Vec::new();
+                let mut range = None;
+                let mut question_text = q.clone();
+                let variable_name = q.clone();
+                let mut is_defined_var = false;
 
-                        for prop in &val_def.properties {
-                            if let crate::ast::Property::ValidValues(stmts) = prop {
+                // Lookup definition
+                // Hack: We need to access definitions. Environment borrow?
+                // We have `env`.
+                if let Some(crate::ast::Definition::Value(val_def)) = env.definitions.get(q) {
+                    is_defined_var = true;
+                    // Determine style/options from definition
+                    for prop in &val_def.properties {
+                        match prop {
+                            crate::ast::Property::ValidValues(stmts) => {
+                                // Extract valid values as options
                                 for stmt in stmts {
                                     if let StatementKind::EventProgression(_, cases) = &stmt.kind {
                                         for case in cases {
                                             match &case.condition {
                                                 crate::ast::RangeSelector::Equals(expr) => {
-                                                    let v = Evaluator::evaluate(env, expr);
-                                                    candidates.push(v);
+                                                     let v = Evaluator::evaluate(env, expr);
+                                                     // If string or enum, add to options
+                                                     if let crate::domain::RuntimeValue::String(s) = &v {
+                                                         options.push(s.clone());
+                                                     } else if let crate::domain::RuntimeValue::Enumeration(s) = &v {
+                                                         options.push(s.clone());
+                                                     } else {
+                                                         options.push(v.to_string());
+                                                     }
                                                 }
                                                 crate::ast::RangeSelector::Range(min, max) => {
                                                     let min_v = Evaluator::evaluate(env, min);
                                                     let max_v = Evaluator::evaluate(env, max);
-                                                    if let (
-                                                        crate::domain::RuntimeValue::Number(mn),
-                                                        crate::domain::RuntimeValue::Number(mx),
-                                                    ) = (min_v, max_v)
-                                                    {
-                                                        ranges.push((mn, mx));
-                                                    }
+                                                     if let (crate::domain::RuntimeValue::Number(mn), crate::domain::RuntimeValue::Number(mx)) = (min_v, max_v) {
+                                                         range = Some((mn, mx));
+                                                     }
                                                 }
                                                 _ => {}
                                             }
@@ -473,44 +492,76 @@ impl Executor {
                                     }
                                 }
                             }
+                             crate::ast::Property::Question(action) => {
+                                 // Check for explicit question text in definition
+                                 if let Action::AskQuestion(text, _) = action {
+                                     // If the definition says: ask "How severe...?"
+                                     // We use that text instead of variable name.
+                                     // But only if `q` was the variable name.
+                                     // The `q` here matches `val_def.name`.
+                                     if !text.is_empty() { 
+                                         // Check if text is string literal or another var?
+                                         // Parsing logic: subject.
+                                         // Ideally we check if text looks like a question or string.
+                                         question_text = text.clone();
+                                     }
+                                 }
+                             }
+                            _ => {}
                         }
+                    }
 
+                    // Infer Style
+                    if !options.is_empty() {
+                        style = crate::domain::QuestionStyle::Selection;
+                    } else if range.is_some() {
+                        style = crate::domain::QuestionStyle::Numeric;
+                        // TODO: Check for VAS specifically if I could parse it
+                    } else if val_def.value_type == crate::domain::ValueType::Enumeration {
+                         // Even if options empty (?), it's selection-like
+                         style = crate::domain::QuestionStyle::Selection;
+                    }
+                }
+
+                // Fire Callback
+                if let Some(cb) = &self.on_ask {
+                    let req = crate::domain::AskRequest {
+                        variable_name: variable_name.clone(),
+                        question_text: question_text.clone(),
+                        style: style.clone(),
+                        options: options.clone(),
+                        range,
+                    };
+                    cb(req);
+                }
+
+                // Simulation Logic
+                if let ExecutionMode::Simulation(_) = self.mode {
+                    // (Keep existing simulation logic or simplify it to use the extracted options/range)
+                    if is_defined_var {
                         let mut rng = rand::rng();
-                        let val = if !candidates.is_empty() {
-                            let idx = rng.random_range(0..candidates.len());
-                            Some(candidates[idx].clone())
-                        } else if !ranges.is_empty() {
-                            let idx = rng.random_range(0..ranges.len());
-                            let (min, max) = ranges[idx];
-                            // Generate random number. integer or float?
-                            // Hippocrates usually implies integer steps if range defined as 0...5?
-                            // But it's f64.
-                            // Let's assume integer if min/max are effectively integers?
-                            // Or just generate float.
-                            // If I pick 3.5 for 0...5, will it match "3" or "4"?
-                            // My comparisons are strict equality (epsilon) or range.
-                            // For Likert scale (1,2,3,4,5), usually integers expected.
-                            // If ValidValues was parsed from "0...5", it's a range.
-                            // ValidValues: 0, 1, 2...
-                            // The parser parses "0...5" as Range(0, 5).
-                            // I'll round to integer for now to be safe with matchers?
-                            // Or use random_range(min..=max) if I implement integer.
-                            // Let's use integer casting for simulation niceness.
-                            let start = min as i64;
-                            let end = max as i64;
-                            if start <= end {
-                                let r = rng.random_range(start..=end);
-                                Some(crate::domain::RuntimeValue::Number(r as f64))
-                            } else {
-                                Some(crate::domain::RuntimeValue::Number(min))
-                            }
+                        let val = if !options.is_empty() {
+                             // Pick random option
+                            let idx = rng.random_range(0..options.len());
+                            // We need to know target type. Assuming String/Enum from options string?
+                            // This is a simplification.
+                            Some(crate::domain::RuntimeValue::String(options[idx].clone()))
+                        } else if let Some((min, max)) = range {
+                             let start = min as i64;
+                             let end = max as i64;
+                             if start <= end {
+                                 let r = rng.random_range(start..=end);
+                                 Some(crate::domain::RuntimeValue::Number(r as f64))
+                             } else {
+                                 Some(crate::domain::RuntimeValue::Number(min))
+                             }
                         } else {
                             None
                         };
 
-                        if let Some(v) = val {
+                         if let Some(v) = val {
                             env.log(format!("Simulation: Answering '{}' with {:?}", q, v));
-                            self.emit_log(format!("Simulation Answer: {:?}", v), env.now);
+                            self.emit_log(format!("Simulation Answer: {:?}", v), crate::domain::EventType::Answer, env.now);
                             env.set_value(q, v);
                         }
                     }
@@ -523,12 +574,12 @@ impl Executor {
                     .collect();
                 let msg = format!("Action: Send Info '{}' with values: {:?}", msg_text, vals);
                 env.log(msg.clone());
-                self.emit_log(msg, env.now);
+                self.emit_log(msg, crate::domain::EventType::Log, env.now);
             }
             Action::ListenFor(val) => {
                 let msg = format!("Action: Listen For '{}'", val);
                 env.log(msg.clone());
-                self.emit_log(msg, env.now);
+                self.emit_log(msg, crate::domain::EventType::Log, env.now);
             }
             _ => {}
         }
