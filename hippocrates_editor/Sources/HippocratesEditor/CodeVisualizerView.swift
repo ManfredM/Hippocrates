@@ -47,21 +47,26 @@ struct CodeVisualizerView: NSViewRepresentable {
         let fullRange = NSRange(location: 0, length: nsString.length)
         
         let patterns: [(regex: String, color: NSColor)] = [
-            // Keywords
-            ("\\b(is a plan|is a drug|is an addressee|context|timeframe|during plan|show message|ask|listen for|send information|assess|event progression|change of|begin of|end of|every|after|for|with|valid values|meaning|calculation|reuse|documentation)\\b", .systemPurple),
+            // Keywords (Pink/Magenta in Xcode)
+            ("\\b(is a plan|is a drug|is an addressee|context|timeframe|during plan|show message|ask|listen for|send information|assess|event progression|change of|begin of|end of|every|after|for|with|valid values|meaning|calculation|reuse|documentation|question)\\b", .systemPink),
+            
+            // Secondary Keywords / Operators
             ("\\b(is|during|between|begin|and|or|not)\\b", .systemPink),
             
-            // Numbers & Units (RED)
-            ("\\b\\d+(\\.\\d+)?\\s*(°C|°F|mg|kg|g|lb|oz|ml|l|m|cm|mm|km|days|weeks|hours|minutes|seconds)?\\b", .systemRed),
+            // Numbers & Units (Blue in Xcode)
+            ("\\b\\d+(\\.\\d+)?\\s*(°C|°F|mg|kg|g|lb|oz|ml|l|m|cm|mm|km|days|weeks|hours|minutes|seconds)?\\b", .systemBlue),
 
-            // Angled Variables (CYAN)
-            ("<[^>]+>", .systemCyan),
+            // Angled Variables (Teal/Cyan - Type-like)
+            ("<[^>]+>", .systemTeal),
             
-            // Strings (GREEN)
-            ("\"[^\"]*\"", .systemGreen),
+            // Strings (Red in Xcode)
+            ("\"[^\"]*\"", .systemRed),
             
-            // Comments
-            ("\\(\\*.*?\\*\\)", .secondaryLabelColor)
+            // Comments (Gray)
+            ("\\(\\*.*?\\*\\)", .secondaryLabelColor),
+            
+            // Identifiers being defined (Purple-ish for types/definitions?)
+            // Just basic support for now.
         ]
         
         for (pattern, color) in patterns {
