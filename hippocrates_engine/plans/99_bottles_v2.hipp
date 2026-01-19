@@ -1,0 +1,20 @@
+<bottle count> is a number:
+    valid values: value is 0 bottles ... 100 bottles.
+
+<Sing> is a plan:
+    begin of <Sing>:
+        <bottle count> = 99 bottles.
+    every 2 seconds:
+        assess <bottle count>:
+            0 bottles:
+                show message "No more bottles of beer on the wall, no more bottles of beer.".
+                show message "Go to the store and buy some more, 99 bottles of beer on the wall.".
+                <bottle count> = 99 bottles.
+            1 bottle:
+                show message "1 bottle of beer on the wall, 1 bottle of beer.".
+                show message "Take one down and pass it around, no more bottles of beer on the wall.".
+                <bottle count> = 0 bottles.
+            2 bottles ... 99 bottles:
+                show message <bottle count> + " bottles of beer on the wall, " + <bottle count> + " bottles of beer.".
+                <bottle count> = <bottle count> - 1 bottle.
+                show message "Take one down and pass it around, " + <bottle count> + " bottles of beer on the wall.".

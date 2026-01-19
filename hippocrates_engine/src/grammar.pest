@@ -197,7 +197,6 @@ statement = {
     documentation_prop |
     event_progression |
     conditional |
-    context_block |
     assignment |
     constraint |
     action |
@@ -254,7 +253,7 @@ show_message = {
         flexible_message_content
     ) ~ flexible_block? ~ "."? 
 }
-flexible_message_content = _{ (string_literal | expression) ~ (NEWLINE ~ !DEDENT ~ (string_literal | expression))* }
+flexible_message_content = _{ expression ~ (NEWLINE ~ !DEDENT ~ expression)* }
 
 ask_question = { "ask" ~ ("for" | "patient" | "physician")? ~ (string_literal | multi_word_identifier) ~ flexible_block? ~ "."? }
 listen_for = { "listen for" ~ identifier ~ flexible_block }

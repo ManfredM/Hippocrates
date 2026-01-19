@@ -36,15 +36,20 @@ struct CodeVisualizerView: NSViewRepresentable {
         textView.textContainer?.containerSize = NSSize(width: scrollView.contentSize.width, height: CGFloat.greatestFiniteMagnitude)
         
         scrollView.documentView = textView
+        
+        // Setup Coordinator to listen for frame changes
+        context.coordinator.textView = textView
+        textView.postsFrameChangedNotifications = true
+        NotificationCenter.default.addObserver(context.coordinator,
+                                             selector: #selector(Coordinator.updateLayout),
+                                             name: NSView.frameDidChangeNotification,
+                                             object: textView)
+        
         return scrollView
     }
     
     func updateNSView(_ nsView: NSScrollView, context: Context) {
         guard let textView = nsView.documentView as? NSTextView else { return }
-        
-        // Cleanup old views
-        context.coordinator.errorViews.forEach { $0.removeFromSuperview() }
-        context.coordinator.errorViews.removeAll()
         
         let font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
         let storage = textView.textStorage ?? NSTextStorage()
@@ -55,6 +60,7 @@ struct CodeVisualizerView: NSViewRepresentable {
         attributed.addAttribute(.font, value: font, range: fullRange)
         attributed.addAttribute(.foregroundColor, value: NSColor.labelColor, range: fullRange)
         
+        // ... (Regex patterns code omitted for brevity, assume strictly same logic as before) ...
         let patterns: [(regex: String, color: NSColor)] = [
             ("\\b(is|during|between|begin|and|or|not)\\b", .systemPink),
             ("\\b(with|for|every|after|to|once|of)\\b", .systemOrange),
@@ -111,51 +117,62 @@ struct CodeVisualizerView: NSViewRepresentable {
              storage.setAttributedString(attributed)
         }
         
-        // Multiple Errors Overlay
-        let errorsByLine = Dictionary(grouping: errors, by: { $0.line })
+        // Update errors in coordinator and trigger layout
+        context.coordinator.errors = errors
+        context.coordinator.updateLayout()
+    }
+    
+    class Coordinator: NSObject {
+        var errorViews: [NSView] = []
+        weak var textView: NSTextView?
+        var errors: [HippocratesParser.EngineError] = []
         
-        for (line, lineErrors) in errorsByLine {
-            if line > 0 {
-                var lineCount = 1
-                var targetRange: NSRange?
-                nsString.enumerateSubstrings(in: fullRange, options: .byLines) { (_, rng, _, stop) in
-                    if lineCount == line {
-                        targetRange = rng
-                        stop.pointee = true
+        @objc func updateLayout() {
+            guard let textView = textView, let layoutManager = textView.layoutManager, let textContainer = textView.textContainer else { return }
+            
+            // Remove old views
+            errorViews.forEach { $0.removeFromSuperview() }
+            errorViews.removeAll()
+            
+            let nsString = NSString(string: textView.string)
+            let fullRange = NSRange(location: 0, length: textView.string.utf16.count)
+            let errorsByLine = Dictionary(grouping: errors, by: { $0.line })
+            
+            for (line, lineErrors) in errorsByLine {
+                if line > 0 {
+                    var lineCount = 1
+                    var targetRange: NSRange?
+                    nsString.enumerateSubstrings(in: fullRange, options: .byLines) { (_, rng, _, stop) in
+                        if lineCount == line {
+                            targetRange = rng
+                            stop.pointee = true
+                        }
+                        lineCount += 1
                     }
-                    lineCount += 1
-                }
-                 
-                if let rng = targetRange, let layoutManager = textView.layoutManager, let textContainer = textView.textContainer {
-                    layoutManager.ensureLayout(for: textContainer)
                     
-                    let glyphRange = layoutManager.glyphRange(forCharacterRange: rng, actualCharacterRange: nil)
-                    let boundingRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
-                    
-                    let uniqueMessages = Array(Set(lineErrors.map { $0.message })).sorted()
-                    
-                    let swiftUIView = ErrorPill(errors: uniqueMessages)
-                    let hostingView = NSHostingView(rootView: swiftUIView)
-                    
-                    let xPos = max(boundingRect.maxX + 10, 300) 
-                    let yPos = boundingRect.origin.y
-                    
-                    hostingView.frame = NSRect(x: xPos, y: yPos, width: 200, height: 26)
-                    hostingView.translatesAutoresizingMaskIntoConstraints = true 
-                    
-                    let size = hostingView.fittingSize
-                    hostingView.frame.size = size
-                    
-                    textView.addSubview(hostingView)
-                    context.coordinator.errorViews.append(hostingView)
+                    if let rng = targetRange {
+                        layoutManager.ensureLayout(for: textContainer)
+                        let glyphRange = layoutManager.glyphRange(forCharacterRange: rng, actualCharacterRange: nil)
+                        let boundingRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
+                        
+                        let uniqueMessages = Array(Set(lineErrors.map { $0.message })).sorted()
+                        let swiftUIView = ErrorPill(errors: uniqueMessages)
+                        let hostingView = NSHostingView(rootView: swiftUIView)
+                        
+                        let xPos = max(boundingRect.maxX + 10, 300)
+                        let yPos = boundingRect.origin.y
+                        
+                        hostingView.frame = NSRect(x: xPos, y: yPos, width: 200, height: 26)
+                        hostingView.translatesAutoresizingMaskIntoConstraints = true
+                        let size = hostingView.fittingSize
+                        hostingView.frame.size = size
+                        
+                        textView.addSubview(hostingView)
+                        errorViews.append(hostingView)
+                    }
                 }
             }
         }
-    }
-    
-    // Updated Coordinator to hold generic NSView
-    class Coordinator {
-        var errorViews: [NSView] = []
     }
 }
 
