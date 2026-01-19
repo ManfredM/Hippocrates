@@ -47,17 +47,28 @@ struct CodeVisualizerView: NSViewRepresentable {
         let fullRange = NSRange(location: 0, length: nsString.length)
         
         let patterns: [(regex: String, color: NSColor)] = [
-            // Keywords (Pink/Magenta in Xcode)
-            ("\\b(is a plan|is a drug|is an addressee|context|timeframe|during plan|show message|ask|listen for|send information|assess|event progression|change of|begin of|end of|every|after|for|with|valid values|meaning|calculation|reuse|documentation|question)\\b", .systemPink),
             
-            // Secondary Keywords / Operators
+            // 1a. Core Control Flow / Logic (Pink)
             ("\\b(is|during|between|begin|and|or|not)\\b", .systemPink),
             
-            // Numbers & Units (Blue in Xcode)
-            ("\\b\\d+(\\.\\d+)?\\s*(°C|°F|mg|kg|g|lb|oz|ml|l|m|cm|mm|km|days|weeks|hours|minutes|seconds)?\\b", .systemBlue),
+            // 1b. Prepositions / Parameter Labels (Orange)
+            ("\\b(with|for|every|after|to|once|of)\\b", .systemOrange),
+            
+            // 2. Actions / Methods (Teal)
+            ("\\b(show message|ask|listen for|send information|validate answer)\\b", .systemTeal),
+            
+            // 3. Block Headers / Structure (Indigo)
+            ("\\b(context|timeframe|during plan|valid values|meaning|calculation|reuse|documentation|question|assess|event progression|change of|begin of|end of)\\b", .systemIndigo),
 
-            // Angled Variables (Teal/Cyan - Type-like)
-            ("<[^>]+>", .systemTeal),
+            // 4. Definitions / Types (Purple)
+            ("\\b(is a plan|is a drug|is an addressee|is a number|is a boolean|is a string)\\b", .systemPurple),
+            
+            // 5. Numbers (Yellow - like Xcode Dark)
+            ("\\b\\d+(\\.\\d+)?\\s*(°C|°F|mg|kg|g|lb|oz|ml|l|m|cm|mm|km|days|weeks|hours|minutes|seconds)?\\b", .systemYellow),
+
+            // 6. Angled Variables (Green - Distinct from Actions)
+            ("<[^>]+>", .systemGreen),
+
             
             // Strings (Red in Xcode)
             ("\"[^\"]*\"", .systemRed),
@@ -74,7 +85,7 @@ struct CodeVisualizerView: NSViewRepresentable {
             regex.enumerateMatches(in: code, options: [], range: fullRange) { match, _, _ in
                 guard let matchRange = match?.range else { return }
                 attributed.addAttribute(.foregroundColor, value: color, range: matchRange)
-                attributed.addAttribute(.font, value: boldFont, range: matchRange)
+                // attributed.addAttribute(.font, value: boldFont, range: matchRange) // Removed bold
             }
         }
         
