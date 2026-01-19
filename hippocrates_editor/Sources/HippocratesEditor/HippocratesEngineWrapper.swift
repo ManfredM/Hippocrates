@@ -1,6 +1,5 @@
 import Foundation
 
-
 struct HippocratesParser {
     
     struct ParseResult: Decodable {
@@ -67,61 +66,28 @@ struct HippocratesParser {
             return .failure(error)
         }
     }
-    static func run(input: String, planName: String, onStep: @escaping (Int) -> Void, onLog: @escaping (String, Int, Date) -> Void) {
-        execute(input: input, planName: planName, onStep: onStep, onLog: onLog) { scriptC, planC, lineCb, logCb, context in
-            hippocrates_run(scriptC, planC, lineCb, logCb, context)
-        }
-    }
-
-    static func simulate(input: String, planName: String, days: Int, onStep: @escaping (Int) -> Void, onLog: @escaping (String, Int, Date) -> Void) {
-        execute(input: input, planName: planName, onStep: onStep, onLog: onLog) { scriptC, planC, lineCb, logCb, context in
-            hippocrates_simulate(scriptC, planC, lineCb, logCb, context, Int32(days))
-        }
-    }
-    
-    private static func execute(input: String, planName: String, onStep: @escaping (Int) -> Void, onLog: @escaping (String, Int, Date) -> Void,
-                                executor: (UnsafePointer<CChar>, UnsafePointer<CChar>, LineCallback, LogCallback, UnsafeMutableRawPointer) -> Void) {
-        guard let scriptC = input.cString(using: .utf8),
-              let planC = planName.cString(using: .utf8) else { return }
+    static func prepareEngine(_ source: String, simulate: Bool = false, simulationDays: Int = 30, onStep: @escaping (Int) -> Void, onLog: @escaping (String, Int, Date) -> Void, onAsk: @escaping (AskRequest) -> Void) -> HippocratesEngine? {
+        let engine = HippocratesEngine()
         
-        class RunContext {
-            let onStep: (Int) -> Void
-            let onLog: (String, Int, Date) -> Void
-            init(step: @escaping (Int) -> Void, log: @escaping (String, Int, Date) -> Void) {
-                self.onStep = step
-                self.onLog = log
-            }
+        engine.onStep = onStep
+        engine.onLog = onLog
+        engine.onAsk = onAsk
+        
+        if simulate {
+             // Use new Simulation mode with timelapse (speed_factor: None -> instant)
+             engine.setSimulationMode(days: simulationDays)
         }
         
-        let box = RunContext(step: onStep, log: onLog)
-        let context = Unmanaged.passRetained(box).toOpaque()
-        
-        let lineCb: LineCallback = { line, ctx in
-            // Handle context and call onStep
-             if let ctx = ctx {
-                 let box = Unmanaged<RunContext>.fromOpaque(ctx).takeUnretainedValue()
-                 box.onStep(Int(line))
-            }
+        if engine.load(source: source) {
+            return engine
         }
-        
-        let logCb: LogCallback = { msgPtr, type, timestamp, ctx in
-            if let ctx = ctx, let msgPtr = msgPtr {
-                let box = Unmanaged<RunContext>.fromOpaque(ctx).takeUnretainedValue()
-                let msg = String(cString: msgPtr)
-                let date = Date(timeIntervalSince1970: TimeInterval(timestamp) / 1000.0)
-                box.onLog(msg, Int(type), date)
-            }
-        }
-        
-        executor(scriptC, planC, lineCb, logCb, context)
-        
-        Unmanaged<RunContext>.fromOpaque(context).release()
+        return nil
     }
 }
 
 // MARK: - New Engine Interface
 
-enum QuestionStyle: Decodable {
+enum QuestionStyle: Decodable, Equatable {
     case Text
     case Selection
     case Likert
@@ -162,12 +128,14 @@ enum QuestionStyle: Decodable {
     }
 }
 
-struct AskRequest: Decodable {
+struct AskRequest: Decodable, Identifiable {
+    var id: String { variable_name }
     let variable_name: String
     let question_text: String
     let style: QuestionStyle
     let options: [String]
     let range: [Double]?
+    let timestamp: Int64
 }
 
 class HippocratesEngine {
@@ -228,6 +196,13 @@ class HippocratesEngine {
     func load(source: String) -> Bool {
         guard let ctx = ctx, let cSource = source.cString(using: .utf8) else { return false }
         return hippocrates_engine_load(ctx, cSource) == 0
+    }
+    
+    func setSimulationMode(days: Int = 30) {
+        guard let ctx = ctx else { return }
+        // Convert to minutes
+        let mins = Int32(days * 24 * 60)
+        hippocrates_engine_enable_simulation(ctx, mins)
     }
     
     func execute(planName: String) {

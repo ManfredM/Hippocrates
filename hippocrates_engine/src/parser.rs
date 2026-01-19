@@ -578,10 +578,23 @@ fn parse_value_property(pair: pest::iterators::Pair<Rule>) -> Result<Property, P
             Ok(Property::Timeframe(all_timeframes))
         }
         Rule::question_prop => {
-            let stmt_pair = inner.into_inner().next().unwrap(); // statement
-            let action_pair = stmt_pair.into_inner().next().unwrap(); // action
-            let ask_pair = action_pair.into_inner().next().unwrap(); // ask_question
-            let action = parse_ask_question(ask_pair.into_inner())?;
+            let mut q_inner = inner.into_inner();
+            let stmt_or_block = q_inner.next().unwrap();
+            
+            let action = if stmt_or_block.as_rule() == Rule::block_body {
+                 let stmt = stmt_or_block.into_inner().next().unwrap();
+                 let act = stmt.into_inner().next().unwrap(); // action
+                 let ask = act.into_inner().next().unwrap(); // ask_question
+                 parse_ask_question(ask.into_inner())?
+            } else if stmt_or_block.as_rule() == Rule::statement {
+                 // Direct statement
+                 let act = stmt_or_block.into_inner().next().unwrap();
+                 let ask = act.into_inner().next().unwrap();
+                 parse_ask_question(ask.into_inner())?
+            } else {
+                 return Ok(Property::Custom("Error".to_string(), "Parse Error".to_string()));
+            };
+            
             Ok(Property::Question(action))
         }
         Rule::calculation_prop => {
@@ -963,20 +976,26 @@ fn parse_show_message(pairs: pest::iterators::Pairs<Rule>) -> Result<Action, Par
     ))
 }
 
-fn parse_ask_question(mut pairs: pest::iterators::Pairs<Rule>) -> Result<Action, ParseError> {
-    let subject_raw = pairs.next().unwrap();
-    let subject = if subject_raw.as_rule() == Rule::multi_word_identifier {
-        parse_multi_word_identifier(subject_raw)
-    } else {
-        subject_raw.as_str().trim_matches('"').to_string()
-    };
-
+fn parse_ask_question(pairs: pest::iterators::Pairs<Rule>) -> Result<Action, ParseError> {
+    let mut subject = String::new();
     let mut statements = vec![];
+
     for p in pairs {
-        if p.as_rule() == Rule::statement {
-            statements.push(parse_statement(p)?);
+        println!("DEBUG: parse_ask_question rule: {:?}", p.as_rule());
+        match p.as_rule() {
+            Rule::multi_word_identifier => {
+                subject = parse_multi_word_identifier(p);
+            }
+            Rule::string_literal => {
+                subject = p.as_str().trim_matches('"').to_string();
+            }
+            Rule::statement => {
+                statements.push(parse_statement(p)?);
+            }
+            _ => {}
         }
     }
+
     let opt_stmts = if statements.is_empty() {
         None
     } else {

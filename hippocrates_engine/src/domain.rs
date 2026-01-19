@@ -150,10 +150,17 @@ pub enum QuestionStyle {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InputMessage {
+    pub variable: String,
+    pub value: RuntimeValue,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AskRequest {
     pub variable_name: String,
     pub question_text: String,
     pub style: QuestionStyle,
     pub options: Vec<String>,
     pub range: Option<(f64, f64)>,
+    pub timestamp: i64,
 }

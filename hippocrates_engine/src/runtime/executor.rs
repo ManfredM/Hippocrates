@@ -1,7 +1,6 @@
 use crate::ast::{Action, Block, Statement, StatementKind};
 use crate::domain::Unit;
 use crate::runtime::{Environment, Evaluator, scheduler::Scheduler};
-use rand::Rng;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 
@@ -46,10 +45,10 @@ impl Ord for ScheduledEvent {
     }
 }
 
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum ExecutionMode {
     RealTime,
-    Simulation(std::time::Duration),
+    Simulation { speed_factor: Option<f64>, duration: Option<chrono::Duration> },
 }
 
 pub struct Executor {
@@ -57,6 +56,7 @@ pub struct Executor {
     pub on_log: Option<Box<dyn Fn(String, crate::domain::EventType, chrono::DateTime<chrono::Utc>) + Send>>,
     pub on_ask: Option<Box<dyn Fn(crate::domain::AskRequest) + Send>>,
     pub mode: ExecutionMode,
+    pub input_receiver: Option<std::sync::mpsc::Receiver<crate::domain::InputMessage>>,
 }
 
 impl Executor {
@@ -66,6 +66,7 @@ impl Executor {
             on_log: None,
             on_ask: None,
             mode: ExecutionMode::RealTime,
+            input_receiver: None,
         }
     }
 
@@ -78,7 +79,12 @@ impl Executor {
             on_log: Some(log_cb),
             on_ask: None,
             mode: ExecutionMode::RealTime,
+            input_receiver: None,
         }
+    }
+
+    pub fn set_input_receiver(&mut self, rx: std::sync::mpsc::Receiver<crate::domain::InputMessage>) {
+        self.input_receiver = Some(rx);
     }
 
     pub fn set_mode(&mut self, mode: ExecutionMode) {
@@ -98,14 +104,19 @@ impl Executor {
                 plan_def.blocks.len()
             );
 
+            // Drain initial inputs (configuration)
+            if let Some(rx) = &self.input_receiver {
+                while let Ok(msg) = rx.try_recv() {
+                    env.set_value(&msg.variable, msg.value);
+                }
+            }
+
             let mut events = BinaryHeap::new();
             let start_time = env.now;
+            
             let end_time = match self.mode {
-                ExecutionMode::RealTime => None,
-                ExecutionMode::Simulation(d) => Some(
-                    start_time
-                        + chrono::Duration::from_std(d).unwrap_or(chrono::Duration::MAX),
-                ),
+                ExecutionMode::Simulation { duration, .. } => duration.map(|d| start_time + d),
+                _ => None,
             };
 
             // Initial Scheduling
@@ -171,24 +182,9 @@ impl Executor {
                                 });
                             }
                             crate::ast::Trigger::StartOf(target) => {
-                                // Note: StartOf TriggerBlock is unusual? Plan usually uses EventBlock for distinct events.
-                                // But TriggerBlock exists too. Treating same as EventBlock.
-                                if let Some(crate::ast::Definition::Value(val_def)) =
-                                    defs.get(target)
-                                {
-                                    if let Some(_next) =
-                                        Scheduler::next_occurrence(val_def, start_time)
-                                    {
-                                        // Convert TriggerBlock to EventBlock-like structure or just execute stmts
-                                        // We need a way to schedule "TriggerBlock execution".
-                                        // Reusing EventKind::StartOf logic but with wrappers?
-                                        // Actually I'll clone stmts.
-                                        // Actually TriggerBlock for StartOf is rare in my examples, usually EventBlock.
-                                        // But let's handle it.
-                                        // Wait, EventKind::StartOf expects EventBlock.
-                                        // I'll make EventKind generic or multiple variants.
-                                        // Or simplified: Just store stmts + reschedule info.
-                                        // For now, skipping StartOf in TriggerBlock (unlikely usage).
+                                if let Some(def) = defs.get(target) {
+                                    if let Some(_next) = Scheduler::next_occurrence(def, start_time) {
+                                        // ...
                                         println!(
                                             "DEBUG: StartOf in TriggerBlock not fully supported yet."
                                         );
@@ -200,8 +196,8 @@ impl Executor {
                     }
                     crate::ast::PlanBlock::Event(block) => {
                         if let crate::ast::Trigger::StartOf(target) = &block.trigger {
-                            if let Some(crate::ast::Definition::Value(val_def)) = defs.get(target) {
-                                if let Some(next) = Scheduler::next_occurrence(val_def, start_time)
+                            if let Some(def) = defs.get(target) {
+                                if let Some(next) = Scheduler::next_occurrence(def, start_time)
                                 {
                                     println!("DEBUG: Scheduled '{}' at {}", block.name, next);
                                     events.push(ScheduledEvent {
@@ -237,6 +233,7 @@ impl Executor {
                 }
 
                 // Advance time
+                // Advance time
                 match self.mode {
                     ExecutionMode::RealTime => {
                         if now > env.now {
@@ -246,8 +243,20 @@ impl Executor {
                             std::thread::sleep(diff);
                         }
                     }
-                    ExecutionMode::Simulation(_) => {
-                        // Instant jump
+                    ExecutionMode::Simulation { speed_factor, .. } => {
+                        if let Some(factor) = speed_factor {
+                             if now > env.now {
+                                let diff = (now - env.now)
+                                    .to_std()
+                                    .unwrap_or(std::time::Duration::from_secs(0));
+                                // Sleep with speed factor. factor 1.0 = real time. 10.0 = 10x faster (sleep 1/10th)
+                                // factor > 0
+                                let duration_secs = diff.as_secs_f64();
+                                let sleep_secs = duration_secs / factor;
+                                std::thread::sleep(std::time::Duration::from_secs_f64(sleep_secs));
+                             }
+                        }
+                        // If speed_factor is None, instant jump (timelapse/instant)
                     }
                 }
                 env.set_time(now);
@@ -290,9 +299,9 @@ impl Executor {
                         self.execute_block(env, &block.statements);
 
                         // Reschedule next occurrence
-                        if let Some(crate::ast::Definition::Value(val_def)) = defs.get(&period_name)
+                        if let Some(def) = defs.get(&period_name)
                         {
-                            if let Some(next) = Scheduler::next_occurrence(val_def, now) {
+                            if let Some(next) = Scheduler::next_occurrence(def, now) {
                                 // Ensure we don't schedule same time again loop
                                 if next > now {
                                     events.push(ScheduledEvent {
@@ -442,9 +451,7 @@ impl Executor {
                 self.emit_log(format!("Message: {}", msg), crate::domain::EventType::Message, env.now);
             }
             Action::AskQuestion(q, _) => {
-                let msg = format!("Action: Ask Question '{}'", q);
-                env.log(msg.clone());
-                self.emit_log(msg, crate::domain::EventType::Question, env.now);
+
 
                 // Build AskRequest
                 let mut style = crate::domain::QuestionStyle::Text;
@@ -452,13 +459,14 @@ impl Executor {
                 let mut range = None;
                 let mut question_text = q.clone();
                 let variable_name = q.clone();
-                let mut is_defined_var = false;
+                // let mut is_defined_var = false; // Unused after removing auto-simulation
 
                 // Lookup definition
                 // Hack: We need to access definitions. Environment borrow?
                 // We have `env`.
+                
                 if let Some(crate::ast::Definition::Value(val_def)) = env.definitions.get(q) {
-                    is_defined_var = true;
+                    // is_defined_var = true;
                     // Determine style/options from definition
                     for prop in &val_def.properties {
                         match prop {
@@ -523,6 +531,12 @@ impl Executor {
                     }
                 }
 
+
+                // Emit log with actual question text
+                let msg = format!("Action: Ask Question '{}'", question_text);
+                env.log(msg.clone());
+                self.emit_log(msg, crate::domain::EventType::Question, env.now);
+
                 // Fire Callback
                 if let Some(cb) = &self.on_ask {
                     let req = crate::domain::AskRequest {
@@ -531,40 +545,35 @@ impl Executor {
                         style: style.clone(),
                         options: options.clone(),
                         range,
+                        timestamp: env.now.timestamp_millis(),
                     };
                     cb(req);
                 }
 
-                // Simulation Logic
-                if let ExecutionMode::Simulation(_) = self.mode {
-                    // (Keep existing simulation logic or simplify it to use the extracted options/range)
-                    if is_defined_var {
-                        let mut rng = rand::rng();
-                        let val = if !options.is_empty() {
-                             // Pick random option
-                            let idx = rng.random_range(0..options.len());
-                            // We need to know target type. Assuming String/Enum from options string?
-                            // This is a simplification.
-                            Some(crate::domain::RuntimeValue::String(options[idx].clone()))
-                        } else if let Some((min, max)) = range {
-                             let start = min as i64;
-                             let end = max as i64;
-                             if start <= end {
-                                 let r = rng.random_range(start..=end);
-                                 Some(crate::domain::RuntimeValue::Number(r as f64))
-                             } else {
-                                 Some(crate::domain::RuntimeValue::Number(min))
-                             }
-                        } else {
-                            None
-                        };
-
-                         if let Some(v) = val {
-                            env.log(format!("Simulation: Answering '{}' with {:?}", q, v));
-                            self.emit_log(format!("Simulation Answer: {:?}", v), crate::domain::EventType::Answer, env.now);
-                            env.set_value(q, v);
+                // Wait for answer via Channel
+                if let Some(rx) = &self.input_receiver {
+                    env.log(format!("Waiting for answer to '{}'...", q));
+                    loop {
+                        match rx.recv() {
+                            Ok(msg) => {
+                                if msg.variable == *q {
+                                    env.set_value(&msg.variable, msg.value.clone());
+                                    // env.log(format!("Received answer for '{}': {:?}", msg.variable, msg.value));
+                                    self.emit_log(format!("Received Answer: {:?}", msg.value), crate::domain::EventType::Answer, env.now);
+                                    break;
+                                } else {
+                                    // Handle out-of-order updates (e.g. setting other variables)
+                                    env.set_value(&msg.variable, msg.value);
+                                }
+                            }
+                            Err(_) => {
+                                env.log("Input channel disconnected.".to_string());
+                                break; 
+                            }
                         }
                     }
+                } else {
+                    env.log("Warning: No input receiver configured. Skipping wait for answer.".to_string());
                 }
             }
             Action::SendInfo(msg_text, vars) => {

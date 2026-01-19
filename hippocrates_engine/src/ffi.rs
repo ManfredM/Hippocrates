@@ -50,16 +50,21 @@ pub struct EngineContext {
     pub env: crate::runtime::Environment,
     pub executor: crate::runtime::Executor,
     pub user_data: *mut std::ffi::c_void,
+    pub input_sender: std::sync::mpsc::Sender<crate::domain::InputMessage>,
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn hippocrates_engine_new(user_data: *mut std::ffi::c_void) -> *mut EngineContext {
     let env = crate::runtime::Environment::new();
-    let executor = crate::runtime::Executor::new();
+    let mut executor = crate::runtime::Executor::new();
+    let (tx, rx) = std::sync::mpsc::channel();
+    executor.set_input_receiver(rx);
+    
     let ctx = std::boxed::Box::new(EngineContext {
         env,
         executor,
         user_data,
+        input_sender: tx,
     });
     Box::into_raw(ctx)
 }
@@ -148,12 +153,52 @@ pub unsafe extern "C" fn hippocrates_engine_set_value(
         Err(_) => return -1,
     };
     
-    match serde_json::from_str::<crate::domain::RuntimeValue>(json) {
-        Ok(val) => {
-            context.env.set_value(name, val);
-            0
+    // Look up variable definition to know expected type
+    let expected_type = if let Some(crate::ast::Definition::Value(def)) = context.env.definitions.get(name) {
+        Some(def.value_type.clone())
+    } else {
+        None
+    };
+
+    let runtime_val = match expected_type {
+        Some(crate::domain::ValueType::Number) => {
+             // Try to parse as f64
+             if let Ok(n) = serde_json::from_str::<f64>(json) {
+                 Some(crate::domain::RuntimeValue::Number(n))
+             } else if let Ok(s) = serde_json::from_str::<String>(json) {
+                 // Maybe it came as string "10"?
+                 if let Ok(n) = s.parse::<f64>() {
+                     Some(crate::domain::RuntimeValue::Number(n))
+                 } else { None }
+             } else { None }
+        },
+        Some(crate::domain::ValueType::Enumeration) | Some(crate::domain::ValueType::Addressee) => {
+            // Expect string
+             if let Ok(s) = serde_json::from_str::<String>(json) {
+                 Some(crate::domain::RuntimeValue::Enumeration(s))
+             } else { None }
+        },
+        // TODO: Handle other types
+        _ => {
+            // Fallback to trying to guess or naive deserialization?
+            // For now, let's try direct deserialize if we don't know type, 
+            // but usually we should know.
+            serde_json::from_str::<crate::domain::RuntimeValue>(json).ok()
         }
-        Err(_) => 1
+    };
+
+    if let Some(val) = runtime_val {
+        // Use channel to handle both pre-exec and mid-exec updates safely
+        let msg = crate::domain::InputMessage {
+            variable: name.to_string(),
+            value: val,
+        };
+        match context.input_sender.send(msg) {
+            Ok(_) => 0,
+            Err(_) => 1 // Sender disconnected
+        }
+    } else {
+        1 // Failed to parse or unknown variable
     }
 }}
 
@@ -183,17 +228,33 @@ pub extern "C" fn hippocrates_simulate(
     callback: Option<LineCallback>,
     log_callback: Option<LogCallback>,
     user_data: *mut std::ffi::c_void,
-    days: c_int,
+    _days: c_int,
 ) {
     unsafe {
         let ctx = hippocrates_engine_new(user_data);
         hippocrates_engine_set_callbacks(ctx, callback, log_callback, None);
-        (*ctx).executor.set_mode(crate::runtime::ExecutionMode::Simulation(
-            std::time::Duration::from_secs(days as u64 * 86400)
-        ));
+        (*ctx).executor.set_mode(crate::runtime::ExecutionMode::Simulation {
+            speed_factor: None, // Instant execution / max speed
+            duration: None,
+        });
         if hippocrates_engine_load(ctx, input) == 0 {
             hippocrates_engine_execute(ctx, plan_name);
         }
         hippocrates_engine_free(ctx);
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hippocrates_engine_enable_simulation(ctx: *mut EngineContext, duration_mins: c_int) {
+    unsafe {
+        let context = &mut *ctx;
+        let limit = if duration_mins > 0 {
+            Some(chrono::Duration::minutes(duration_mins as i64))
+        } else {
+            None
+        };
+        context
+            .executor
+            .set_mode(crate::runtime::ExecutionMode::Simulation { speed_factor: None, duration: limit });
     }
 }

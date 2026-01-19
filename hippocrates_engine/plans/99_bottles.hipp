@@ -8,7 +8,7 @@
         value is between 0 ... 100.
 
 <99 bottles of beer> is a plan:
-    every 1 second for 99 seconds:
+    every 1 hour for 100 hours:
 
         assess <empty bottles>:
             0 ... 97:

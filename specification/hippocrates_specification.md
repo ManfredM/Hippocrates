@@ -158,6 +158,12 @@ action_statement =
     ask_question_statement |
     start_period_statement;
 
+ask_question_statement = 
+    "ask", [ " for ", ("patient" | "physician") ], ( string_literal | identifier ), [ ".", block ];
+
+start_period_statement = 
+    "start ", identifier, ".";
+
 (* Conditionals *)
 conditional_statement = 
     "assess ", assessment_target, ":", newline,
