@@ -19,15 +19,21 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<crate::domain::EngineError>>
             for prop in &vd.properties {
                 match prop {
                     Property::ValidValues(stmts) => {
+                        let mut selectors = Vec::new();
+
                         // Parse statements to find ranges.
                         for s in stmts {
                             if let StatementKind::EventProgression(_, cases) = &s.kind {
-                                let mut selectors = Vec::new();
                                 for case in cases {
                                     selectors.push(case.condition.clone());
                                 }
-                                value_ranges.insert(vd.name.clone(), selectors);
+                            } else if let StatementKind::Constraint(_, _, sel) = &s.kind {
+                                selectors.push(sel.clone());
                             }
+                        }
+                        
+                        if !selectors.is_empty() {
+                            value_ranges.insert(vd.name.clone(), selectors);
                         }
                     }
                     Property::Calculation(stmts) => {
@@ -43,7 +49,8 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<crate::domain::EngineError>>
                         }
                         // Validate statements in calculation
                         for stmt in stmts {
-                            validate_statement(stmt, &value_ranges, &timeframe_vars, &enum_vars, &numeric_vars, &mut errors);
+                            let mut constraints = HashMap::new();
+                            validate_statement(stmt, &value_ranges, &timeframe_vars, &enum_vars, &numeric_vars, &mut constraints, &mut errors);
                         }
                     }
                     _ => {}
@@ -72,7 +79,8 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<crate::domain::EngineError>>
                 };
 
                 for stmt in statements {
-                    validate_statement(stmt, &value_ranges, &timeframe_vars, &enum_vars, &numeric_vars, &mut errors);
+                    let mut constraints = HashMap::new();
+                    validate_statement(stmt, &value_ranges, &timeframe_vars, &enum_vars, &numeric_vars, &mut constraints, &mut errors);
                 }
             }
         }
@@ -92,21 +100,23 @@ fn validate_statement(
     stmt: &Statement,
     value_ranges: &std::collections::HashMap<String, Vec<RangeSelector>>,
     timeframe_vars: &std::collections::HashSet<String>,
-
     enum_vars: &std::collections::HashSet<String>,
     numeric_vars: &std::collections::HashSet<String>,
+    constraints: &mut std::collections::HashMap<String, (f64, f64)>,
     errors: &mut Vec<crate::domain::EngineError>,
 ) {
     match &stmt.kind {
         StatementKind::Assignment(assign) => {
              validate_expression(&assign.expression, enum_vars, stmt.line, errors);
+             // Clear constraint on assignment because value changes
+             constraints.remove(&assign.target);
         }
         StatementKind::Conditional(cond) => {
-            validate_conditional(cond, value_ranges, timeframe_vars, enum_vars, numeric_vars, stmt.line, errors);
+            validate_conditional(cond, value_ranges, timeframe_vars, enum_vars, numeric_vars, constraints, stmt.line, errors);
         }
         StatementKind::ContextBlock(cb) => {
             for s in &cb.statements {
-                 validate_statement(s, value_ranges, timeframe_vars, enum_vars, numeric_vars, errors);
+                 validate_statement(s, value_ranges, timeframe_vars, enum_vars, numeric_vars, constraints, errors);
             }
         }
         _ => {}
@@ -180,6 +190,7 @@ fn validate_conditional(
     timeframe_vars: &std::collections::HashSet<String>,
     enum_vars: &std::collections::HashSet<String>,
     numeric_vars: &std::collections::HashSet<String>,
+    constraints: &mut std::collections::HashMap<String, (f64, f64)>,
     line: usize,
     errors: &mut Vec<crate::domain::EngineError>,
 ) {
@@ -189,28 +200,106 @@ fn validate_conditional(
         _ => None,
     };
 
-    if let Some(name) = target_name {
+    if let Some(name) = &target_name {
         // 1. Check Numeric Coverage
-        if let Some(valid_selectors) = value_ranges.get(&name) {
-            check_coverage(&name, valid_selectors, &cond.cases, line, errors);
+        if let Some(valid_selectors) = value_ranges.get(name) {
+            check_coverage(name, valid_selectors, &cond.cases, line, errors);
         }
         // 2. Check Data Sufficiency Coverage
-        if timeframe_vars.contains(&name) {
-            check_data_sufficiency(&name, &cond.cases, line, errors);
+        if timeframe_vars.contains(name) {
+            check_data_sufficiency(name, &cond.cases, line, errors);
         }
         // 3. Check Units for Numeric Variables
-        if numeric_vars.contains(&name) {
+        if numeric_vars.contains(name) {
              for case in &cond.cases {
-                 check_selector_units(&name, &case.condition, case.line, errors);
+                 check_selector_units(name, &case.condition, case.line, errors);
              }
         }
     }
 
-    // Recurse into blocks
+    // Reachability Analysis
     for case in &cond.cases {
+         // Check against parent constraints
+         if let Some(name) = &target_name {
+             if let Some((min_c, max_c)) = constraints.get(name) {
+                 // Determine case range
+                 let (min_case, max_case) = resolve_selector_range(&case.condition);
+                 
+                 // If case is completely outside [min_c, max_c], it's unreachable
+                 // Intersection: [max(min_c, min_case), min(max_c, max_case)]
+                 let start = min_c.max(min_case);
+                 let end = max_c.min(max_case);
+                 
+                 if start > end {
+                     errors.push(crate::domain::EngineError {
+                         message: format!(
+                             "Unreachable Code: Case for '{}' covers range {}...{}, effectively disjoint from constrained context {}...{}.",
+                             name, min_case, max_case, min_c, max_c
+                         ),
+                         line: case.line,
+                         column: 0
+                     });
+                 }
+             }
+         }
+         
+         // Clone constraints for child block
+         let mut child_constraints = constraints.clone();
+         
+         // Narrow constraints if applicable
+         if let Some(name) = &target_name {
+             let (min_case, max_case) = resolve_selector_range(&case.condition);
+             // Union current with case? No, Intersection.
+             // We are entering a block where 'name' IS in this range.
+             // So new constraint is Intersection(old, case).
+              if let Some((old_min, old_max)) = child_constraints.get(name) {
+                  let new_min = old_min.max(min_case);
+                  let new_max = old_max.min(max_case);
+                  child_constraints.insert(name.clone(), (new_min, new_max));
+              } else {
+                  child_constraints.insert(name.clone(), (min_case, max_case));
+              }
+         }
+
         for s in &case.block {
-            validate_statement(s, value_ranges, timeframe_vars, enum_vars, numeric_vars, errors);
+            validate_statement(s, value_ranges, timeframe_vars, enum_vars, numeric_vars, &mut child_constraints, errors);
         }
+    }
+}
+
+// Helper to resolve rough range from selector
+fn resolve_selector_range(sel: &RangeSelector) -> (f64, f64) {
+    let extract = |expr: &Expression| -> Option<f64> {
+         if let Expression::Literal(lit) = expr {
+             match lit {
+                 Literal::Number(v, _) => Some(*v),
+                 Literal::Quantity(v, _, _) => Some(*v),
+                 _ => None
+             }
+         } else { None }
+    };
+
+    match sel {
+        RangeSelector::Range(min, max) | RangeSelector::Between(min, max) => {
+             let vn = extract(min).unwrap_or(f64::NEG_INFINITY);
+             let vx = extract(max).unwrap_or(f64::INFINITY);
+             (vn, vx)
+        }
+        RangeSelector::Equals(expr) => {
+             let v = extract(expr).unwrap_or(f64::NAN);
+             if v.is_nan() { (f64::NEG_INFINITY, f64::INFINITY) } else { (v, v) }
+        }
+        RangeSelector::Condition(op, expr) => {
+             let v = extract(expr).unwrap_or(0.0);
+             match op {
+                 crate::ast::ConditionOperator::GreaterThan => (v + 0.00001, f64::INFINITY),
+                 crate::ast::ConditionOperator::GreaterThanOrEquals => (v, f64::INFINITY),
+                 crate::ast::ConditionOperator::LessThan => (f64::NEG_INFINITY, v - 0.00001),
+                 crate::ast::ConditionOperator::LessThanOrEquals => (f64::NEG_INFINITY, v),
+                 _ => (f64::NEG_INFINITY, f64::INFINITY)
+             }
+        }
+        _ => (f64::NEG_INFINITY, f64::INFINITY)
     }
 }
 
@@ -277,7 +366,10 @@ fn check_coverage(
         return;
     }
 
+    // println!("DEBUG: Checking coverage for {}, Universe: {}...{}", name, universe_min, universe_max);
+
     let step = if let Some(p) = max_precision {
+
         if p == 0 { 1.0 } else { 10f64.powi(-(p as i32)) }
     } else {
         1.0 // Implicit integer
