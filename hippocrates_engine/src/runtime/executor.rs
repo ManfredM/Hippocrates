@@ -202,7 +202,7 @@ impl Executor {
                                         },
                                     });
                                 } else if let Some(def) = defs.get(target) {
-                                    if let Some(_next) = Scheduler::next_occurrence(def, start_time) {
+                                    if let Some((_next, _)) = Scheduler::next_occurrence(def, start_time) {
                                         // ...
                                         println!(
                                             "DEBUG: StartOf in TriggerBlock for other plans not fully supported yet."
@@ -216,7 +216,7 @@ impl Executor {
                     crate::ast::PlanBlock::Event(block) => {
                         if let crate::ast::Trigger::StartOf(target) = &block.trigger {
                             if let Some(def) = defs.get(target) {
-                                if let Some(next) = Scheduler::next_occurrence(def, start_time)
+                                if let Some((next, _)) = Scheduler::next_occurrence(def, start_time)
                                 {
                                     println!("DEBUG: Scheduled '{}' at {}", block.name, next);
                                     events.push(ScheduledEvent {
@@ -325,7 +325,7 @@ impl Executor {
                         // Reschedule next occurrence
                         if let Some(def) = defs.get(&period_name)
                         {
-                            if let Some(next) = Scheduler::next_occurrence(def, now) {
+                            if let Some((next, _)) = Scheduler::next_occurrence(def, now) {
                                 // Ensure we don't schedule same time again loop
                                 if next > now {
                                     events.push(ScheduledEvent {

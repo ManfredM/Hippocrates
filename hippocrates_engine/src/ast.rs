@@ -53,7 +53,8 @@ pub struct ContextDef {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PeriodDef {
     pub name: String,
-    pub timeframes: Vec<RangeSelector>,
+    pub timeframes: Vec<Vec<RangeSelector>>,
+    pub line: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

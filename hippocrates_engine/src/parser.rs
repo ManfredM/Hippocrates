@@ -207,11 +207,43 @@ fn parse_value_def(pair: pest::iterators::Pair<Rule>) -> Result<ValueDef, ParseE
 }
 
 fn parse_period_def(pair: pest::iterators::Pair<Rule>) -> Result<PeriodDef, ParseError> {
+    let line = pair.as_span().start_pos().line_col().0;
     let mut inner = pair.into_inner();
     let name = parse_identifier_str(inner.next().unwrap());
+
+    let mut timeframes = Vec::new();
+
+    for prop in inner {
+        match prop.as_rule() {
+            Rule::period_property => {
+                let s = prop.as_str().trim();
+                if s.starts_with("timeframe") {
+                    let p_inner = prop.into_inner();
+                    // Depending on grammar structure, we might need to skip literals or find timeframe_line directly
+                    // period_property = { "timeframe" ... timeframe_line+ ... }
+                    for child in p_inner {
+                        if child.as_rule() == Rule::timeframe_line {
+                             let mut selectors = Vec::new();
+                             for sel in child.into_inner() {
+                                 if sel.as_rule() == Rule::range_selector {
+                                     selectors.push(parse_range_selector(sel)?);
+                                 }
+                             }
+                             if !selectors.is_empty() {
+                                 timeframes.push(selectors);
+                             }
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
     Ok(PeriodDef {
         name,
-        timeframes: vec![],
+        timeframes,
+        line,
     })
 }
 

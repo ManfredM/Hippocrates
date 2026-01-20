@@ -154,7 +154,7 @@ property_line = { (!NEWLINE ~ ANY)+ }
 
 period_definition = { identifier ~ "is a period" ~ ":" ~ NEWLINE* ~ INDENT ~ period_property+ ~ DEDENT }
 period_property = {
-    ("timeframe" ~ ":" ~ safe_range_item ~ (NEWLINE? ~ safe_range_item)*) |
+    ("timeframe" ~ ":" ~ NEWLINE* ~ INDENT ~ timeframe_line+ ~ DEDENT) |
     ("customization" ~ ":" ~ NEWLINE* ~ INDENT ~ block_text ~ DEDENT)
 }
 block_text = { (!DEDENT ~ ANY)+ } 

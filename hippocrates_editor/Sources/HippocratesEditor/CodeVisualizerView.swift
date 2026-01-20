@@ -5,11 +5,15 @@ struct CodeVisualizerView: NSViewRepresentable {
     let code: String
     let highlightedLine: Int?
     let errors: [HippocratesParser.EngineError]
+    let engine: HippocratesEngine?
+    let simulationDays: Int
     
-    init(code: String, highlightedLine: Int?, errors: [HippocratesParser.EngineError] = []) {
+    init(code: String, highlightedLine: Int?, errors: [HippocratesParser.EngineError] = [], engine: HippocratesEngine? = nil, simulationDays: Int = 30) {
         self.code = code
         self.highlightedLine = highlightedLine
         self.errors = errors
+        self.engine = engine
+        self.simulationDays = simulationDays
     }
     
     func makeCoordinator() -> Coordinator {
@@ -117,8 +121,10 @@ struct CodeVisualizerView: NSViewRepresentable {
              storage.setAttributedString(attributed)
         }
         
-        // Update errors in coordinator and trigger layout
+        // Update coordinator state
         context.coordinator.errors = errors
+        context.coordinator.engine = engine
+        context.coordinator.simulationDays = simulationDays
         context.coordinator.updateLayout()
     }
     
@@ -126,6 +132,8 @@ struct CodeVisualizerView: NSViewRepresentable {
         var errorViews: [NSView] = []
         weak var textView: NSTextView?
         var errors: [HippocratesParser.EngineError] = []
+        var engine: HippocratesEngine?
+        var simulationDays: Int = 30
         
         @objc func updateLayout() {
             guard let textView = textView, let layoutManager = textView.layoutManager, let textContainer = textView.textContainer else { return }
@@ -134,11 +142,25 @@ struct CodeVisualizerView: NSViewRepresentable {
             errorViews.forEach { $0.removeFromSuperview() }
             errorViews.removeAll()
             
+            // Parse periods
+            let result = HippocratesParser.parse(input: textView.string)
+            var periodsByLine: [Int: [HippocratesParser.PeriodDef]] = [:]
+            
+            if case .success(let plan) = result {
+                for def in plan.definitions {
+                     if let p = def.Period {
+                         periodsByLine[p.line, default: []].append(p)
+                     }
+                }
+            }
+            
             let nsString = NSString(string: textView.string)
             let fullRange = NSRange(location: 0, length: textView.string.utf16.count)
             let errorsByLine = Dictionary(grouping: errors, by: { $0.line })
             
-            for (line, lineErrors) in errorsByLine {
+            let allLines = Set(errorsByLine.keys).union(periodsByLine.keys).sorted()
+            
+            for line in allLines {
                 if line > 0 {
                     var lineCount = 1
                     var targetRange: NSRange?
@@ -155,20 +177,44 @@ struct CodeVisualizerView: NSViewRepresentable {
                         let glyphRange = layoutManager.glyphRange(forCharacterRange: rng, actualCharacterRange: nil)
                         let boundingRect = layoutManager.boundingRect(forGlyphRange: glyphRange, in: textContainer)
                         
-                        let uniqueMessages = Array(Set(lineErrors.map { $0.message })).sorted()
-                        let swiftUIView = ErrorPill(errors: uniqueMessages)
-                        let hostingView = NSHostingView(rootView: swiftUIView)
-                        
-                        let xPos = max(boundingRect.maxX + 10, 300)
+                        let xPos = max(boundingRect.maxX + 10, 400) // Slightly wider indent
+                        var currentX = xPos
                         let yPos = boundingRect.origin.y
                         
-                        hostingView.frame = NSRect(x: xPos, y: yPos, width: 200, height: 26)
-                        hostingView.translatesAutoresizingMaskIntoConstraints = true
-                        let size = hostingView.fittingSize
-                        hostingView.frame.size = size
+                        // 1. Errors
+                        if let lineErrors = errorsByLine[line] {
+                            let uniqueMessages = Array(Set(lineErrors.map { $0.message })).sorted()
+                            let swiftUIView = ErrorPill(errors: uniqueMessages)
+                            let hostingView = NSHostingView(rootView: swiftUIView)
+                            
+                            hostingView.frame = NSRect(x: currentX, y: yPos, width: 200, height: 26)
+                            hostingView.translatesAutoresizingMaskIntoConstraints = true
+                            let size = hostingView.fittingSize
+                            hostingView.frame.size = size
+                            
+                            textView.addSubview(hostingView)
+                            errorViews.append(hostingView)
+                            
+                            currentX += size.width + 8
+                        }
                         
-                        textView.addSubview(hostingView)
-                        errorViews.append(hostingView)
+                        // 2. Periods
+                        if let periods = periodsByLine[line] {
+                             for p in periods {
+                                 let swiftUIView = PeriodPill(period: p, engine: engine, simulationDays: simulationDays)
+                                 let hostingView = NSHostingView(rootView: swiftUIView)
+                                 
+                                 hostingView.frame = NSRect(x: currentX, y: yPos, width: 200, height: 26)
+                                 hostingView.translatesAutoresizingMaskIntoConstraints = true
+                                 let size = hostingView.fittingSize
+                                 hostingView.frame.size = size
+                                 
+                                 textView.addSubview(hostingView)
+                                 errorViews.append(hostingView)
+                                 
+                                 currentX += size.width + 8
+                             }
+                        }
                     }
                 }
             }
@@ -176,7 +222,132 @@ struct CodeVisualizerView: NSViewRepresentable {
     }
 }
 
-// SwiftUI Components to replicate Timeline style
+struct PeriodPill: View {
+    let period: HippocratesParser.PeriodDef
+    let engine: HippocratesEngine?
+    let simulationDays: Int
+    
+    @State private var isPresented = false
+    @State private var occurrences: [HippocratesEngine.PeriodOccurrence]? = nil
+    
+    var body: some View {
+        Button(action: { 
+            if engine != nil {
+                loadOccurrences()
+            }
+            isPresented.toggle() 
+        }) {
+            HStack(spacing: 6) {
+                Image(systemName: "clock.fill")
+                    .foregroundStyle(.indigo)
+                Text(period.name)
+                    .font(.system(size: 11, weight: .medium))
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color(nsColor: .windowBackgroundColor))
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.indigo.opacity(0.3), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $isPresented, arrowEdge: .bottom) {
+            VStack(alignment: .leading) {
+                if let _ = engine {
+                     // Dynamic View
+                     if let occ = occurrences {
+                         Text("Occurrences (Next \(simulationDays) days)")
+                            .font(.headline)
+                            .padding(.bottom, 4)
+                         
+                         List(occ, id: \.start) { item in
+                             VStack(alignment: .leading) {
+                                 Text(item.start.formatted(date: .abbreviated, time: .shortened))
+                                    .font(.callout)
+                                 Text("to " + item.end.formatted(date: .omitted, time: .shortened))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                             }
+                         }
+                         .frame(minWidth: 250, minHeight: 200)
+                     } else {
+                         ProgressView("Simulating...")
+                     }
+                } else {
+                     // Static View
+                     Text("Weekly Schedule")
+                        .font(.headline)
+                        .padding(.bottom, 4)
+                     
+                     // Visualize Timeframes
+                     ForEach(Array(period.timeframes.enumerated()), id: \.offset) { _, group in
+                         HStack(alignment: .top) {
+                             Image(systemName: "calendar")
+                             VStack(alignment: .leading) {
+                                 ForEach(Array(group.enumerated()), id: \.offset) { _, selector in
+                                     Text(selectorDescription(selector))
+                                        .font(.caption)
+                                 }
+                             }
+                         }
+                         .padding(4)
+                         .background(Color.gray.opacity(0.1))
+                         .cornerRadius(4)
+                     }
+                     .frame(minWidth: 250)
+                }
+            }
+            .padding()
+        }
+    }
+    
+    func loadOccurrences() {
+        guard let engine = engine else { return }
+        // Run in background if complex, but FFI is fast enough for small N usually
+        // But UI should not block.
+        DispatchQueue.global(qos: .userInitiated).async {
+             let dates = engine.simulateOccurrences(periodName: period.name, days: simulationDays)
+             DispatchQueue.main.async {
+                 self.occurrences = dates
+             }
+        }
+    }
+    
+    func selectorDescription(_ selector: HippocratesParser.RangeSelector) -> String {
+        switch selector {
+        case .Between(let start, let end):
+            return "Between \(exprDesc(start)) and \(exprDesc(end))"
+        case .Range(let start, let end):
+            return "\(exprDesc(start)) ... \(exprDesc(end))"
+        case .Equals(let val):
+            return "At \(exprDesc(val))"
+        case .List(let items):
+            return "List: " + items.map(exprDesc).joined(separator: ", ")
+        case .Unknown:
+            return "Complex/Unknown Rule"
+        }
+    }
+    
+    func exprDesc(_ expr: HippocratesParser.Expression) -> String {
+        switch expr {
+        case .Literal(let lit):
+            switch lit {
+            case .TimeOfDay(let s): return s
+            case .StringVal(let s): return s
+            case .Number(let n): return "\(n)"
+            case .Unknown: return "?"
+            }
+        case .Variable(let v): return "<\(v)>"
+        case .Unknown: return "?"
+        }
+    }
+}
+
+// ... ErrorPill components ...
 struct ErrorPill: View {
     let errors: [String]
     

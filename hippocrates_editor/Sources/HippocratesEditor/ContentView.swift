@@ -220,7 +220,7 @@ struct ContentView: View {
                 .padding(.horizontal)
                 .padding(.top)
                 
-                CodeVisualizerView(code: appState.planCode, highlightedLine: appState.currentExecutionLine, errors: appState.currentErrors)
+                CodeVisualizerView(code: appState.planCode, highlightedLine: appState.currentExecutionLine, errors: appState.currentErrors, engine: appState.currentEngine, simulationDays: simulationDays)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color(nsColor: .textBackgroundColor))
                     .onChange(of: appState.planCode, initial: true) { _, newValue in
@@ -236,6 +236,13 @@ struct ContentView: View {
                              } else {
                                  appState.parseStatus = "Valid Syntax: \(plan.definitions.count) definitions"
                                  appState.currentErrors = []
+                                 
+                                 // Initialize Visualization Engine
+                                 if let vizEngine = HippocratesParser.prepareEngine(newValue, simulate: true, simulationDays: 7, onStep: { _ in }, onLog: { _,_,_ in }, onAsk: { _ in }) {
+                                     // We use simulation mode to allow prediction functions to work if needed, 
+                                     // though simulateOccurrences manages its own transient state usually.
+                                     appState.visualizationEngine = vizEngine
+                                 }
                              }
                          case .failure(let error):
                              appState.parseStatus = "Syntax Error"

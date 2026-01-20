@@ -24,10 +24,9 @@ struct HippocratesParser {
     }
     
     struct Definition: Decodable {
-        // Todo: Map all variants. For now, we decode what we can.
-        // Rust enum serialization: {"Value": {...}}
         let Value: ValueDef?
         let Plan: PlanDef?
+        let Period: PeriodDef?
     }
     
     struct ValueDef: Decodable {
@@ -36,9 +35,15 @@ struct HippocratesParser {
     
     struct PlanDef: Decodable {
         let name: String
-        // let blocks: ...
     }
     
+    struct PeriodDef: Decodable {
+        let name: String
+        let line: Int
+        let timeframes: [[RangeSelector]]
+    }
+    
+
     static func parse(input: String) -> Result<Plan, EngineError> {
         // Convert Swift String to C String
         guard let cString = input.cString(using: .utf8) else {
@@ -178,7 +183,11 @@ struct AskRequest: Decodable, Identifiable {
     let timestamp: Int64
 }
 
-class HippocratesEngine {
+class HippocratesEngine: Equatable {
+    static func == (lhs: HippocratesEngine, rhs: HippocratesEngine) -> Bool {
+        return lhs === rhs
+    }
+
     private var ctx: OpaquePointer?
     
     var onStep: ((Int) -> Void)?
@@ -266,10 +275,165 @@ class HippocratesEngine {
         }
     }
     
+    func getPeriods() -> [HippocratesParser.PeriodDef] {
+        guard let ctx = ctx else { return [] }
+        let ptr = hippocrates_get_periods(ctx)
+        guard let p = ptr else { return [] }
+        defer { hippocrates_free_string(p) }
+        
+        let jsonStr = String(cString: p)
+        if let data = jsonStr.data(using: .utf8),
+           let periods = try? JSONDecoder().decode([HippocratesParser.PeriodDef].self, from: data) {
+            return periods
+        }
+        return []
+    }
+
+    struct PeriodOccurrence: Decodable {
+        let start: Date
+        let end: Date
+        
+        enum CodingKeys: String, CodingKey {
+            case start, end
+        }
+        
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            let startStr = try container.decode(String.self, forKey: .start)
+            let endStr = try container.decode(String.self, forKey: .end)
+            
+            // Helper to parse dates with multiple potential formats (ISO8601 with/without fractional seconds)
+            func parse(_ s: String) -> Date? {
+                let f1 = ISO8601DateFormatter()
+                f1.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                if let d = f1.date(from: s) { return d }
+                let f2 = ISO8601DateFormatter()
+                f2.formatOptions = [.withInternetDateTime]
+                return f2.date(from: s)
+            }
+            
+            guard let s = parse(startStr), let e = parse(endStr) else {
+                throw DecodingError.dataCorruptedError(forKey: .start, in: container, debugDescription: "Invalid date format")
+            }
+            self.start = s
+            self.end = e
+        }
+    }
+
+    func simulateOccurrences(periodName: String, days: Int, startDate: Date? = nil) -> [PeriodOccurrence] {
+        guard let ctx = ctx, let cName = periodName.cString(using: .utf8) else { return [] }
+        // Use provided start time or current time
+        let startTs = Int64((startDate ?? Date()).timeIntervalSince1970 * 1000)
+        let ptr = hippocrates_simulate_occurrences(ctx, cName, startTs, Int32(days))
+        guard let p = ptr else { return [] }
+        defer { hippocrates_free_string(p) }
+        
+        let jsonStr = String(cString: p)
+        if let data = jsonStr.data(using: String.Encoding.utf8),
+           let occurrences = try? JSONDecoder().decode([PeriodOccurrence].self, from: data) {
+            return occurrences
+        }
+        return []
+    }
+    
     func setValue(name: String, valueJson: String) -> Bool {
         guard let ctx = ctx, 
               let cName = name.cString(using: .utf8),
               let cVal = valueJson.cString(using: .utf8) else { return false }
         return hippocrates_engine_set_value(ctx, cName, cVal) == 0
+    }
+}
+
+
+extension HippocratesParser {
+    // Helper Structures for Visualization
+    enum RangeSelector: Decodable {
+        case Between(Expression, Expression)
+        case Range(Expression, Expression)
+        case Equals(Expression)
+        case List([Expression])
+        case Unknown
+        
+        enum CodingKeys: String, CodingKey {
+            case Between, Range, Equals, List
+        }
+        
+        init(from decoder: Decoder) throws {
+            if let container = try? decoder.container(keyedBy: CodingKeys.self) {
+                if let arr = try? container.decode([Expression].self, forKey: .Between), arr.count == 2 {
+                    self = .Between(arr[0], arr[1])
+                    return
+                }
+                if let arr = try? container.decode([Expression].self, forKey: .Range), arr.count == 2 {
+                    self = .Range(arr[0], arr[1])
+                    return
+                }
+                if let expr = try? container.decode(Expression.self, forKey: .Equals) {
+                    self = .Equals(expr)
+                    return
+                }
+                if let list = try? container.decode([Expression].self, forKey: .List) {
+                    self = .List(list)
+                    return
+                }
+            }
+            self = .Unknown
+        }
+    }
+
+    enum Expression: Decodable {
+        case Literal(LiteralValue)
+        case Variable(String)
+        case Unknown
+        
+        enum CodingKeys: String, CodingKey {
+            case Literal, Variable
+        }
+        
+        init(from decoder: Decoder) throws {
+            if let container = try? decoder.container(keyedBy: CodingKeys.self) {
+                if let lit = try? container.decode(LiteralValue.self, forKey: .Literal) {
+                    self = .Literal(lit)
+                    return
+                }
+                if let varName = try? container.decode(String.self, forKey: .Variable) {
+                    self = .Variable(varName)
+                    return
+                }
+            }
+            // Fallback for string-enum based expression variants (e.g. Statistical) or complex
+            self = .Unknown
+        }
+    }
+
+    enum LiteralValue: Decodable {
+        case TimeOfDay(String)
+        case StringVal(String)
+        case Number(Double)
+        case Unknown
+        
+        enum CodingKeys: String, CodingKey {
+            case TimeOfDay, String, Number
+        }
+        
+        init(from decoder: Decoder) throws {
+            if let container = try? decoder.container(keyedBy: CodingKeys.self) {
+                if let s = try? container.decode(String.self, forKey: .TimeOfDay) {
+                    self = .TimeOfDay(s)
+                    return
+                }
+                if let s = try? container.decode(String.self, forKey: .String) {
+                    self = .StringVal(s)
+                    return
+                }
+                 // Number in Rust JSON might be Number(f64, Option<usize>) which maps to [f64, ?] or just simple struct
+                 // Wait, Rust serialization for tuple variants: {"Number":[10.0, null]}
+                 if let arr = try? container.decode([Double?].self, forKey: .Number), let first = arr.first, let val = first {
+                     self = .Number(val)
+                     return
+                 }
+            }
+            self = .Unknown
+        }
     }
 }

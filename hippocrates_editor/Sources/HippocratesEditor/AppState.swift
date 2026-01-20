@@ -38,6 +38,7 @@ class AppState: ObservableObject {
     @Published var executionLogs: [ExecutionEvent] = []
     @Published var pendingQuestion: AskRequest? = nil
     @Published var currentEngine: HippocratesEngine? = nil
+    @Published var visualizationEngine: HippocratesEngine? = nil // For static analysis/viz
     
     func answerQuestion(value: String) {
         // This will be handled by the Wrapper/View bridging

@@ -2,6 +2,9 @@ use crate::parser::parse_plan;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int};
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+use serde::Serialize;
+use chrono::{DateTime, Utc};
+use crate::runtime::scheduler::Scheduler;
 
 // Parses a Hippocrates plan string and returns the AST as a JSON string.
 /// The returned string must be freed using `hippocrates_free_string`.
@@ -114,6 +117,97 @@ pub unsafe extern "C" fn hippocrates_engine_load(ctx: *mut EngineContext, source
         }
     }
 }}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hippocrates_get_periods(ctx: *mut EngineContext) -> *mut c_char { unsafe {
+    if ctx.is_null() { return std::ptr::null_mut(); }
+    let context = &*ctx;
+    let mut periods = Vec::new();
+    for def in context.env.definitions.values() {
+        if let crate::ast::Definition::Period(period) = def {
+            periods.push(period);
+        }
+    }
+    
+    match serde_json::to_string(&periods) {
+        Ok(s) => match CString::new(s) {
+            Ok(c) => c.into_raw(),
+            Err(_) => std::ptr::null_mut(),
+        },
+        Err(_) => std::ptr::null_mut(),
+    }
+}}
+
+#[derive(Serialize)]
+struct Occur {
+    start: String,
+    end: String,
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hippocrates_simulate_occurrences(
+    ctx: *mut EngineContext,
+    period_name: *const c_char,
+    start_ts: i64,
+    duration_days: c_int,
+) -> *mut c_char { unsafe {
+    if ctx.is_null() || period_name.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    let context = &mut *ctx;
+    let name_c = CStr::from_ptr(period_name);
+    let name = match name_c.to_str() {
+        Ok(s) => s,
+        Err(_) => return std::ptr::null_mut(),
+    };
+
+    let def = match context.env.definitions.get(name) {
+        Some(crate::ast::Definition::Period(p)) => crate::ast::Definition::Period(p.clone()),
+        _ => return std::ptr::null_mut(),
+    };
+
+    let mut occurrences = Vec::new();
+    let start_dt = DateTime::<Utc>::from_naive_utc_and_offset(
+        DateTime::from_timestamp_millis(start_ts).unwrap().naive_utc(),
+        Utc,
+    );
+    
+    let end_limit = start_dt + chrono::Duration::days(duration_days as i64);
+    let mut current_time = start_dt;
+    
+    // Loop to find occurrences
+    // Limit to reasonable count to prevent infinite loop
+    for _ in 0..100 {
+        if current_time >= end_limit { break; }
+        
+        if let Some((start, end)) = Scheduler::next_occurrence(&def, current_time) {
+            // Ensure we advance time
+            if start <= current_time {
+                 current_time = current_time + chrono::Duration::minutes(1);
+                 continue;
+            }
+            
+            occurrences.push(Occur {
+                start: start.to_rfc3339(),
+                end: end.to_rfc3339()
+            });
+            current_time = start; // Advance to start of this occurrence
+        } else {
+            break;
+        }
+    }
+    
+    match serde_json::to_string(&occurrences) {
+        Ok(s) => match CString::new(s) {
+            Ok(c) => c.into_raw(),
+            Err(_) => std::ptr::null_mut(),
+        },
+        Err(_) => std::ptr::null_mut(),
+    }
+}}
+
+
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn hippocrates_engine_set_callbacks(

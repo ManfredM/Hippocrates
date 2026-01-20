@@ -4,7 +4,7 @@ use chrono::{DateTime, Datelike, NaiveTime, Utc, Weekday};
 pub struct Scheduler;
 
 impl Scheduler {
-    pub fn next_occurrence(def: &Definition, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
+    pub fn next_occurrence(def: &Definition, now: DateTime<Utc>) -> Option<(DateTime<Utc>, DateTime<Utc>)> {
         let mut timeframe_groups = None;
 
         match def {
@@ -17,21 +17,15 @@ impl Scheduler {
                 }
             }
             Definition::Period(p) => {
-                // Temporary support for flattened PeriodDef timeframes
-                // Treating single Vec as one group.
-                // TODO: Fix AST to support multiple timeframe groups in PeriodDef
-                // let groups = vec![p.timeframes.clone()]; // Unused
-                // We construct a temporary structure to iterate?
-                // Actually we can just return next_for_group directly if we assume one group.
-                // But let's fit into the groups iteration logic.
-                
-                // Hack: We can't return ref to local vec.
-                // We'll iterate manually here or change logic.
-                
-                if let Some(next) = Self::next_for_group(&p.timeframes, now) {
-                     return Some(next);
+                let mut next_times = Vec::new();
+                for group in &p.timeframes {
+                    if let Some(next) = Self::next_for_group(group, now) {
+                        next_times.push(next);
+                    }
                 }
-                return None;
+                // Sort by start time and pick first
+                 next_times.sort_by_key(|k| k.0);
+                 return next_times.into_iter().next();
             }
             _ => return None,
         }
@@ -43,13 +37,14 @@ impl Scheduler {
                     next_times.push(next);
                 }
             }
-            next_times.into_iter().min()
+             next_times.sort_by_key(|k| k.0);
+             next_times.into_iter().next()
         } else {
             None
         }
     }
 
-    fn next_for_group(selectors: &Vec<RangeSelector>, now: DateTime<Utc>) -> Option<DateTime<Utc>> {
+    fn next_for_group(selectors: &Vec<RangeSelector>, now: DateTime<Utc>) -> Option<(DateTime<Utc>, DateTime<Utc>)> {
         // Separate selectors into Day constraints and Time constraints
         // Assumption: One day range and one time range per group (as seen in copd plan)
         // If multiple, intersection logic is needed.
@@ -62,7 +57,7 @@ impl Scheduler {
         let mut start_day = None;
         let mut end_day = None;
         let mut start_time = None;
-        // let mut end_time = None; // We only care about start time for triggering "begin of"
+        let mut end_time = None;
 
         for sel in selectors {
             match sel {
@@ -73,17 +68,29 @@ impl Scheduler {
                         end_day = Some(d2);
                     }
                     // Check if it's Time range
-                    else if let (Some(t1), Some(_t2)) = (Self::eval_time(e1), Self::eval_time(e2))
+                    else if let (Some(t1), Some(t2)) = (Self::eval_time(e1), Self::eval_time(e2))
                     {
                         start_time = Some(t1);
-                        // end_time = Some(t2);
+                        end_time = Some(t2);
+                    }
+                }
+                RangeSelector::Equals(e) => {
+                    if let Some(d) = Self::eval_weekday(e) {
+                         start_day = Some(d);
+                         end_day = Some(d); // Single day range
+                    } else if let Some(t) = Self::eval_time(e) {
+                         start_time = Some(t);
+                         // For instant events, we might want 0 duration or default 1 min?
+                         // Let's say 1 minute for visualization visibility
+                         end_time = Some(t + chrono::Duration::minutes(1));
                     }
                 }
                 _ => {}
             }
         }
 
-        let start_time = start_time.unwrap_or(NaiveTime::from_hms_opt(0, 0, 0).unwrap()); // Default midnight?
+        let start_time = start_time.unwrap_or(NaiveTime::from_hms_opt(0, 0, 0).unwrap()); 
+        let end_time = end_time.unwrap_or(start_time + chrono::Duration::minutes(1));
 
         // Search next 14 days
         for i in 0..14 {
@@ -111,7 +118,11 @@ impl Scheduler {
                 let candidate_dt = DateTime::<Utc>::from_naive_utc_and_offset(candidate_dt_naive, Utc); // Assuming simple mapping
 
                 if candidate_dt > now {
-                    return Some(candidate_dt);
+                    // Calculate end dt
+                    let end_dt_naive = candidate_date.and_time(end_time);
+                    let end_dt = DateTime::<Utc>::from_naive_utc_and_offset(end_dt_naive, Utc);
+                    
+                    return Some((candidate_dt, end_dt));
                 }
             }
         }

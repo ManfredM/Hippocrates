@@ -64,6 +64,12 @@ int hippocrates_get_error_count();
 /// Returns NULL if index is out of bounds. The string must be freed.
 char* hippocrates_get_error(int index);
 
+/// Returns a JSON string array of period definitions.
+char* hippocrates_get_periods(EngineContext* ctx);
+
+/// Returns a JSON string array of occurrence timestamps (ISO 8601).
+char* hippocrates_simulate_occurrences(EngineContext* ctx, const char* period_name, int64_t start_ts, int duration_days);
+
 /// Stops the execution of the engine.
 void hippocrates_engine_stop(EngineContext* ctx);
 
