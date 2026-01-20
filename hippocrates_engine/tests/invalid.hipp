@@ -1,0 +1,10 @@
+<body weight> is a number:
+    valid values: 0 ... 200
+    unit: kg
+
+// Missing period at end of line (syntax error)
+patient_age is a number 
+
+<treatment> is a plan:
+    during plan:
+        <body weight> = 75 kg.
