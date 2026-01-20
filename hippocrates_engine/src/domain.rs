@@ -158,6 +158,7 @@ pub enum QuestionStyle {
 pub struct InputMessage {
     pub variable: String,
     pub value: RuntimeValue,
+    pub timestamp: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -176,6 +177,7 @@ pub struct AskRequest {
     pub validation_mode: Option<ValidationMode>,
     pub validation_timeout: Option<i64>,
     pub timestamp: i64,
+    pub valid_after: Option<i64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]

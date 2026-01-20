@@ -64,6 +64,9 @@ int hippocrates_get_error_count();
 /// Returns NULL if index is out of bounds. The string must be freed.
 char* hippocrates_get_error(int index);
 
+/// Stops the execution of the engine.
+void hippocrates_engine_stop(EngineContext* ctx);
+
 #ifdef __cplusplus
 }
 #endif

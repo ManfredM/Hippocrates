@@ -3,6 +3,7 @@ use crate::domain::Unit;
 use crate::runtime::{Environment, Evaluator, scheduler::Scheduler};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
+use std::sync::{Arc, atomic::{AtomicBool, Ordering as AtomicOrdering}};
 
 #[derive(Debug, Clone)]
 struct ScheduledEvent {
@@ -57,16 +58,18 @@ pub struct Executor {
     pub on_ask: Option<Box<dyn Fn(crate::domain::AskRequest) + Send>>,
     pub mode: ExecutionMode,
     pub input_receiver: Option<std::sync::mpsc::Receiver<crate::domain::InputMessage>>,
+    pub stop_signal: Arc<AtomicBool>,
 }
 
 impl Executor {
-    pub fn new() -> Self {
+    pub fn new(stop_signal: Arc<AtomicBool>) -> Self {
         Executor {
             on_step: None,
             on_log: None,
             on_ask: None,
             mode: ExecutionMode::RealTime,
             input_receiver: None,
+            stop_signal,
         }
     }
 
@@ -80,6 +83,7 @@ impl Executor {
             on_ask: None,
             mode: ExecutionMode::RealTime,
             input_receiver: None,
+            stop_signal: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -89,6 +93,14 @@ impl Executor {
 
     pub fn set_mode(&mut self, mode: ExecutionMode) {
         self.mode = mode;
+    }
+
+    pub fn drain_inputs(&mut self, env: &mut Environment) {
+        if let Some(rx) = &self.input_receiver {
+            while let Ok(msg) = rx.try_recv() {
+                env.set_value_at(&msg.variable, msg.value, msg.timestamp);
+            }
+        }
     }
 
     pub fn execute_plan(&mut self, env: &mut Environment, plan_name: &str) {
@@ -105,11 +117,7 @@ impl Executor {
             );
 
             // Drain initial inputs (configuration)
-            if let Some(rx) = &self.input_receiver {
-                while let Ok(msg) = rx.try_recv() {
-                    env.set_value(&msg.variable, msg.value);
-                }
-            }
+            self.drain_inputs(env);
 
             let mut events = BinaryHeap::new();
             let start_time = env.now;
@@ -234,6 +242,11 @@ impl Executor {
 
             // Event Loop
             while let Some(event) = events.pop() {
+                if self.stop_signal.load(AtomicOrdering::Relaxed) {
+                     println!("DEBUG: Execution stopped by signal.");
+                     break;
+                }
+
                 let now = event.time;
 
                 if let Some(limit) = end_time {
@@ -480,8 +493,15 @@ impl Executor {
                 // Lookup definition
                 // Hack: We need to access definitions. Environment borrow?
                 // We have `env`.
-                
-                if let Some(crate::ast::Definition::Value(val_def)) = env.definitions.get(q) {
+                // Clone needed to avoid immutable borrow of env while mutating env later (log)
+                let val_def_opt = if let Some(crate::ast::Definition::Value(val_def)) = env.definitions.get(q) {
+                    Some(val_def.clone())
+                } else {
+                    env.log(format!("DEBUG: Definition for '{}' not found. Available: {:?}", q, env.definitions.keys()));
+                    None
+                };
+
+                if let Some(val_def) = &val_def_opt {
                     // is_defined_var = true;
                     // Determine style/options from definition
                     for prop in &val_def.properties {
@@ -516,7 +536,7 @@ impl Executor {
                                     }
                                 }
                             }
-                             crate::ast::Property::Question(action) => {
+                            crate::ast::Property::Question(action) => {
                                  // Check for explicit question text in definition
                                  if let Action::AskQuestion(text, _) = action {
                                      // If the definition says: ask "How severe...?"
@@ -531,6 +551,45 @@ impl Executor {
                                      }
                                  }
                              }
+                            crate::ast::Property::Reuse(val, unit) => {
+                                // Check if we have a valid value in history
+                                let last_entry_data = if let Some(history) = env.get_history(q) {
+                                    history.last().map(|entry| (entry.value.clone(), entry.timestamp))
+                                } else {
+                                    None
+                                };
+
+                                if let Some((val_data, timestamp)) = last_entry_data {
+                                     // Calculate age
+                                     let age = env.now - timestamp;
+                                     let age_secs = age.num_seconds() as f64;
+                                     
+                                     let reuse_secs = match unit {
+                                         Unit::Second => *val,
+                                         Unit::Minute => *val * 60.0,
+                                         Unit::Hour => *val * 3600.0,
+                                         Unit::Day => *val * 86400.0,
+                                         Unit::Week => *val * 604800.0,
+                                         Unit::Month => *val * 2592000.0,
+                                         Unit::Year => *val * 31536000.0,
+                                         _ => *val, // Fallback
+                                     };
+                                     
+                                     
+                                     if age_secs < reuse_secs {
+                                         // Ensure value is not NotEnoughData
+                                         if let crate::domain::RuntimeValue::NotEnoughData = val_data {
+                                             // If value is NotEnoughData, it's not valid to reuse, so ask.
+                                         } else {
+                                             env.log(format!(
+                                                 "Skipping question '{}', existing value is fresh (Age: {}s < Reuse: {}s)",
+                                                 q, age_secs, reuse_secs
+                                             ));
+                                             return; // Skip asking!
+                                         }
+                                     }
+                                }
+                            }
                             _ => {}
                         }
                     }
@@ -608,6 +667,27 @@ impl Executor {
 
                 // ... (existing logic) ...
 
+                // Calculate valid_after timestamp from Reuse property if present
+                let mut valid_after = None;
+                if let Some(val_def) = &val_def_opt {
+                    for prop in &val_def.properties {
+                       if let crate::ast::Property::Reuse(val, unit) = prop {
+                            let reuse_secs = match unit {
+                                Unit::Second => *val,
+                                Unit::Minute => *val * 60.0,
+                                Unit::Hour => *val * 3600.0,
+                                Unit::Day => *val * 86400.0,
+                                Unit::Week => *val * 604800.0,
+                                Unit::Month => *val * 2592000.0,
+                                Unit::Year => *val * 31536000.0,
+                                _ => *val,
+                            };
+                            let reuse_dur = chrono::Duration::milliseconds((reuse_secs * 1000.0) as i64);
+                            valid_after = Some((env.now - reuse_dur).timestamp_millis());
+                       }
+                    }
+                }
+
                 // Fire Callback
                 if let Some(cb) = &self.on_ask {
                     let req = crate::domain::AskRequest {
@@ -619,6 +699,7 @@ impl Executor {
                         validation_mode,
                         validation_timeout,
                         timestamp: env.now.timestamp_millis(),
+                        valid_after,
                     };
                     cb(req);
                 }
@@ -637,12 +718,14 @@ impl Executor {
                                     self.emit_log(format!("Received Answer: {:?}", msg.value), crate::domain::EventType::Answer, env.now);
                                     
                                     // Trigger Event Checks - Now safe because we don't hold valid reference to self.input_receiver
+                                    // Use the message timestamp to preserve data validity from session
+                                    env.set_value_at(&msg.variable, msg.value.clone(), msg.timestamp);
                                     self.check_triggers(env, &msg.variable);
                                     
                                     break;
                                 } else {
                                     // Handle out-of-order updates (e.g. setting other variables)
-                                    env.set_value(&msg.variable, msg.value);
+                                    env.set_value_at(&msg.variable, msg.value.clone(), msg.timestamp);
                                     self.check_triggers(env, &msg.variable);
                                 }
                             }

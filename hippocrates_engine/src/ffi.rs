@@ -1,6 +1,7 @@
 use crate::parser::parse_plan;
 use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int};
+use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 
 // Parses a Hippocrates plan string and returns the AST as a JSON string.
 /// The returned string must be freed using `hippocrates_free_string`.
@@ -54,12 +55,14 @@ pub struct EngineContext {
     pub executor: crate::runtime::Executor,
     pub user_data: *mut std::ffi::c_void,
     pub input_sender: std::sync::mpsc::Sender<crate::domain::InputMessage>,
+    pub stop_signal: Arc<AtomicBool>,
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn hippocrates_engine_new(user_data: *mut std::ffi::c_void) -> *mut EngineContext {
     let env = crate::runtime::Environment::new();
-    let mut executor = crate::runtime::Executor::new();
+    let stop_signal = Arc::new(AtomicBool::new(false));
+    let mut executor = crate::runtime::Executor::new(stop_signal.clone());
     let (tx, rx) = std::sync::mpsc::channel();
     executor.set_input_receiver(rx);
     
@@ -68,6 +71,7 @@ pub unsafe extern "C" fn hippocrates_engine_new(user_data: *mut std::ffi::c_void
         executor,
         user_data,
         input_sender: tx,
+        stop_signal,
     });
     Box::into_raw(ctx)
 }
@@ -210,6 +214,7 @@ pub unsafe extern "C" fn hippocrates_engine_set_value(
         let msg = crate::domain::InputMessage {
             variable: name.to_string(),
             value: val,
+            timestamp: chrono::Utc::now(),
         };
         match context.input_sender.send(msg) {
             Ok(_) => 0,
@@ -368,5 +373,13 @@ pub extern "C" fn hippocrates_get_error(index: c_int) -> *mut c_char {
         },
         Err(_) => std::ptr::null_mut(),
     }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hippocrates_engine_stop(ctx: *mut EngineContext) {
+    if !ctx.is_null() { unsafe {
+        let context = &*ctx;
+        context.stop_signal.store(true, Ordering::Relaxed);
+    }}
 }
 

@@ -53,6 +53,20 @@ int hippocrates_engine_set_value(EngineContext* ctx, const char* var_name, const
 /// Enables simulation mode.
 void hippocrates_engine_enable_simulation(EngineContext* ctx, int duration_mins);
 
+/// Validates a file and returns the error count.
+/// Returns 0 if valid.
+int hippocrates_validate_file(const char* input);
+
+/// Returns the number of errors from the last validation.
+int hippocrates_get_error_count();
+
+/// Returns a JSON string representation of the error at the given index.
+/// Returns NULL if index is out of bounds. The string must be freed.
+char* hippocrates_get_error(int index);
+
+/// Stops the execution of the engine.
+void hippocrates_engine_stop(EngineContext* ctx);
+
 #ifdef __cplusplus
 }
 #endif

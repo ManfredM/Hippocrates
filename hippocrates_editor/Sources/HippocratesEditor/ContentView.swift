@@ -23,14 +23,12 @@ func logToFile(_ message: String) {
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
     
-    @State private var parseStatus: String = "Ready"
-    @State private var currentErrors: [HippocratesParser.EngineError] = []
     @State private var simulationDays: Int = 30
     
     func runPlan(simulate: Bool) {
         let code = appState.planCode
-        parseStatus = simulate ? "Simulating..." : "Running..."
-        currentErrors = []
+        appState.parseStatus = simulate ? "Simulating..." : "Running..."
+        appState.currentErrors = []
         
         // Clear log file on new run
         try? FileManager.default.removeItem(atPath: "/tmp/hippocrates_debug.log")
@@ -54,16 +52,16 @@ struct ContentView: View {
                 let validationErrors = HippocratesParser.validate(input: code)
                 if !validationErrors.isEmpty {
                     DispatchQueue.main.async {
-                        self.parseStatus = "Validation Failed: \(validationErrors.count) error(s)"
-                        self.currentErrors = validationErrors
+                        self.appState.parseStatus = "Validation Failed: \(validationErrors.count) error(s)"
+                        self.appState.currentErrors = validationErrors
                     }
                     return // Stop if invalid
                 }
                 
             } else if case .failure(let error) = parseResult {
                 DispatchQueue.main.async {
-                    self.parseStatus = "Syntax Error: \(error.message)"
-                    self.currentErrors = [error]
+                    self.appState.parseStatus = "Syntax Error: 1 error(s)"
+                    self.appState.currentErrors = [error]
                 }
                 return
             }
@@ -222,7 +220,7 @@ struct ContentView: View {
                 .padding(.horizontal)
                 .padding(.top)
                 
-                CodeVisualizerView(code: appState.planCode, highlightedLine: appState.currentExecutionLine, errors: currentErrors)
+                CodeVisualizerView(code: appState.planCode, highlightedLine: appState.currentExecutionLine, errors: appState.currentErrors)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color(nsColor: .textBackgroundColor))
                     .onChange(of: appState.planCode, initial: true) { _, newValue in
@@ -230,28 +228,24 @@ struct ContentView: View {
                          let result = HippocratesParser.parse(input: newValue)
                          switch result {
                          case .success(let plan):
-                             parseStatus = "Parsing OK"
-                             currentErrors = []
-                             
                              // Live Validation
                              let validationErrors = HippocratesParser.validate(input: newValue)
                              if !validationErrors.isEmpty {
-                                 parseStatus = "Validation Failed: \(validationErrors.count) error(s)"
-                                 currentErrors = validationErrors
+                                 appState.parseStatus = "Validation Failed: \(validationErrors.count) error(s)"
+                                 appState.currentErrors = validationErrors
                              } else {
-                                 parseStatus = "Valid Syntax: \(plan.definitions.count) definitions"
-                                 currentErrors = []
+                                 appState.parseStatus = "Valid Syntax: \(plan.definitions.count) definitions"
+                                 appState.currentErrors = []
                              }
-                             
                          case .failure(let error):
-                             parseStatus = "Syntax Error: \(error.message)"
-                             currentErrors = [error]
+                             appState.parseStatus = "Syntax Error"
+                             appState.currentErrors = [error]
                          }
                     }
                 
-                Text(parseStatus)
+                Text(appState.parseStatus)
                     .font(.caption)
-                    .foregroundStyle(currentErrors.isEmpty ? .green : .red)
+                    .foregroundStyle(appState.currentErrors.isEmpty ? .green : .red)
                     .padding()
             }
             .layoutPriority(1)

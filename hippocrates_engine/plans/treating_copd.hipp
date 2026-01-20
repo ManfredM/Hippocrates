@@ -12,6 +12,10 @@
     customization:
         begin of fill in evening report can be customized together for all occurrences.
 
+point is a unit:
+    plural is "points"
+    abbreviation is "pts"
+
 <severity of breathlessness> is a number:
     valid values: 0 points ... 5 points
     meaning:
@@ -25,6 +29,9 @@
             validate answer once.
             question expires after 1 hour.
             style of question is Likert scale.
+
+use is a unit:
+    plural is "uses"
 
 <use of rescue medication> is a number:
     valid values: 0 uses ... 10 uses
@@ -47,6 +54,9 @@
             validate answer once.
             question expires after 1 hour.
             style of question is <Yes/No>.
+
+dose is a unit:
+    plural is "doses"
 
 <inhaler used in past 5 days> is a number:
     valid values: 0 doses ... 1000 doses

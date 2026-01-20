@@ -14,6 +14,15 @@ pub enum Definition {
     Drug(DrugDef),
     Addressee(AddresseeDef),
     Context(ContextDef),
+    Unit(UnitDef),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UnitDef {
+    pub name: String,
+    pub plurals: Vec<String>,
+    pub singulars: Vec<String>,
+    pub abbreviations: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,7 +99,7 @@ pub enum Property {
     Meaning(Vec<AssessmentCase>),
     Question(Action), // AskQuestion
     Calculation(Vec<Statement>),
-    Reuse(String),
+    Reuse(f64, Unit),
     Documentation(String),
     Inheritance(String, Option<Vec<Property>>), // inherit from identifier
     Ingredients(Vec<Ingredient>),

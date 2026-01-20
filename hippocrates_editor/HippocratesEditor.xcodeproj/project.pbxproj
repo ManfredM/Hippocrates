@@ -17,6 +17,7 @@
 		929C2DCC83262ADDC06D11AE /* HippocratesEngineWrapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56B879D78DB12CE40D724F75 /* HippocratesEngineWrapper.swift */; };
 		D0A20CD3310E3CF91BA67980 /* hippocrates_engine.h in CopyFiles */ = {isa = PBXBuildFile; fileRef = 90E1F0FFE14465BB7A39D29D /* hippocrates_engine.h */; };
 		F7D315A03400E314F33682E9 /* HippocratesEditorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E5DE39F80F8C0F325149768 /* HippocratesEditorTests.swift */; };
+		FFA372AB02555CD8591D32E5 /* libhippocrates_engine.a in Resources */ = {isa = PBXBuildFile; fileRef = 3F6CB71619B13C63496280A3 /* libhippocrates_engine.a */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -53,6 +54,7 @@
 		167B8D40D5096754939DA9F2 /* HippocratesEditorApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HippocratesEditorApp.swift; sourceTree = "<group>"; };
 		368618305FFA14E04513BB45 /* HippocratesEditor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HippocratesEditor.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3AD272C2471F0D89101BF7A8 /* ExecutionTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExecutionTimelineView.swift; sourceTree = "<group>"; };
+		3F6CB71619B13C63496280A3 /* libhippocrates_engine.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libhippocrates_engine.a; sourceTree = "<group>"; };
 		483F2176F26DAC504C94CAAC /* libCHippocratesEngine.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = libCHippocratesEngine.a; sourceTree = BUILT_PRODUCTS_DIR; };
 		54C4B3DDB94D863D6291DC40 /* CodeVisualizerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeVisualizerView.swift; sourceTree = "<group>"; };
 		56B879D78DB12CE40D724F75 /* HippocratesEngineWrapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HippocratesEngineWrapper.swift; sourceTree = "<group>"; };
@@ -62,6 +64,7 @@
 		90E1F0FFE14465BB7A39D29D /* hippocrates_engine.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = hippocrates_engine.h; sourceTree = "<group>"; };
 		94FC3D488C10771ABB3CA160 /* dummy.c */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = dummy.c; sourceTree = "<group>"; };
 		A54D6F4B590EFEBC34A434A3 /* HippocratesEditor-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "HippocratesEditor-Bridging-Header.h"; sourceTree = "<group>"; };
+		AB231C035958475B6623CBD3 /* hippocrates_engine.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = hippocrates_engine.h; sourceTree = "<group>"; };
 		E98C145FB107AE4B3492E799 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -97,6 +100,7 @@
 				A54D6F4B590EFEBC34A434A3 /* HippocratesEditor-Bridging-Header.h */,
 				167B8D40D5096754939DA9F2 /* HippocratesEditorApp.swift */,
 				56B879D78DB12CE40D724F75 /* HippocratesEngineWrapper.swift */,
+				7DA3FE6005FCA8043D12F505 /* HippocratesEngine */,
 			);
 			name = HippocratesEditor;
 			path = Sources/HippocratesEditor;
@@ -139,6 +143,15 @@
 			path = Sources/CHippocratesEngine;
 			sourceTree = "<group>";
 		};
+		7DA3FE6005FCA8043D12F505 /* HippocratesEngine */ = {
+			isa = PBXGroup;
+			children = (
+				AB231C035958475B6623CBD3 /* hippocrates_engine.h */,
+				3F6CB71619B13C63496280A3 /* libhippocrates_engine.a */,
+			);
+			path = HippocratesEngine;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -148,6 +161,7 @@
 			buildPhases = (
 				76FF935FE34A25256550ACC9 /* Build Rust Engine */,
 				4A3AA942E4433EE9CCA4A495 /* Sources */,
+				3CBC08F6F2D883605F68C0AE /* Resources */,
 				4646D00348CBF9FB121F63B2 /* Frameworks */,
 			);
 			buildRules = (
@@ -228,6 +242,17 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		3CBC08F6F2D883605F68C0AE /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				FFA372AB02555CD8591D32E5 /* libhippocrates_engine.a in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXShellScriptBuildPhase section */
 		76FF935FE34A25256550ACC9 /* Build Rust Engine */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -242,6 +267,7 @@
 			outputFileListPaths = (
 			);
 			outputPaths = (
+				"${PROJECT_DIR}/lib/libhippocrates_engine.a",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;

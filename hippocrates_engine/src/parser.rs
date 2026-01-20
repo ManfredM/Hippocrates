@@ -27,15 +27,7 @@ pub fn parse_plan(input: &str) -> Result<Plan, EngineError> {
     let pairs = match HippocratesParser::parse(Rule::file, &processed) {
         Ok(p) => p,
         Err(e) => {
-            let line_col = match e.line_col {
-                pest::error::LineColLocation::Pos((line, col)) => (line, col),
-                pest::error::LineColLocation::Span((line, col), _) => (line, col),
-            };
-            return Err(EngineError {
-                message: format!("Parsing error: {}", e),
-                line: line_col.0,
-                column: line_col.1,
-            });
+            return Err(to_engine_error(ParseError::PestError(e)));
         }
     };
 
@@ -65,6 +57,9 @@ pub fn parse_plan(input: &str) -> Result<Plan, EngineError> {
                     Rule::context_definition => {
                         definitions.push(Definition::Context(parse_context_def(inner).map_err(to_engine_error)?))
                     }
+                    Rule::unit_definition => {
+                        definitions.push(Definition::Unit(parse_unit_def(inner).map_err(to_engine_error)?))
+                    }
                     _ => (),
                 }
             }
@@ -87,8 +82,34 @@ fn to_engine_error(e: ParseError) -> EngineError {
                 pest::error::LineColLocation::Pos((line, col)) => (line, col),
                 pest::error::LineColLocation::Span((line, col), _) => (line, col),
             };
+            
+            // Custom simplified error message
+            let message = match pe.variant {
+                pest::error::ErrorVariant::ParsingError { positives, negatives } => {
+                     let expected: Vec<String> = positives.iter().map(|r| format!("{:?}", r)).collect();
+                     let mut msg = String::new();
+                     if !expected.is_empty() {
+                         msg.push_str("Expected ");
+                         // simple join
+                         msg.push_str(&expected.join(", "));
+                     }
+                     if !negatives.is_empty() {
+                         if !msg.is_empty() { msg.push_str("; "); }
+                         msg.push_str("Unexpected ");
+                         let unexpected: Vec<String> = negatives.iter().map(|r| format!("{:?}", r)).collect();
+                         msg.push_str(&unexpected.join(", "));
+                     }
+                     if msg.is_empty() {
+                         "Parsing error".to_string()
+                     } else {
+                         msg
+                     }
+                }
+                pest::error::ErrorVariant::CustomError { message } => message,
+            };
+
             EngineError {
-                message: format!("{}", pe),
+                message,
                 line: line_col.0,
                 column: line_col.1,
             }
@@ -449,6 +470,41 @@ fn parse_context_def(pair: pest::iterators::Pair<Rule>) -> Result<ContextDef, Pa
     Ok(ContextDef { items })
 }
 
+fn parse_unit_def(pair: pest::iterators::Pair<Rule>) -> Result<UnitDef, ParseError> {
+    let mut inner = pair.into_inner();
+    let name = parse_identifier_str(inner.next().unwrap());
+
+    let mut plurals = Vec::new();
+    let mut singulars = Vec::new();
+    let mut abbreviations = Vec::new();
+
+    for prop in inner {
+        let s = prop.as_str().trim().to_string(); // Capture string before move
+        let mut p_inner = prop.into_inner();
+        // Keyword literals ("plural", "is") are not tokens.
+        
+        let value_pair = p_inner.next().unwrap(); 
+        
+        if s.starts_with("plural") {
+            let val = parse_string_literal(value_pair);
+            plurals.push(val);
+        } else if s.starts_with("singular") {
+            let val = parse_string_literal(value_pair);
+            singulars.push(val);
+        } else if s.starts_with("abbreviation") {
+            let val = parse_string_literal(value_pair);
+            abbreviations.push(val);
+        }
+    }
+
+    Ok(UnitDef {
+        name,
+        plurals,
+        singulars,
+        abbreviations,
+    })
+}
+
 // Helper to parse quantity pair (value, unit)
 fn parse_quantity_pair(pair: pest::iterators::Pair<Rule>) -> Result<(f64, Unit), ParseError> {
     let mut inner = pair.into_inner();
@@ -657,13 +713,34 @@ fn parse_value_property(pair: pest::iterators::Pair<Rule>) -> Result<Property, P
             let stmts = parse_block(block_pair)?;
             Ok(Property::Calculation(stmts))
         }
-        Rule::reuse_prop => Ok(Property::Reuse("Todo".to_string())),
+
         Rule::inheritance_prop => {
             let ident = parse_identifier_str(inner.into_inner().next().unwrap());
             Ok(Property::Inheritance(ident, None))
         }
         Rule::documentation_prop => Ok(Property::Documentation("Todo".to_string())),
+        Rule::reuse_prop => parse_reuse_prop(inner),
         _ => Ok(Property::Custom(inner.as_str().to_string(), "".to_string())),
+    }
+}
+
+fn parse_reuse_prop(pair: pest::iterators::Pair<Rule>) -> Result<Property, ParseError> {
+    let inner = pair.into_inner().next().unwrap(); // reuse_stmt
+    // reuse_stmt = { "reuse" ~ "period" ~ "of" ~ "value" ~ "is" ~ quantity ~ "."? ~ NEWLINE* }
+    
+    let mut qty_pair = None;
+    for child in inner.into_inner() {
+        if child.as_rule() == Rule::quantity {
+            qty_pair = Some(child);
+            break;
+        }
+    }
+    
+    if let Some(pair) = qty_pair {
+        let (val, unit) = parse_quantity_pair(pair)?;
+        Ok(Property::Reuse(val, unit))
+    } else {
+        Err(ParseError::ValidationError("Missing quantity in reuse statement".to_string()))
     }
 }
 
@@ -1289,9 +1366,9 @@ fn parse_condition(pair: pest::iterators::Pair<Rule>) -> Result<RangeSelector, P
 
 fn parse_unit(pair: pest::iterators::Pair<Rule>) -> Result<Unit, ParseError> {
     match pair.as_str() {
-        "mg" | "milligram" => Ok(Unit::Milligram),
-        "kg" | "kilogram" => Ok(Unit::Kilogram),
-        "g" | "gram" => Ok(Unit::Gram),
+        "mg" | "milligram" | "milligrams" => Ok(Unit::Milligram),
+        "kg" | "kilogram" | "kilograms" => Ok(Unit::Kilogram),
+        "g" | "gram" | "grams" => Ok(Unit::Gram),
         "lb" | "pound" | "pounds" => Ok(Unit::Pound),
         "oz" | "ounce" | "ounces" => Ok(Unit::Ounce),
         "m" | "meter" | "meters" => Ok(Unit::Meter),
@@ -1317,11 +1394,7 @@ fn parse_unit(pair: pest::iterators::Pair<Rule>) -> Result<Unit, ParseError> {
         "second" | "seconds" => Ok(Unit::Second),
         _ => {
             let s = pair.as_str();
-            if s.len() > 1 && s.ends_with('s') && !s.ends_with("ss") {
-                Ok(Unit::Custom(s[..s.len() - 1].to_string()))
-            } else {
-                Ok(Unit::Custom(s.to_string()))
-            }
+            Ok(Unit::Custom(s.to_string()))
         }
     }
 }

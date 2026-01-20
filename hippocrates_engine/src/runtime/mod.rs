@@ -3,6 +3,7 @@ pub mod evaluator;
 mod evaluator_tests;
 pub mod executor;
 pub mod scheduler;
+pub mod session;
 pub mod validator;
 
 pub use environment::Environment;
@@ -11,6 +12,7 @@ pub use executor::ExecutionMode;
 pub use executor::Executor;
 
 use crate::ast::Plan;
+use std::sync::{Arc, atomic::AtomicBool};
 
 pub struct Engine {
     pub env: Environment,
@@ -34,7 +36,7 @@ impl Engine {
     }
 
     pub fn execute(&mut self, plan_name: &str) {
-        let mut executor = Executor::new();
+        let mut executor = Executor::new(Arc::new(AtomicBool::new(false)));
         executor.set_mode(self.mode);
         executor.execute_plan(&mut self.env, plan_name);
     }

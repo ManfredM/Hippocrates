@@ -260,6 +260,12 @@ class HippocratesEngine {
         hippocrates_engine_execute(ctx, cName)
     }
     
+    func stop() {
+        if let ctx = ctx {
+            hippocrates_engine_stop(ctx)
+        }
+    }
+    
     func setValue(name: String, valueJson: String) -> Bool {
         guard let ctx = ctx, 
               let cName = name.cString(using: .utf8),

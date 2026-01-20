@@ -5,7 +5,7 @@
 ## Key Features
 
 - **Natural Language Syntax**: Designed to be readable by medical professionals.
-- **Strict Unit Validation**: All numeric values must have units (e.g., `10 mg`, `5 steps`). The engine handles unit normalization (e.g., `step` vs `steps`).
+- **Strict Unit Validation**: All numeric values must have units (e.g., `10 mg`, `5 steps`). Users explicitly define units and their plural forms (e.g., `drop` vs `drops`) to ensure precise handling.
 - **Data Precision**: Explicit handling of integer vs. float precision (e.g., `0 ... 10` vs `0.0 ... 10.0`).
 - **Double-Entry Validation**: Syntax support for ensuring data accuracy:
 

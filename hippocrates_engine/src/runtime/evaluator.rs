@@ -11,7 +11,18 @@ impl Evaluator {
             Expression::Literal(lit) => match lit {
                 Literal::Number(n, _) => RuntimeValue::Number(*n),
                 Literal::String(s) => RuntimeValue::String(s.clone()),
-                Literal::Quantity(n, unit, _) => RuntimeValue::Quantity(*n, unit.clone()),
+                Literal::Quantity(n, unit, _) => {
+                    let u = if let crate::domain::Unit::Custom(s) = unit {
+                        if let Some(canonical) = env.unit_map.get(s) {
+                            canonical.clone()
+                        } else {
+                            unit.clone()
+                        }
+                    } else {
+                        unit.clone()
+                    };
+                    RuntimeValue::Quantity(*n, u)
+                },
                 Literal::TimeOfDay(s) => RuntimeValue::String(s.clone()),
                 Literal::Date(s) => RuntimeValue::String(s.clone()),
             },
@@ -297,8 +308,6 @@ impl Evaluator {
                         } else {
                             (n * sum_xy - sum_x * sum_y) / denominator
                         };
-
-                        // println!("DEBUG: Trend calculation. N={}, Slope={}", n, slope);
 
                         if slope > 0.0001 {
                             // Epsilon threshold

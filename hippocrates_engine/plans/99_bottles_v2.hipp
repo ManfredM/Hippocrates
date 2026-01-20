@@ -1,3 +1,6 @@
+bottle is a unit:
+    plural is "bottles"
+
 <bottle count> is a number:
     valid values: value is 0 bottles ... 100 bottles.
 

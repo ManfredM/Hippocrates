@@ -15,6 +15,7 @@ pub struct Environment {
     pub output_handler: Option<Arc<dyn Fn(String) + Send + Sync>>,
     // Use RwLock for interior mutability so Evaluator can push context with &Environment
     pub context_stack: std::sync::RwLock<Vec<EvaluationContext>>,
+    pub unit_map: HashMap<String, crate::domain::Unit>,
 }
 
 #[derive(Debug, Clone)]
@@ -31,6 +32,7 @@ impl fmt::Debug for Environment {
             .field("start_time", &self.start_time)
             .field("output_log", &self.output_log)
             .field("output_handler", &"fn(...)")
+            .field("unit_map", &self.unit_map)
             .finish()
     }
 }
@@ -45,6 +47,20 @@ impl Environment {
             output_log: Vec::new(),
             output_handler: None,
             context_stack: std::sync::RwLock::new(Vec::new()),
+            unit_map: HashMap::new(),
+            // TODO: Pre-populate standard units?
+            // If we want standard units to work regardless of definition, we might need a hardcoded list here.
+            // But the parser maps them to Enum variants like Unit::Meter.
+            // BUT if the user writes "meter", the parser produces Unit::Meter.
+            // If the user writes "meters", the parser now produces Unit::Custom("meters") (implicit 's' removed).
+            // So we MUST map "meters" -> Unit::Meter if we want standard behavior.
+            // Or we force users/us to update stdlib definitions.
+            // For now, let's leave it empty and assume std units are handled by parser logic (which I modified to NOT string strip).
+            // Wait! Parser logic for STANDARD units was:
+            // "meter" | "meters" => Ok(Unit::Meter).
+            // This is untouched!
+            // My change only affected the `_ =>` fallthrough for CUSTOM units.
+            // So standard units still work fine with plurals hardcoded in parser.
         }
     }
 
@@ -77,7 +93,10 @@ impl Environment {
             let name = match &def {
                 Definition::Value(v) => {
                     let default = self.default_value_for(&v.value_type);
-                    self.set_value(&v.name, default);
+                    // Use standard epoch for defaults so they appear "old" in history
+                    // compared to any restored or real data.
+                    let epoch = chrono::DateTime::<Utc>::from_timestamp(0, 0).unwrap_or(Utc::now());
+                    self.set_value_at(&v.name, default, epoch);
                     v.name.clone()
                 }
                 Definition::Period(p) => p.name.clone(),
@@ -85,16 +104,30 @@ impl Environment {
                 Definition::Drug(d) => d.name.clone(),
                 Definition::Addressee(a) => a.name.clone(),
                 Definition::Context(_c) => "context".to_string(),
+                Definition::Unit(u) => {
+                    let canonical = crate::domain::Unit::Custom(u.name.clone());
+                     self.unit_map.insert(u.name.clone(), canonical.clone());
+                     for s in &u.singulars {
+                         self.unit_map.insert(s.clone(), canonical.clone());
+                     }
+                     for p in &u.plurals {
+                         self.unit_map.insert(p.clone(), canonical.clone());
+                     }
+                     for a in &u.abbreviations {
+                         self.unit_map.insert(a.clone(), canonical.clone());
+                     }
+                    u.name.clone()
+                }
             };
             self.definitions.insert(name, def);
         }
     }
-
+    
     fn default_value_for(&self, vt: &crate::domain::ValueType) -> RuntimeValue {
         use crate::domain::{RuntimeValue, ValueType};
         match vt {
-            ValueType::Number => RuntimeValue::Number(0.0),
-            ValueType::Enumeration => RuntimeValue::Enumeration("".to_string()),
+            ValueType::Number => RuntimeValue::NotEnoughData,
+            ValueType::Enumeration => RuntimeValue::NotEnoughData,
             // Initialize others as needed
             _ => RuntimeValue::Void,
         }

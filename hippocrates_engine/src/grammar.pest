@@ -22,7 +22,7 @@ identifier = { angled_identifier | raw_identifier | string_literal }
 multi_word_identifier = { identifier ~ (identifier | number)* }
 
 // Extended units to support plurals as seen in test files
-unit = { standard_unit | custom_unit }
+unit = { custom_unit | standard_unit }
 
 standard_unit = { 
     "°F" | "°C" | "%" | 
@@ -39,7 +39,15 @@ value_type = { "a number" | "an enumeration" | "a time indication" | "a period" 
 
 file = { SOI ~ NEWLINE* ~ definition* ~ EOI }
 // Reordered to prioritize specific definitions
-definition = { (drug_definition | addressee_definition | context_definition | plan_definition | period_definition | value_definition) ~ NEWLINE* }
+definition = { (unit_definition | drug_definition | addressee_definition | context_definition | plan_definition | period_definition | value_definition) ~ NEWLINE* }
+
+unit_definition = { identifier ~ "is a unit" ~ ":" ~ NEWLINE* ~ INDENT ~ unit_property+ ~ DEDENT }
+
+unit_property = {
+    ("plural" ~ "is" ~ string_literal ~ NEWLINE*) |
+    ("singular" ~ "is" ~ string_literal ~ NEWLINE*) |
+    ("abbreviation" ~ "is" ~ string_literal ~ NEWLINE*)
+}
 
 value_definition = { 
     identifier ~ "is" ~ value_type ~ (
@@ -120,7 +128,8 @@ inline_valid_values = { safe_range_item ~ ((";" | NEWLINE)? ~ safe_range_item)* 
 meaning_prop = { "meaning" ~ ":" ~ NEWLINE* ~ INDENT ~ assessment_case+ ~ DEDENT }
 question_prop = { "question" ~ flexible_block } 
 calculation_prop = { "calculation" ~ flexible_block }
-reuse_prop = { "reuse" ~ flexible_block } 
+reuse_prop = { "reuse" ~ ":" ~ NEWLINE* ~ INDENT ~ reuse_stmt ~ DEDENT }
+reuse_stmt = { "reuse" ~ "period" ~ "of" ~ "value" ~ "is" ~ quantity ~ "."? ~ NEWLINE* } 
 
 documentation_prop = { "documentation" ~ ":" ~ NEWLINE* ~ INDENT ~ "english" ~ flexible_string_block ~ NEWLINE* ~ DEDENT }
 flexible_string_block = _{ (":" ~ NEWLINE* ~ INDENT ~ string_literal ~ "."? ~ NEWLINE? ~ DEDENT) | (":" ~ string_literal ~ "."?) }
@@ -196,6 +205,7 @@ statement = {
     (timeframe_block |
     documentation_prop |
     event_progression |
+    context_block | 
     conditional |
     assignment |
     constraint |

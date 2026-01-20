@@ -35,11 +35,28 @@ period_of_time =
     "until ", event_trigger; (* e.g., 2 weeks, until next visit *)
 
 (* Units *)
+(* Units *)
 temperature_unit = "°F" | "°C";
 weight_unit = "mg" | "g" | "kg" | "lb" | "oz";
 length_unit = "m" | "cm" | "mm" | "km" | "inch" | "foot" | "mile";
 volume_unit = "l" | "ml" | "fl oz" | "gal";
-unit = temperature_unit | weight_unit | length_unit | volume_unit | time_unit | identifier; (* Custom units allowed, auto-normalized to singular form *)
+time_unit = "year" | "month" | "week" | "day" | "hour" | "minute" | "second";
+
+(* Custom Units *)
+(* Custom units must now be explicitly defined to support pluralization and abbreviations. *)
+(* If not defined, "drop" and "drops" are treated as distinct, unrelated units. *)
+unit = temperature_unit | weight_unit | length_unit | volume_unit | time_unit | identifier; 
+
+(* Unit Definition *)
+unit_definition = 
+    identifier, " is a unit:", newline,
+        indent, { unit_property }, dedent;
+        
+unit_property = 
+    "plural is ", string_literal |
+    "singular is ", string_literal |
+    "abbreviation is ", string_literal;
+    
 number = integer | float;
 (* Precision Rule: Ranges like 0 ... 10 imply integer steps; 0.0 ... 10.0 imply float steps *)
 quantity = number, [ " " ], unit;
@@ -131,7 +148,7 @@ timeframe_block =
     "timeframe for analysis is ", range_selector, ":", newline, 
     indent, { calculation_statement }, dedent;
 
-reuse_prop = "reuse:", newline, indent, "reuse period of value is ", period_of_time, ".", dedent;
+reuse_prop = "reuse:", newline, indent, "reuse period of value is ", quantity, ".", dedent;
 
 (* Example: 
 <body weight> is a number:
@@ -351,10 +368,15 @@ The runtime MUST ensure that values compared or assigned have compatible units (
 
 #### Unit Normalization
 
-For custom units (e.g., `points`, `tablets`), the runtime automatically normalizes plural forms to singular.
+For custom units (e.g., `points`, `tablets`), the runtime **no longer** automatically normalizes plural forms. You MUST explicitly define the relationship:
 
-* "10 points" becomes value `10` with unit `point`.
-* Checks for literal equality ignore pluralization differences.
+```hippocrates
+point is a unit:
+    plural is "points".
+```
+
+* Without this definition, `10 points` and `10 point` are considered effectively different units (though the runtime logic might treat them as distinct unit strings).
+* With the definition, `10 points` is canonicalized to `10 point` (using the definition name as canonical).
 
 ### 4.2. Confidence and History
 
@@ -363,8 +385,10 @@ Every value in Hippocrates has meta-properties managed by the runtime:
 * `value.timestamp`: When was this value last updated.
 * `value.confidence`: A percentage (0-100%) indicating certainty.
   * Calculated values inherit the *lowest* confidence of their inputs.
-  * Values decay in confidence over time if a `reuse` policy is defined.
-  * **Rule**: Operations on values with `confidence < threshold` should trigger a `LowConfidenceError` or fallback to requesting a new value (Ask Question).
+  * Values are considered "valid" for reuse only if their age is within the defined `reuse` period.
+  * **Rule**: When an action requires a value (e.g. `ask`), the system checks if a valid historical value exists.
+    * If `age < reuse_period`: The question is skipped, and the historical value is used.
+    * If `age >= reuse_period` (or value missing): The system prompts the user for a new value.
 
 ### 4.3. Context Resolution
 
@@ -472,4 +496,17 @@ during plan:
 ```hippocrates
 show message to patient "Take your medication now":
     message expires after 15 minutes.
+
+### 7.4. Validity Timeframe (Reuse)
+
+```hippocrates
+<Body Temperature> is a number:
+    reuse:
+        reuse period of value is 1 hour.
+
+during plan:
+    ask <Body Temperature>.
+    // If run again within 1 hour, this question is skipped.
+```
+
 ```

@@ -30,6 +30,9 @@ class AppState: ObservableObject {
             show message to patient "Temperature normal".
     """
     
+    @Published var parseStatus: String = "Ready"
+    @Published var currentErrors: [HippocratesParser.EngineError] = []
+    
     @Published var currentFileURL: URL?
     @Published var currentExecutionLine: Int?
     @Published var executionLogs: [ExecutionEvent] = []
@@ -47,6 +50,17 @@ class AppState: ObservableObject {
             if let content = String(data: data, encoding: .utf8) {
                 self.planCode = content
                 self.currentFileURL = url
+                
+                // Reset State
+                self.currentExecutionLine = nil
+                self.executionLogs = []
+                self.pendingQuestion = nil
+                self.currentEngine?.stop()
+                self.currentEngine = nil
+                
+                // Clear errors on load
+                self.parseStatus = "Ready"
+                self.currentErrors = []
             }
         } catch {
             print("Failed to load file: \(error.localizedDescription)")
