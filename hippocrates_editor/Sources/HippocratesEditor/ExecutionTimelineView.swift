@@ -93,8 +93,8 @@ struct ExecutionTimelineView: View {
         } else {
             // Dynamic: Try to cover the logs range
             // We'll generate bands for the range of logs + buffer
-            if let first = appState.executionLogs.first?.time,
-               let last = appState.executionLogs.last?.time {
+            if let first = appState.executionLogs.min(by: { $0.time < $1.time })?.time,
+               let last = appState.executionLogs.max(by: { $0.time < $1.time })?.time {
                 anchorDate = calendar.startOfDay(for: first)
                 let diff = calendar.dateComponents([.day], from: anchorDate, to: last).day ?? 0
                 days = diff + 2 // Cover last day fully
@@ -199,7 +199,7 @@ struct ExecutionTimelineView: View {
         .onAppear {
              refreshData()
         }
-        .onChange(of: appState.executionLogs.isEmpty) { 
+        .onChange(of: appState.executionLogs.count) { 
              refreshData()
         }
         .onChange(of: appState.visualizationEngine) { 
