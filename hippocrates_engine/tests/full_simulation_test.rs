@@ -11,7 +11,7 @@ fn test_period_simulation_progression() {
         between Monday ... Sunday; 08:00 ... 08:10
 
 <my plan> is a plan:
-    <my event> with begin of best period:
+    <my event> with begin of <best period>:
         show message "Event Triggered".
 "#;
 
@@ -21,7 +21,7 @@ fn test_period_simulation_progression() {
     env.load_plan(plan);
 
     // Mock start time to Sunday 07:59 (should trigger soon)
-    let start_time = Utc.with_ymd_and_hms(2026, 1, 18, 7, 59, 0).unwrap();
+    let start_time = Utc.with_ymd_and_hms(2026, 1, 18, 7, 59, 0).unwrap().naive_utc();
     env.set_time(start_time);
 
     // 2. Setup Executor with Simulation Mode (instant jump)

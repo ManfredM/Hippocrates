@@ -1,0 +1,12 @@
+
+<Pain> is a number.
+
+<MyPlan> is a plan:
+    during plan:
+        question style is visual analogue scale:
+            best value is 0
+            text for best value is "No Pain"
+            worst value is 10
+            text for worst value is "Worst Pain"
+
+        show message "Hello " + <UnknownVar>

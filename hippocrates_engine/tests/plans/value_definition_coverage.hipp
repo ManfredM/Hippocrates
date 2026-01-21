@@ -1,0 +1,23 @@
+
+<TestUnit> is a unit:
+    plural is <TestUnits>
+    abbreviation is "tu"
+
+<BloodPressure> is a number:
+    unit is mmHg
+    valid values:
+        0 mmHg ... 300 mmHg
+    meaning:
+        0 mmHg ... 90 mmHg:
+            meaning of value = "Low"
+        91 mmHg ... 120 mmHg:
+            meaning of value = "Normal"
+    documentation:
+        english: "The force of circulating blood."
+
+<Status> is an enumeration:
+    valid values:
+        "Active"; "Inactive"; "Pending"
+    reuse:
+        reuse period of value is 1 day.
+

@@ -1,10 +1,10 @@
 use crate::ast::*;
-use chrono::{DateTime, Datelike, NaiveTime, Utc, Weekday};
+use chrono::{Datelike, NaiveDateTime, NaiveTime, Weekday};
 
 pub struct Scheduler;
 
 impl Scheduler {
-    pub fn next_occurrence(def: &Definition, now: DateTime<Utc>) -> Option<(DateTime<Utc>, DateTime<Utc>)> {
+    pub fn next_occurrence(def: &Definition, now: NaiveDateTime) -> Option<(NaiveDateTime, NaiveDateTime)> {
         let mut timeframe_groups = None;
 
         match def {
@@ -44,7 +44,7 @@ impl Scheduler {
         }
     }
 
-    fn next_for_group(selectors: &Vec<RangeSelector>, now: DateTime<Utc>) -> Option<(DateTime<Utc>, DateTime<Utc>)> {
+    fn next_for_group(selectors: &Vec<RangeSelector>, now: NaiveDateTime) -> Option<(NaiveDateTime, NaiveDateTime)> {
         // Separate selectors into Day constraints and Time constraints
         // Assumption: One day range and one time range per group (as seen in copd plan)
         // If multiple, intersection logic is needed.
@@ -94,7 +94,7 @@ impl Scheduler {
 
         // Search next 14 days
         for i in 0..14 {
-            let candidate_date = now.date_naive() + chrono::Duration::days(i);
+            let candidate_date = now.date() + chrono::Duration::days(i);
             let candidate_weekday = candidate_date.weekday();
 
             // Check day constraint
@@ -114,13 +114,11 @@ impl Scheduler {
                 // Construct full DateTime
                 // Note: creating DateTime from naive needs validation (DST etc)
                 // Using simplistic approach
-                let candidate_dt_naive = candidate_date.and_time(start_time);
-                let candidate_dt = DateTime::<Utc>::from_naive_utc_and_offset(candidate_dt_naive, Utc); // Assuming simple mapping
+                let candidate_dt = candidate_date.and_time(start_time);
 
                 if candidate_dt > now {
                     // Calculate end dt
-                    let end_dt_naive = candidate_date.and_time(end_time);
-                    let end_dt = DateTime::<Utc>::from_naive_utc_and_offset(end_dt_naive, Utc);
+                    let end_dt = candidate_date.and_time(end_time);
                     
                     return Some((candidate_dt, end_dt));
                 }
@@ -131,17 +129,21 @@ impl Scheduler {
     }
 
     fn eval_weekday(expr: &Expression) -> Option<Weekday> {
-        match expr {
-            Expression::Variable(s) => match s.to_lowercase().as_str() {
-                "monday" => Some(Weekday::Mon),
-                "tuesday" => Some(Weekday::Tue),
-                "wednesday" => Some(Weekday::Wed),
-                "thursday" => Some(Weekday::Thu),
-                "friday" => Some(Weekday::Fri),
-                "saturday" => Some(Weekday::Sat),
-                "sunday" => Some(Weekday::Sun),
-                _ => None,
-            },
+        let s = match expr {
+            Expression::Variable(s) => s.trim_matches(|c| c == '<' || c == '>'),
+            Expression::Literal(Literal::String(s)) => s.as_str(),
+            // Also handle identifiers if they appear as literals? Unlikely given Expression structure.
+            _ => return None,
+        };
+
+        match s.to_lowercase().as_str() {
+            "monday" => Some(Weekday::Mon),
+            "tuesday" => Some(Weekday::Tue),
+            "wednesday" => Some(Weekday::Wed),
+            "thursday" => Some(Weekday::Thu),
+            "friday" => Some(Weekday::Fri),
+            "saturday" => Some(Weekday::Sat),
+            "sunday" => Some(Weekday::Sun),
             _ => None,
         }
     }

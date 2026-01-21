@@ -1,5 +1,6 @@
 <body weight> is a number:
-    valid values: 0 ... 200
+    valid values:
+        0 ... 200
     unit: kg
 
 patient_age is a number.

@@ -1,6 +1,6 @@
 use hippocrates_engine::runtime::scheduler::Scheduler;
 use hippocrates_engine::parser;
-use hippocrates_engine::ast::{Definition, Property, ValueDef};
+use hippocrates_engine::ast::Definition;
 use chrono::{Utc, TimeZone};
 
 #[test]
@@ -24,6 +24,9 @@ fn test_scheduler_copd_logic() {
             Definition::Plan(p) => {
                  defs.insert(p.name.clone(), Definition::Plan(p));
             }
+            Definition::Period(p) => {
+                defs.insert(p.name.clone(), Definition::Period(p));
+            }
             _ => {}
         }
     }
@@ -38,8 +41,8 @@ fn test_scheduler_copd_logic() {
     let def = defs.get(target_name).expect("Def must exist");
     
     // Scheduler test
-    let now = Utc.with_ymd_and_hms(2026, 1, 18, 12, 0, 0).unwrap();
+    let now = Utc.with_ymd_and_hms(2026, 1, 18, 12, 0, 0).unwrap().naive_utc();
     let next = Scheduler::next_occurrence(def, now);
     assert!(next.is_some());
-    println!("Next: {}", next.unwrap());
+    println!("Next: {:?}", next.unwrap());
 }

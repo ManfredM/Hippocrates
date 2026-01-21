@@ -3,46 +3,55 @@
         between Monday ... Friday; 07:40 ... 07:50
         between Saturday ... Sunday; 09:00 ... 09:10
     customization:
-        begin of best inhalation period can be customized together for all occurrences.
+        begin of <best inhalation period> can be customized together for all occurrences.
 
 <fill in evening report> is a period:
     timeframe:
         between Monday ... Friday; 18:30 ... 18:45
         between Saturday ... Sunday; 19:45 ... 20:00
     customization:
-        begin of fill in evening report can be customized together for all occurrences.
+        begin of <fill in evening report> can be customized together for all occurrences.
 
-point is a unit:
-    plural is "points"
+<point> is a unit:
+    plural is <points>
     abbreviation is "pts"
 
 <severity of breathlessness> is a number:
-    valid values: 0 points ... 5 points
+    valid values:
+        0 <points> ... 5 <points>
     meaning:
-        1 point: meaning of value = "Not at all". best value.
-        2 points: meaning of value = "Mild".
-        3 points: meaning of value = "Moderate".
-        4 points: meaning of value = "Severe".
-        5 points: meaning of value = "Worst possible". worst value.
+        1 <point>:
+            meaning of value = "Not at all".
+            <best value>.
+        2 <points>:
+            meaning of value = "Mild".
+        3 <points>:
+            meaning of value = "Moderate".
+        4 <points>:
+            meaning of value = "Severe".
+        5 <points>:
+            meaning of value = "Worst possible".
+            <worst value>.
     question:
         ask "How severe was your breathlessness over the past 24 hours":
             validate answer once.
             question expires after 1 hour.
-            style of question is Likert scale.
+            style of question is <Likert scale>.
 
-use is a unit:
-    plural is "uses"
+<use> is a unit:
+    plural is <uses>
 
 <use of rescue medication> is a number:
-    valid values: 0 uses ... 10 uses
+    valid values:
+        0 <uses> ... 10 <uses>
     question:
         ask "How often did you use your rescue medication?":
             validate answer once.
             question style is visual analogue scale:
-                best value is 0 uses:
-                    text for best value is "No breathlessness within last 24 hours".
-                worst value is 10 uses:
-                    text for worst value is "Continuous and severe breathlessness within last 24 hours".
+                best value is 0 <uses>
+                text for best value is "No breathlessness within last 24 hours".
+                worst value is 10 <uses>
+                text for worst value is "Continuous and severe breathlessness within last 24 hours".
 
 <inhaler used> is an enumeration:
     documentation:
@@ -55,39 +64,55 @@ use is a unit:
             question expires after 1 hour.
             style of question is <Yes/No>.
 
-dose is a unit:
-    plural is "doses"
+<dose> is a unit:
+    plural is <doses>
 
 <inhaler used in past 5 days> is a number:
-    valid values: 0 doses ... 1000 doses
+    valid values:
+        0 <doses> ... 1000 <doses>
     meaning:
-        0 doses: meaning of value = "all doses missed".
-        1 dose: meaning of value = "most doses missed".
-        2 doses: meaning of value = "many doses missed".
-        3 doses: meaning of value = "some doses missed".
-        4 doses: meaning of value = "most doses taken".
-        5 doses: meaning of value = "all doses taken".
-        6 doses ... 1000 doses: meaning of value = "too many doses taken".
+        0 <doses>:
+            meaning of value = "all doses missed".
+        1 <dose>:
+            meaning of value = "most doses missed".
+        2 <doses>:
+            meaning of value = "many doses missed".
+        3 <doses>:
+            meaning of value = "some doses missed".
+        4 <doses>:
+            meaning of value = "most doses taken".
+        5 <doses>:
+            meaning of value = "all doses taken".
+        6 <doses> ... 1000 <doses>:
+            meaning of value = "too many doses taken".
     calculation:
         timeframe for analysis is between 5 days ago ... now:
-            value = count of <inhaler used> is "Yes".
+            <value> = count of <inhaler used> is "Yes".
     (* reuse:
         reuse period of value is 1 day.
     *)
 
 <inhaler used in past 5 days on time> is a number:
-    valid values: 0 doses ... 1000 doses
+    valid values:
+        0 <doses> ... 1000 <doses>
     meaning:
-        0 doses: meaning of value = "all doses missed".
-        1 dose: meaning of value = "most doses missed".
-        2 doses: meaning of value = "many doses missed".
-        3 doses: meaning of value = "some doses missed".
-        4 doses: meaning of value = "most doses taken".
-        5 doses: meaning of value = "all doses taken".
-        6 doses ... 1000 doses: meaning of value = "too many doses taken".
+        0 <doses>:
+            meaning of value = "all doses missed".
+        1 <dose>:
+            meaning of value = "most doses missed".
+        2 <doses>:
+            meaning of value = "many doses missed".
+        3 <doses>:
+            meaning of value = "some doses missed".
+        4 <doses>:
+            meaning of value = "most doses taken".
+        5 <doses>:
+            meaning of value = "all doses taken".
+        6 <doses> ... 1000 <doses>:
+            meaning of value = "too many doses taken".
     calculation:
         timeframe for analysis is between 5 days ago ... now:
-            value = count of <inhaler used> is "Yes".
+            <value> = count of <inhaler used> is "Yes".
     (* reuse:
         reuse period of value is 1 day.
     *)
@@ -96,19 +121,18 @@ dose is a unit:
     during plan:
         <log> = "Plan started".
 
-    <inhalation> with begin of best inhalation period:
+    <inhalation> with begin of <best inhalation period>:
         documentation:
             english: "At the beginning of the inhalation period we show a reminder...".
         
-        show message to patient "It's the best time of the day to take your daily shot now":
-            message expires after best inhalation period.
+        show message to <patient> "It's the best time of the day to take your daily shot now":
+            message expires after <best inhalation period>.
 
-    <reporting> with begin of fill in evening report:
+    <reporting> with begin of <fill in evening report>:
         documentation:
             english: "Ask for the daily reporting...".
         
-        assess event progression:
-            event is not finished: abort outstanding actions.
+
         
 
         ask for <severity of breathlessness>.
@@ -119,7 +143,7 @@ dose is a unit:
             timeframe: 5 days ago ... now
             assess trend of <use of rescue medication>:
                 "increase":
-                    show message to physician "Alert: usage of rescue meds is increasing!".
+                    show message to <physician> "Alert: usage of rescue meds is increasing!".
                 "stable"; "decrease":
                     <log> = "Rescue medication usage is stable or decreasing.".
 
@@ -127,23 +151,23 @@ dose is a unit:
 
         assess <inhaler used in past 5 days on time>:
             Not enough data:
-                show message to patient "We are still collecting data for compliance check.".
-            4 doses; 5 doses:
-                show message to patient "You are doing a great job in using the inhaler right on time".
+                show message to <patient> "We are still collecting data for compliance check.".
+            4 <doses>; 5 <doses>:
+                show message to <patient> "You are doing a great job in using the inhaler right on time".
             
-            0 doses ... 3 doses; 6 doses ... 1000 doses:
+            0 <doses> ... 3 <doses>; 6 <doses> ... 1000 <doses>:
                 assess <inhaler used in past 5 days>:
                     Not enough data:
-                        show message to patient "We are still collecting the first 5 days of data.".
-                    0 doses:
-                        show message to patient "Not using a medication does not lead to improvement!".
-                    1 dose ... 2 doses:
-                        show message to patient "You must use the inhaler more regular".
-                    3 doses ... 5 doses:
-                        show message to patient "You are using the inhaler frequently enough, but you should also use at the same time every day.".
-                    6 doses ... 10 doses:
-                        show message to patient "You took between 6 and 10 doses in past 5 days. Please do not use more than one dose per day".
-                    11 doses ... 1000 doses:
-                        show message to patient "We have recorded more than 10 uses of the inhaler. Please contact us to investigate the reason for that.".
+                        show message to <patient> "We are still collecting the first 5 days of data.".
+                    0 <doses>:
+                        show message to <patient> "Not using a medication does not lead to improvement!".
+                    1 <dose> ... 2 <doses>:
+                        show message to <patient> "You must use the inhaler more regular".
+                    3 <doses> ... 5 <doses>:
+                        show message to <patient> "You are using the inhaler frequently enough, but you should also use at the same time every day.".
+                    6 <doses> ... 10 <doses>:
+                        show message to <patient> "You took between 6 and 10 doses in past 5 days. Please do not use more than one dose per day".
+                    11 <doses> ... 1000 <doses>:
+                        show message to <patient> "We have recorded more than 10 uses of the inhaler. Please contact us to investigate the reason for that.".
 
 

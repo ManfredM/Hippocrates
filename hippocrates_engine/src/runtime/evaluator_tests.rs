@@ -10,7 +10,7 @@ mod tests {
     #[test]
     fn test_fuzzy_equals() {
         let v1 = RuntimeValue::String("Yes".to_string());
-        let v2 = RuntimeValue::String("yes".to_string());
+        let _v2 = RuntimeValue::String("yes".to_string());
         // We can't access private fuzzy_equals directly, but we can test via check_condition
         // or we can test if we make it public (or test via public API)
 
@@ -36,7 +36,7 @@ mod tests {
 
     #[test]
     fn test_fuzzy_equals_enum_enum() {
-        let v1 = RuntimeValue::Enumeration("Yes".to_string());
+        let _v1 = RuntimeValue::Enumeration("Yes".to_string());
         // Target is enum "yes" (simulated via expression evaluation?)
         // Expressions usually evaluate to primitives, but if we had a variable...
         // For now, testing Enum vs String is the main use case.

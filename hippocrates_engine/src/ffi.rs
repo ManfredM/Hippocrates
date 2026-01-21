@@ -3,7 +3,7 @@ use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int};
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 use serde::Serialize;
-use chrono::{DateTime, Utc};
+use chrono::DateTime;
 use crate::runtime::scheduler::Scheduler;
 
 // Parses a Hippocrates plan string and returns the AST as a JSON string.
@@ -168,10 +168,7 @@ pub unsafe extern "C" fn hippocrates_simulate_occurrences(
     };
 
     let mut occurrences = Vec::new();
-    let start_dt = DateTime::<Utc>::from_naive_utc_and_offset(
-        DateTime::from_timestamp_millis(start_ts).unwrap().naive_utc(),
-        Utc,
-    );
+    let start_dt = DateTime::from_timestamp_millis(start_ts).unwrap().naive_utc();
     
     let end_limit = start_dt + chrono::Duration::days(duration_days as i64);
     let mut current_time = start_dt;
@@ -189,8 +186,8 @@ pub unsafe extern "C" fn hippocrates_simulate_occurrences(
             }
             
             occurrences.push(Occur {
-                start: start.to_rfc3339(),
-                end: end.to_rfc3339()
+                start: start.and_utc().to_rfc3339(),
+                end: end.and_utc().to_rfc3339()
             });
             current_time = start; // Advance to start of this occurrence
         } else {
@@ -220,6 +217,7 @@ pub unsafe extern "C" fn hippocrates_engine_set_callbacks(
     let ptr = SendPtr(context.user_data);
     let ptr2 = SendPtr(context.user_data);
     let ptr3 = SendPtr(context.user_data);
+    // let ptr4 = SendPtr(context.user_data);
 
     if let Some(cb) = line_cb {
         context.executor.on_step = Some(Box::new(move |line| {
@@ -227,10 +225,20 @@ pub unsafe extern "C" fn hippocrates_engine_set_callbacks(
         }));
     }
     if let Some(cb) = log_cb {
+        // 1. Set Executor log handler (for typed events)
         context.executor.on_log = Some(Box::new(move |msg, event_type, ts| {
             if let Ok(c_msg) = CString::new(msg) {
-                cb(c_msg.as_ptr(), event_type as u8, ts.timestamp_millis(), ptr2.get());
+                cb(c_msg.as_ptr(), event_type as u8, ts.and_utc().timestamp_millis(), ptr2.get());
             }
+        }));
+
+        // 2. Set Environment log handler (for debug/plain logs)
+        // We use EventType::Log (4 or 0? 0 is Log in Swift default, 1=Message, 2=Question, 3=Answer)
+        // Swift switch default is Log.
+        context.env.set_output_handler(std::sync::Arc::new(move |msg: String| {
+                // cb(c_msg.as_ptr(), 0, chrono::Utc::now().timestamp_millis(), ptr4.get());
+            // }
+            println!("ENGINE LOG: {}", msg);
         }));
     }
     if let Some(cb) = ask_cb {
@@ -255,69 +263,99 @@ pub unsafe extern "C" fn hippocrates_engine_execute(ctx: *mut EngineContext, pla
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn hippocrates_engine_set_value(
-    ctx: *mut EngineContext, 
-    var_name: *const c_char, 
-    json_val: *const c_char
-) -> c_int { unsafe {
-    let context = &mut *ctx;
-    let name = match CStr::from_ptr(var_name).to_str() {
-        Ok(s) => s,
-        Err(_) => return -1,
+    ctx: *mut EngineContext,
+    name_ptr: *const c_char,
+    json_ptr: *const c_char
+) -> c_int {
+    if ctx.is_null() || name_ptr.is_null() || json_ptr.is_null() {
+        return 1;
+    }
+
+    let context = unsafe { &mut *ctx };
+    let name = unsafe {
+        match CStr::from_ptr(name_ptr).to_str() {
+            Ok(s) => s,
+            Err(_) => return 1,
+        }
     };
-    let json = match CStr::from_ptr(json_val).to_str() {
-        Ok(s) => s,
-        Err(_) => return -1,
+    let json = unsafe {
+        match CStr::from_ptr(json_ptr).to_str() {
+            Ok(s) => s,
+            Err(_) => return 1,
+        }
     };
-    
-    // Look up variable definition to know expected type
-    let expected_type = if let Some(crate::ast::Definition::Value(def)) = context.env.definitions.get(name) {
-        Some(def.value_type.clone())
-    } else {
-        None
-    };
+
+    // Determine type from definition
+    let expected_type = context.env.definitions.get(name).and_then(|def| {
+        if let crate::ast::Definition::Value(v) = def {
+            Some(v.value_type.clone())
+        } else {
+            None
+        }
+    });
 
     let runtime_val = match expected_type {
         Some(crate::domain::ValueType::Number) => {
-             // Try to parse as f64
              if let Ok(n) = serde_json::from_str::<f64>(json) {
                  Some(crate::domain::RuntimeValue::Number(n))
              } else if let Ok(s) = serde_json::from_str::<String>(json) {
-                 // Maybe it came as string "10"?
-                 if let Ok(n) = s.parse::<f64>() {
-                     Some(crate::domain::RuntimeValue::Number(n))
-                 } else { None }
+                  let parts: Vec<&str> = s.split_whitespace().collect();
+                  if parts.len() >= 2 {
+                       if let Ok(n) = parts[0].parse::<f64>() {
+                           let unit_str = parts[1].trim_matches(|c| c == ':' || c == ',' || c == ';');
+                           let unit = crate::domain::Unit::Custom(unit_str.to_string());
+                           Some(crate::domain::RuntimeValue::Quantity(n, unit))
+                       } else {
+                           Some(crate::domain::RuntimeValue::String(s))
+                       }
+                  } else {
+                       if let Ok(n) = s.parse::<f64>() {
+                           Some(crate::domain::RuntimeValue::Number(n))
+                       } else {
+                           Some(crate::domain::RuntimeValue::String(s))
+                       }
+                  }
              } else { None }
         },
-        Some(crate::domain::ValueType::Enumeration) | Some(crate::domain::ValueType::Addressee) => {
-            // Expect string
-             if let Ok(s) = serde_json::from_str::<String>(json) {
-                 Some(crate::domain::RuntimeValue::Enumeration(s))
-             } else { None }
-        },
-        // TODO: Handle other types
-        _ => {
-            // Fallback to trying to guess or naive deserialization?
-            // For now, let's try direct deserialize if we don't know type, 
-            // but usually we should know.
-            serde_json::from_str::<crate::domain::RuntimeValue>(json).ok()
+        _ => match serde_json::from_str::<crate::domain::RuntimeValue>(json) {
+            Ok(v) => Some(v),
+            Err(_) => {
+                 if let Ok(s) = serde_json::from_str::<String>(json) {
+                     Some(crate::domain::RuntimeValue::String(s))
+                 } else {
+                     None
+                 }
+            }
         }
     };
 
     if let Some(val) = runtime_val {
-        // Use channel to handle both pre-exec and mid-exec updates safely
         let msg = crate::domain::InputMessage {
             variable: name.to_string(),
             value: val,
-            timestamp: chrono::Utc::now(),
+            timestamp: chrono::Utc::now().naive_utc(),
         };
         match context.input_sender.send(msg) {
             Ok(_) => 0,
-            Err(_) => 1 // Sender disconnected
+            Err(_) => 1 
         }
     } else {
-        1 // Failed to parse or unknown variable
+        1 
     }
-}}
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hippocrates_engine_set_time(
+    ctx: *mut EngineContext,
+    timestamp_ms: i64,
+) {
+    let ctx = unsafe { &mut *ctx };
+    if let Some(dt) = DateTime::from_timestamp(timestamp_ms / 1000, 0) {
+        ctx.env.set_time(dt.naive_utc());
+    }
+}
+
+
 
 // Legacy helpers (rewritten to use EngineContext)
 #[unsafe(no_mangle)]
@@ -470,10 +508,22 @@ pub extern "C" fn hippocrates_get_error(index: c_int) -> *mut c_char {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn hippocrates_engine_stop(ctx: *mut EngineContext) {
-    if !ctx.is_null() { unsafe {
-        let context = &*ctx;
-        context.stop_signal.store(true, Ordering::Relaxed);
-    }}
-}
+pub unsafe extern "C" fn hippocrates_engine_stop(ctx: *mut EngineContext) { unsafe {
+    let context = &mut *ctx;
+    context.executor.stop_signal.store(true, Ordering::SeqCst);
+}}
 
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hippocrates_get_audit_log(ctx: *mut EngineContext) -> *mut c_char { unsafe {
+    if ctx.is_null() {
+        return std::ptr::null_mut();
+    }
+    let context = &mut *ctx;
+    match serde_json::to_string(&context.env.audit_log) {
+        Ok(s) => match CString::new(s) {
+            Ok(c) => c.into_raw(),
+            Err(_) => std::ptr::null_mut(),
+        },
+        Err(_) => std::ptr::null_mut(),
+    }
+}}

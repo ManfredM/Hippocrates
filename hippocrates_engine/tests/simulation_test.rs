@@ -13,9 +13,8 @@ fn test_occurrences_simulation_logic() {
         ]],
     };
     
-    // Start Monday 2026-01-01 (Thursday) -> wait 2026-01-01 is Thursday.
-    // Logic just checks finding 08:00 every day.
-    let start_time = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap();
+    // Start Monday 2026-01-01 (Thursday)
+    let start_time = Utc.with_ymd_and_hms(2026, 1, 1, 0, 0, 0).unwrap().naive_utc();
     let end_time = start_time + Duration::days(3); // 3 days: 1st, 2nd, 3rd.
     
     let mut occurrences = Vec::new();
@@ -35,7 +34,7 @@ fn test_occurrences_simulation_logic() {
     }
     
     assert_eq!(occurrences.len(), 3);
-    assert_eq!(occurrences[0], Utc.with_ymd_and_hms(2026, 1, 1, 8, 0, 0).unwrap());
-    assert_eq!(occurrences[1], Utc.with_ymd_and_hms(2026, 1, 2, 8, 0, 0).unwrap());
-    assert_eq!(occurrences[2], Utc.with_ymd_and_hms(2026, 1, 3, 8, 0, 0).unwrap());
+    assert_eq!(occurrences[0], Utc.with_ymd_and_hms(2026, 1, 1, 8, 0, 0).unwrap().naive_utc());
+    assert_eq!(occurrences[1], Utc.with_ymd_and_hms(2026, 1, 2, 8, 0, 0).unwrap().naive_utc());
+    assert_eq!(occurrences[2], Utc.with_ymd_and_hms(2026, 1, 3, 8, 0, 0).unwrap().naive_utc());
 }

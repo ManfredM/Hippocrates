@@ -5,17 +5,17 @@ use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
 
 pub struct Session {
-    common_definitions: Arc<Mutex<HashMap<String, (RuntimeValue, chrono::DateTime<chrono::Utc>)>>>,
+    common_definitions: Arc<Mutex<HashMap<String, (RuntimeValue, chrono::NaiveDateTime)>>>,
     executors: Arc<Mutex<Vec<mpsc::Sender<InputMessage>>>>,
     pending_requests: Arc<Mutex<HashSet<String>>>,
     on_ask: Arc<dyn Fn(AskRequest) + Send + Sync>,
-    on_log: Arc<dyn Fn(String, EventType, chrono::DateTime<chrono::Utc>) + Send + Sync>,
+    on_log: Arc<dyn Fn(String, EventType, chrono::NaiveDateTime) + Send + Sync>,
 }
 
 impl Session {
     pub fn new(
         on_ask: Box<dyn Fn(AskRequest) + Send + Sync>,
-        on_log: Box<dyn Fn(String, EventType, chrono::DateTime<chrono::Utc>) + Send + Sync>,
+        on_log: Box<dyn Fn(String, EventType, chrono::NaiveDateTime) + Send + Sync>,
     ) -> Self {
         Session {
             common_definitions: Arc::new(Mutex::new(HashMap::new())),
@@ -27,7 +27,7 @@ impl Session {
     }
 
     pub fn provide_answer(&self, variable: &str, value: RuntimeValue) {
-        let now = chrono::Utc::now();
+        let now = chrono::Utc::now().naive_utc();
         // 1. Update common definitions
         {
             let mut defs = self.common_definitions.lock().unwrap();
@@ -70,7 +70,7 @@ impl Session {
                     env.load_plan(plan);
                 },
                 Err(e) => {
-                    (on_log)(format!("Parse Error: {}", e), EventType::Log, chrono::Utc::now());
+                    (on_log)(format!("Parse Error: {}", e), EventType::Log, chrono::Utc::now().naive_utc());
                     return;
                 }
             }
@@ -116,7 +116,7 @@ impl Session {
                     if let Some((val, ts)) = defs.get(&var) {
                         // Check validity if requested
                         let is_valid = if let Some(min_ts) = req.valid_after {
-                            ts.timestamp_millis() >= min_ts
+                            ts.and_utc().timestamp_millis() >= min_ts
                         } else {
                             true
                         };

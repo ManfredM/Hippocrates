@@ -19,26 +19,26 @@ mod tests {
                 println!("Asked: {}", req.variable_name);
                 aq.lock().unwrap().push(req.variable_name);
             }),
-            Box::new(move |msg: String, _kind: EventType, _time: chrono::DateTime<chrono::Utc>| {
+            Box::new(move |msg: String, _kind: EventType, _time: chrono::NaiveDateTime| {
                 println!("Log: {}", msg);
                 l.lock().unwrap().push(msg);
             }),
         ));
 
         let script1 = r#"
-"Age" is a number.
-"Script1" is a plan:
+<Age> is a number.
+<Script1> is a plan:
     during plan:
-        ask "Age"
-        show message "Script1: Age is " + "Age"
+        ask <Age>.
+        show message "Script1: Age is " + <Age>.
 "#;
 
         let script2 = r#"
-"Age" is a number.
-"Script2" is a plan:
+<Age> is a number.
+<Script2> is a plan:
     during plan:
-        ask "Age"
-        show message "Script2: Age is " + "Age"
+        ask <Age>.
+        show message "Script2: Age is " + <Age>.
 "#;
 
         session.run_script(script1.to_string(), "Script1".to_string());

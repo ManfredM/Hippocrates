@@ -3,11 +3,13 @@
         email is "dr_smith@hospital.com"
 
 <body temperature> is a number:
-    valid values: 35.0 ... 42.0
+    valid values:
+        35.0 ... 42.0
     unit: °C
 
 <average temperature> is a number:
-    valid values: 35.0 ... 42.0
+    valid values:
+        35.0 ... 42.0
     unit: °C
     calculation:
         value = average of <body temperature> over 1 day.

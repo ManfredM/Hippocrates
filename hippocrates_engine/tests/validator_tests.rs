@@ -1,4 +1,4 @@
-use hippocrates_engine::ast::{Plan, Definition, Property, StatementKind, RangeSelector, Expression, Literal};
+
 use hippocrates_engine::parser;
 use hippocrates_engine::runtime::validator;
 
@@ -6,7 +6,8 @@ use hippocrates_engine::runtime::validator;
 #[ignore] // TODO: Fix regression: timeframe_vars not populated correctly
 fn test_validator_fails_missing_not_enough_data() {
     let input = r#"<value> is a number:
-    valid values: 0 points ... 10 points
+    valid values:
+        0 points ... 10 points
     calculation:
         timeframe for analysis is 2 days ago ... now:
             value = count of <something>.
@@ -27,17 +28,18 @@ fn test_validator_fails_missing_not_enough_data() {
 #[test]
 fn test_validator_passes_with_not_enough_data() {
     let input = r#"<value> is a number:
-    valid values: 0 points ... 10 points
+    valid values:
+        0 <points> ... 10 <points>
     calculation:
         timeframe for analysis is 2 days ago ... now:
-            value = count of <something>.
-
+            <value> = count of <something>.
+    
 <plan> is a plan:
     during plan:
         assess <value>:
             Not enough data:
                 show message "waiting".
-            0 points ... 10 points:
+            0 <points> ... 10 <points>:
                 show message "covered".
 "#;
 
@@ -58,12 +60,13 @@ fn test_validate_copd_plan() {
 #[test]
 fn test_validator_integer_gap_message() {
     let input = r#"<val> is a number:
-    valid values: 0 points ... 10 points
+    valid values:
+        0 <points> ... 10 <points>
 
 <plan> is a plan:
     during plan:
         assess <val>:
-            0 points ... 5 points:
+            0 <points> ... 5 <points>:
                 show message "Lower half".
 "#;
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
@@ -81,7 +84,8 @@ fn test_validator_integer_gap_message() {
 #[test]
 fn test_validator_float_gap() {
     let input = r#"<val> is a number:
-    valid values: 0.0 mg ... 10.0 mg
+    valid values:
+        0.0 mg ... 10.0 mg
 
 <plan> is a plan:
     during plan:
@@ -106,7 +110,8 @@ fn test_validator_float_gap() {
 fn test_precision_gaps() {
     // Case 1: Float precision (0.0 ... 10.0)
     let input = r#"<val> is a number:
-    valid values: 0.0 mm ... 10.0 mm
+    valid values:
+        0.0 mm ... 10.0 mm
 
 <plan> is a plan:
     during plan:
@@ -126,12 +131,13 @@ fn test_precision_gaps() {
 
     // Case 2: Integer precision (0 ... 10)
     let input2 = r#"<val> is a number:
-    valid values: 0 points ... 10 points
+    valid values:
+        0 <points> ... 10 <points>
 
 <plan> is a plan:
     during plan:
         assess <val>:
-            0 points ... 5 points:
+            0 <points> ... 5 <points>:
                 show message "Lower part".
 "#;
     let plan2 = parser::parse_plan(input2.trim()).expect("Failed to parse 2");
@@ -150,14 +156,15 @@ fn test_precision_gaps() {
 #[test]
 fn test_range_overlap() {
     let input = r#"<Temp> is a number:
-    valid values: 35.0 C ... 42.0 C
+    valid values:
+        35.0 °C ... 42.0 °C
 
 <plan> is a plan:
     during plan:
         assess <Temp>:
-            38.0 C ... 42.0 C:
+            38.0 °C ... 42.0 °C:
                 show message "Fever".
-            35.0 C ... 38.0 C:
+            35.0 °C ... 38.0 °C:
                 show message "Normal".
 "#;
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
@@ -178,7 +185,8 @@ fn test_range_overlap() {
 fn test_unit_requirement() {
     // 1. Missing units -> Error
     let input = r#"<Steps> is a number:
-    valid values: 0 ... 10000
+    valid values:
+        0 ... 10000
     "#;
     // NOTE: This is a PARSER error (ValidValuesStr fallback?), or Validator?
     // Wait, parse_plan returns Result<Plan, EngineError>.
@@ -242,7 +250,8 @@ fn test_unit_requirement() {
 
     // 2. Consistent units (Custom) -> OK
     let input2 = r#"<Steps> is a number:
-    valid values: 0 steps ... 10000 steps
+    valid values:
+        0 <steps> ... 10000 <steps>
     "#;
     let plan = parser::parse_plan(input2.trim()).expect("Failed to parse valid units");
     let result2 = validator::validate_file(&plan);
@@ -250,7 +259,8 @@ fn test_unit_requirement() {
 
     // 3. Mixed units -> Error
     let input3 = r#"<Steps> is a number:
-    valid values: 0 ... 10000 steps
+    valid values:
+        0 ... 10000 <steps>
     "#;
     let plan3 = parser::parse_plan(input3.trim()).expect("Parser pass");
     let result3 = validator::validate_file(&plan3);
@@ -264,7 +274,8 @@ fn test_validation_error_line_number() {
     // Reproduction of user issue: Line number missing for unit validation error
     let input = r#"
 <Temperature> is a number:
-    valid values: 35.0 ... 42.0
+    valid values:
+        35.0 ... 42.0
 "#;
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
     let result = validator::validate_file(&plan);
@@ -285,7 +296,8 @@ fn test_validation_error_line_number() {
 fn test_reproduce_missing_error() {
     let input = r#"
 <val> is a number:
-    valid values: 0 ... 10
+    valid values:
+        0 ... 10
 
 <plan> is a plan:
     during plan:
@@ -306,7 +318,8 @@ fn test_reproduce_missing_error() {
 fn test_unitless_assess_fails() {
     let input = r#"
 <val> is a number:
-    valid values: 0 kg ... 100 kg
+    valid values:
+        0 kg ... 100 kg
 
 <plan> is a plan:
     during plan:
@@ -326,7 +339,8 @@ fn test_unitless_assess_fails() {
 fn test_unitless_definition_fails() {
     let input = r#"
 <val> is a number:
-    valid values: 0 ... 100
+    valid values:
+        0 ... 100
 "#;
     let plan = hippocrates_engine::parser::parse_plan(input).expect("Failed to parse");
     let result = hippocrates_engine::runtime::validator::validate_file(&plan);
@@ -340,11 +354,11 @@ fn test_unitless_definition_fails() {
 fn test_unitless_definition_constraint_fails() {
     let input = r#"
 <val> is a number:
-    valid values: value is between 0 ... 100.
+    valid values:
+        0 ... 100
 "#;
     let plan = hippocrates_engine::parser::parse_plan(input).expect("Failed to parse user syntax");
-    let result = hippocrates_engine::runtime::validator::validate_file(&plan);
-    
+
     let result = hippocrates_engine::runtime::validator::validate_file(&plan);
     assert!(result.is_err(), "Validator should catch unitless numbers in constraints");
     let errors = result.unwrap_err();

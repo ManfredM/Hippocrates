@@ -1,5 +1,6 @@
 <val> is a number:
-    valid values: 0 ... 100
+    valid values:
+        0 ... 100
 
 <test plan> is a plan:
     during plan:

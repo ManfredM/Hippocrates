@@ -1,0 +1,8 @@
+
+<Morning> is a period:
+    timeframe:
+        06:00 ... 12:00
+
+<Week> is a period:
+    timeframe:
+        1 <week>

@@ -1,4 +1,4 @@
-use hippocrates_engine::ast::{Plan, Definition, Property, StatementKind, RangeSelector, Expression, Literal};
+
 use hippocrates_engine::domain::RuntimeValue;
 use hippocrates_engine::parser;
 use hippocrates_engine::runtime::executor::Executor;
@@ -7,15 +7,16 @@ use hippocrates_engine::runtime::environment::Environment;
 #[test]
 fn test_explicit_pluralization() {
     let input = r#"
-drop is a unit:
-    plural is "drops"
+<drop> is a unit:
+    plural is <drops>
 
 <val> is a number:
-    valid values: 0 drops ... 100 drops
+    valid values:
+        0 <drops> ... 100 <drops>
 
 <plan> is a plan:
     during plan:
-        val = 1 drop + 1 drops + 1 drop.
+        <val> = 1 <drop> + 1 <drops> + 1 <drop>.
 "#;
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
     
@@ -42,11 +43,12 @@ drop is a unit:
 fn test_strict_units_without_definition() {
     let input = r#"
 <val> is a number:
-    valid values: 0 ... 100
+    valid values:
+        0 ... 100
 
 <plan> is a plan:
     during plan:
-        val = 5 coins + 1 coin.
+        <val> = 5 <coins> + 1 <coin>.
 "#;
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
     
@@ -74,11 +76,12 @@ fn test_strict_units_without_definition() {
 fn test_standard_units_still_work() {
     let input = r#"
 <val> is a number:
-    valid values: 0 ... 100
+    valid values:
+        0 ... 100
 
 <plan> is a plan:
     during plan:
-        val = 5 meters + 1 meter.
+        <val> = 5 m + 1 m.
 "#;
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
     
@@ -103,16 +106,17 @@ fn test_standard_units_still_work() {
 #[test]
 fn test_custom_unit_abbreviation() {
     let input = r#"
-point is a unit:
-    plural is "points"
+<point> is a unit:
+    plural is <points>
     abbreviation is "pts"
 
 <val> is a number:
-    valid values: 0 pts ... 100 pts
+    valid values:
+        0 <pts> ... 100 <pts>
 
 <plan> is a plan:
     during plan:
-        val = 5 pts + 5 points.
+        <val> = 5 <pts> + 5 <points>.
 "#;
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
     

@@ -1,6 +1,6 @@
 use crate::ast::{Definition, Plan, RangeSelector};
 use crate::domain::{RuntimeValue, ValueInstance};
-use chrono::{DateTime, Utc};
+use chrono::{Utc, NaiveDateTime};
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -9,13 +9,14 @@ use std::fmt;
 pub struct Environment {
     pub values: HashMap<String, Vec<ValueInstance>>,
     pub definitions: HashMap<String, Definition>,
-    pub now: DateTime<Utc>,
-    pub start_time: DateTime<Utc>,
+    pub now: NaiveDateTime,
+    pub start_time: NaiveDateTime,
     pub output_log: Vec<String>,
     pub output_handler: Option<Arc<dyn Fn(String) + Send + Sync>>,
     // Use RwLock for interior mutability so Evaluator can push context with &Environment
     pub context_stack: std::sync::RwLock<Vec<EvaluationContext>>,
     pub unit_map: HashMap<String, crate::domain::Unit>,
+    pub audit_log: Vec<crate::domain::AuditEntry>,
 }
 
 #[derive(Debug, Clone)]
@@ -42,8 +43,8 @@ impl Environment {
         Environment {
             values: HashMap::new(),
             definitions: HashMap::new(),
-            now: Utc::now(),
-            start_time: Utc::now(),
+            now: Utc::now().naive_utc(),
+            start_time: Utc::now().naive_utc(),
             output_log: Vec::new(),
             output_handler: None,
             context_stack: std::sync::RwLock::new(Vec::new()),
@@ -61,6 +62,7 @@ impl Environment {
             // This is untouched!
             // My change only affected the `_ =>` fallthrough for CUSTOM units.
             // So standard units still work fine with plurals hardcoded in parser.
+            audit_log: Vec::new(),
         }
     }
 
@@ -76,7 +78,7 @@ impl Environment {
         self.context_stack.read().unwrap().last().cloned()
     }
 
-    pub fn set_start_time(&mut self, time: DateTime<Utc>) {
+    pub fn set_start_time(&mut self, time: NaiveDateTime) {
         self.start_time = time;
     }
 
@@ -84,7 +86,7 @@ impl Environment {
         self.output_handler = Some(handler);
     }
 
-    pub fn set_time(&mut self, time: DateTime<Utc>) {
+    pub fn set_time(&mut self, time: NaiveDateTime) {
         self.now = time;
     }
 
@@ -95,7 +97,7 @@ impl Environment {
                     let default = self.default_value_for(&v.value_type);
                     // Use standard epoch for defaults so they appear "old" in history
                     // compared to any restored or real data.
-                    let epoch = chrono::DateTime::<Utc>::from_timestamp(0, 0).unwrap_or(Utc::now());
+                    let epoch = chrono::DateTime::<Utc>::from_timestamp(0, 0).unwrap_or(Utc::now()).naive_utc();
                     self.set_value_at(&v.name, default, epoch);
                     v.name.clone()
                 }
@@ -137,7 +139,7 @@ impl Environment {
         self.set_value_at(name, value, self.now);
     }
 
-    pub fn set_value_at(&mut self, name: &str, value: RuntimeValue, timestamp: DateTime<Utc>) {
+    pub fn set_value_at(&mut self, name: &str, value: RuntimeValue, timestamp: NaiveDateTime) {
         let instance = ValueInstance { value, timestamp };
         let history = self.values.entry(name.to_string()).or_insert_with(Vec::new);
         history.push(instance);
@@ -166,5 +168,15 @@ impl Environment {
             println!("DEBUG: No output handler set!");
         }
         self.output_log.push(message);
+    }
+
+    pub fn log_audit(&mut self, event_type: crate::domain::EventType, details: String, context: Option<String>) {
+        let entry = crate::domain::AuditEntry {
+            timestamp: self.now,
+            event_type,
+            details,
+            context,
+        };
+        self.audit_log.push(entry);
     }
 }

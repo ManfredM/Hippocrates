@@ -19,21 +19,21 @@ mod tests {
                 println!("Asked: {}", req.variable_name);
                 aq.lock().unwrap().push(req.variable_name);
             }),
-            Box::new(move |msg: String, _kind: EventType, _time: chrono::DateTime<chrono::Utc>| {
+            Box::new(move |msg: String, _kind: EventType, _time: chrono::NaiveDateTime| {
                 println!("Log: {}", msg);
                 l.lock().unwrap().push(msg);
             }),
         ));
 
         let script = r#"
-"Temp" is a number:
+<Temp> is a number:
     reuse:
         reuse period of value is 5 seconds.
 
-"CheckTemp" is a plan:
+<CheckTemp> is a plan:
     during plan:
-        ask "Temp"
-        show message "Temp is " + "Temp"
+        ask <Temp>.
+        show message "Temp is " + <Temp>.
 "#;
 
         // 1. Run Script First Time - Should Ask

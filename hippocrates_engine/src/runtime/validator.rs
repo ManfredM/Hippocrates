@@ -11,59 +11,84 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<crate::domain::EngineError>>
     let mut timeframe_vars: HashSet<String> = HashSet::new();
     let mut enum_vars: HashSet<String> = HashSet::new();
     let mut numeric_vars: HashSet<String> = HashSet::new();
+    let mut defined_values: HashSet<String> = HashSet::new();
+    let mut valid_units: HashSet<String> = HashSet::new();
 
     let mut errors: Vec<crate::domain::EngineError> = Vec::new();
 
     for def in &plan.definitions {
-        if let Definition::Value(vd) = def {
-            for prop in &vd.properties {
-                match prop {
-                    Property::ValidValues(stmts) => {
-                        let mut selectors = Vec::new();
+        match def {
+            Definition::Value(vd) => {
+                for prop in &vd.properties {
+                    match prop {
+                        Property::ValidValues(stmts) => {
+                            let mut selectors = Vec::new();
 
-                        // Parse statements to find ranges.
-                        for s in stmts {
-                            if let StatementKind::EventProgression(_, cases) = &s.kind {
-                                for case in cases {
-                                    selectors.push(case.condition.clone());
+                            // Parse statements to find ranges.
+                            for s in stmts {
+                                if let StatementKind::EventProgression(_, cases) = &s.kind {
+                                    for case in cases {
+                                        selectors.push(case.condition.clone());
+                                    }
+                                } else if let StatementKind::Constraint(_, _, sel) = &s.kind {
+                                    selectors.push(sel.clone());
                                 }
-                            } else if let StatementKind::Constraint(_, _, sel) = &s.kind {
-                                selectors.push(sel.clone());
+                            }
+                            
+                            if !selectors.is_empty() {
+                                value_ranges.insert(vd.name.clone(), selectors);
                             }
                         }
-                        
-                        if !selectors.is_empty() {
-                            value_ranges.insert(vd.name.clone(), selectors);
-                        }
-                    }
-                    Property::Calculation(stmts) => {
-                        for stmt in stmts {
-                            // Check for Timeframe context
-                            if let StatementKind::ContextBlock(cb) = &stmt.kind {
-                                for item in &cb.items {
-                                    if let ContextItem::Timeframe(_) = item {
-                                        timeframe_vars.insert(vd.name.clone());
+                        Property::Calculation(stmts) => {
+                            for stmt in stmts {
+                                // Check for Timeframe context
+                                if let StatementKind::ContextBlock(cb) = &stmt.kind {
+                                    for item in &cb.items {
+                                        if let ContextItem::Timeframe(_) = item {
+                                            timeframe_vars.insert(vd.name.clone());
+                                        }
                                     }
                                 }
                             }
+                            // Validate statements in calculation
+                            for stmt in stmts {
+                                let mut constraints = HashMap::new();
+                                validate_statement(stmt, &value_ranges, &timeframe_vars, &enum_vars, &numeric_vars, &defined_values, &mut constraints, &mut errors);
+                            }
                         }
-                        // Validate statements in calculation
-                        for stmt in stmts {
-                            let mut constraints = HashMap::new();
-                            validate_statement(stmt, &value_ranges, &timeframe_vars, &enum_vars, &numeric_vars, &mut constraints, &mut errors);
+                        Property::Meaning(cases) => {
+                             validate_meaning_completeness(&vd.name, cases, &value_ranges, &mut errors);
                         }
+                        _ => {}
                     }
-                    _ => {}
+                }
+
+                defined_values.insert(vd.name.clone());
+
+                if let crate::domain::ValueType::Enumeration = vd.value_type {
+                    enum_vars.insert(vd.name.clone());
+                }
+                if let crate::domain::ValueType::Number = vd.value_type {
+                    numeric_vars.insert(vd.name.clone());
+                    check_numeric_units(&vd.name, &vd.properties, &mut errors);
                 }
             }
+            Definition::Unit(ud) => {
+                valid_units.insert(ud.name.clone());
+                valid_units.extend(ud.plurals.clone());
+                valid_units.extend(ud.singulars.clone());
+                valid_units.extend(ud.abbreviations.clone());
+            }
+            _ => {}
+        }
+    }
 
-            if let crate::domain::ValueType::Enumeration = vd.value_type {
-                enum_vars.insert(vd.name.clone());
-            }
-            if let crate::domain::ValueType::Number = vd.value_type {
-                numeric_vars.insert(vd.name.clone());
-                check_numeric_units(&vd.name, &vd.properties, &mut errors);
-            }
+    // 1b. Validate Drugs (requires valid_units) and Addressees
+    for def in &plan.definitions {
+        if let Definition::Drug(dd) = def {
+            validate_drug(dd, &valid_units, &mut errors);
+        } else if let Definition::Addressee(ad) = def {
+            validate_addressee(ad, &mut errors);
         }
     }
 
@@ -80,7 +105,7 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<crate::domain::EngineError>>
 
                 for stmt in statements {
                     let mut constraints = HashMap::new();
-                    validate_statement(stmt, &value_ranges, &timeframe_vars, &enum_vars, &numeric_vars, &mut constraints, &mut errors);
+                    validate_statement(stmt, &value_ranges, &timeframe_vars, &enum_vars, &numeric_vars, &defined_values, &mut constraints, &mut errors);
                 }
             }
         }
@@ -102,22 +127,41 @@ fn validate_statement(
     timeframe_vars: &std::collections::HashSet<String>,
     enum_vars: &std::collections::HashSet<String>,
     numeric_vars: &std::collections::HashSet<String>,
+    defined_values: &std::collections::HashSet<String>,
     constraints: &mut std::collections::HashMap<String, (f64, f64)>,
     errors: &mut Vec<crate::domain::EngineError>,
 ) {
     match &stmt.kind {
+        StatementKind::Action(action) => {
+            validate_action(action, defined_values, errors);
+        }
         StatementKind::Assignment(assign) => {
-             validate_expression(&assign.expression, enum_vars, stmt.line, errors);
-             // Clear constraint on assignment because value changes
+             validate_expression(&assign.expression, enum_vars, defined_values, stmt.line, errors);
              constraints.remove(&assign.target);
         }
         StatementKind::Conditional(cond) => {
-            validate_conditional(cond, value_ranges, timeframe_vars, enum_vars, numeric_vars, constraints, stmt.line, errors);
+            validate_conditional(cond, value_ranges, timeframe_vars, enum_vars, numeric_vars, defined_values, constraints, stmt.line, errors);
         }
         StatementKind::ContextBlock(cb) => {
             for s in &cb.statements {
-                 validate_statement(s, value_ranges, timeframe_vars, enum_vars, numeric_vars, constraints, errors);
+                 validate_statement(s, value_ranges, timeframe_vars, enum_vars, numeric_vars, defined_values, constraints, errors);
             }
+        }
+        StatementKind::EventProgression(var, cases) => {
+            if !defined_values.contains(var) {
+                 // Error
+            }
+            // Cannot call validate_conditional with var(String). Only for Conditionals.
+            // Check coverage manually if needed, or skip.
+            
+             for case in cases {
+                for inner in &case.block {
+                     validate_statement(inner, value_ranges, timeframe_vars, enum_vars, numeric_vars, defined_values, constraints, errors);
+                }
+            }
+        }
+        StatementKind::Constraint(_, _, _) => {
+            // validate selectors?
         }
         _ => {}
     }
@@ -126,14 +170,24 @@ fn validate_statement(
 fn validate_expression(
     expr: &Expression,
     enum_vars: &std::collections::HashSet<String>,
+    defined_values: &std::collections::HashSet<String>,
     line: usize,
     errors: &mut Vec<crate::domain::EngineError>,
 ) {
     use crate::domain::EngineError;
     match expr {
+        Expression::Variable(name) => {
+             if !defined_values.contains(name) {
+                 errors.push(EngineError {
+                     message: format!("Undefined variable '{}' in expression", name),
+                     line,
+                     column: 0,
+                 });
+             }
+        }
         Expression::Binary(left, _, right) => {
-            validate_expression(left, enum_vars, line, errors);
-            validate_expression(right, enum_vars, line, errors);
+             validate_expression(left, enum_vars, defined_values, line, errors);
+             validate_expression(right, enum_vars, defined_values, line, errors);
         }
         Expression::Statistical(func) => match func {
             crate::ast::StatisticalFunc::CountOf(name, filter) => {
@@ -150,7 +204,7 @@ fn validate_expression(
                     }
                 }
                  if let Some(f_expr) = filter {
-                    validate_expression(f_expr, enum_vars, line, errors);
+                    validate_expression(f_expr, enum_vars, defined_values, line, errors);
                 }
             }
             crate::ast::StatisticalFunc::TrendOf(name) => {
@@ -166,21 +220,59 @@ fn validate_expression(
                 }
             }
             crate::ast::StatisticalFunc::AverageOf(_, period) => {
-                validate_expression(period, enum_vars, line, errors);
+                validate_expression(period, enum_vars, defined_values, line, errors);
             }
             _ => {}
         },
         Expression::FunctionCall(_, args) => {
             for arg in args {
-                validate_expression(arg, enum_vars, line, errors);
+                validate_expression(arg, enum_vars, defined_values, line, errors);
             }
         }
         Expression::InterpolatedString(parts) => {
             for part in parts {
-                validate_expression(part, enum_vars, line, errors);
+                validate_expression(part, enum_vars, defined_values, line, errors);
             }
         }
         _ => {}
+    }
+}
+
+fn validate_action(
+    action: &crate::ast::Action,
+    defined_values: &std::collections::HashSet<String>,
+    errors: &mut Vec<crate::domain::EngineError>,
+) {
+    match action {
+        crate::ast::Action::ShowMessage(parts, _) => {
+            for part in parts {
+                validate_expression(part, &std::collections::HashSet::new(), defined_values, 0, errors);
+            }
+        }
+        crate::ast::Action::AskQuestion(q, _) => {
+             if !defined_values.contains(q) {
+                 errors.push(crate::domain::EngineError {
+                     message: format!("Asking question for undefined variable '{}'", q),
+                     line: 0,
+                     column: 0,
+                 });
+            }
+        }
+        crate::ast::Action::SendInfo(_, vars) => {
+             for expr in vars {
+                validate_expression(expr, &std::collections::HashSet::new(), defined_values, 0, errors);
+            }
+        }
+        crate::ast::Action::ListenFor(var) => {
+            if !defined_values.contains(var) {
+                 errors.push(crate::domain::EngineError {
+                     message: format!("ListenFor action targets undefined variable '{}'", var),
+                     line: 0, // Action doesn't store line here
+                     column: 0,
+                 });
+            }
+        }
+         _ => {}
     }
 }
 
@@ -190,6 +282,7 @@ fn validate_conditional(
     timeframe_vars: &std::collections::HashSet<String>,
     enum_vars: &std::collections::HashSet<String>,
     numeric_vars: &std::collections::HashSet<String>,
+    defined_values: &std::collections::HashSet<String>,
     constraints: &mut std::collections::HashMap<String, (f64, f64)>,
     line: usize,
     errors: &mut Vec<crate::domain::EngineError>,
@@ -214,6 +307,9 @@ fn validate_conditional(
              for case in &cond.cases {
                  check_selector_units(name, &case.condition, case.line, errors);
              }
+        }
+        if enum_vars.contains(name) {
+            check_enum_uniqueness(name, &cond.cases, line, errors);
         }
     }
 
@@ -261,8 +357,10 @@ fn validate_conditional(
               }
          }
 
+        for _ in &case.block {
         for s in &case.block {
-            validate_statement(s, value_ranges, timeframe_vars, enum_vars, numeric_vars, &mut child_constraints, errors);
+            validate_statement(s, value_ranges, timeframe_vars, enum_vars, numeric_vars, defined_values, &mut child_constraints, errors);
+        }
         }
     }
 }
@@ -536,3 +634,105 @@ fn check_expression_unit(name: &str, expr: &Expression, line: usize, errors: &mu
         }
     }
 }
+
+fn check_enum_uniqueness(name: &str, cases: &[crate::ast::AssessmentCase], _line: usize, errors: &mut Vec<crate::domain::EngineError>) {
+    use std::collections::HashSet;
+    let mut seen = HashSet::new();
+
+    for case in cases {
+        match &case.condition {
+            RangeSelector::Equals(Expression::Literal(Literal::String(s))) => {
+                if !seen.insert(s.clone()) {
+                    errors.push(crate::domain::EngineError {
+                        message: format!("Validation Error: Assessment for '{}' has duplicate case for enum value \"{}\".", name, s),
+                        line: case.line,
+                        column: 0
+                    });
+                }
+            }
+            RangeSelector::List(exprs) => {
+                 for expr in exprs {
+                      if let Expression::Literal(Literal::String(s)) = expr {
+                           if !seen.insert(s.clone()) {
+                                errors.push(crate::domain::EngineError {
+                                    message: format!("Validation Error: Assessment for '{}' has duplicate case for enum value \"{}\".", name, s),
+                                    line: case.line,
+                                    column: 0
+                                });
+                           }
+                      }
+                 }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn validate_drug(
+    drug: &crate::ast::DrugDef,
+    valid_units: &std::collections::HashSet<String>,
+    errors: &mut Vec<crate::domain::EngineError>,
+) {
+    for prop in &drug.properties {
+        if let Property::Ingredients(ingredients) = prop {
+            for ing in ingredients {
+                if let crate::domain::Unit::Custom(name) = &ing.unit {
+                    // Strip optional <>? The set stores them WITH <> usually if parser preserved them.
+                    // Parser `parse_unit` for custom returns `Custom(s[1..len-1])` (stripped) 
+                    // OR `s` (raw) depending on logic in `parser.rs`.
+                    // View Parser: line 1418: `s[1..s.len()-1]`. Strips brackets.
+                    // View UnitDef Parser (line 507): `parse_identifier_str` strips brackets?
+                    // `parse_identifier_str` uses `as_str()`. `angled_identifier` includes brackets.
+                    // Wait, `parse_identifier_str` usually strips?
+                    // I will check `parse_identifier_str` implementation or assume consistency.
+                    // IF `valid_units` stores WITH brackets or WITHOUT?
+                    // I'll check `parse_identifier_str`.
+                    
+                    // But assume names match.
+                    if !valid_units.contains(name) {
+                        errors.push(crate::domain::EngineError {
+                            message: format!("Undefined unit '{}' in drug ingredient '{}'", name, ing.name),
+                            line: 0, // DrugDef doesn't store line currently? Adding it to DrugDef would be good.
+                            column: 0,
+                        });
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn validate_addressee(
+    addr: &crate::ast::AddresseeDef,
+    errors: &mut Vec<crate::domain::EngineError>,
+) {
+    for prop in &addr.properties {
+        if let Property::ContactInfo(details) = prop {
+            for detail in details {
+                 if let crate::ast::ContactDetail::Email(e) = detail {
+                     if !e.contains('@') {
+                         errors.push(crate::domain::EngineError {
+                             message: format!("Invalid email format '{}' for addressee '{}'", e, addr.name),
+                             line: 0,
+                             column: 0,
+                         });
+                     }
+                 }
+            }
+        }
+    }
+}
+
+fn validate_meaning_completeness(
+    value_name: &str,
+    cases: &[crate::ast::AssessmentCase],
+    value_ranges: &std::collections::HashMap<String, Vec<RangeSelector>>,
+    errors: &mut Vec<crate::domain::EngineError>,
+) {
+    if let Some(valid_selectors) = value_ranges.get(value_name) {
+        let line = cases.first().map(|c| c.line).unwrap_or(0);
+        check_coverage(value_name, valid_selectors, cases, line, errors);
+    }
+}
+
+

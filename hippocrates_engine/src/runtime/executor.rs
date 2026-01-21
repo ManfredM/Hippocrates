@@ -7,7 +7,7 @@ use std::sync::{Arc, atomic::{AtomicBool, Ordering as AtomicOrdering}};
 
 #[derive(Debug, Clone)]
 struct ScheduledEvent {
-    time: chrono::DateTime<chrono::Utc>,
+    time: chrono::NaiveDateTime,
     kind: EventKind,
 }
 
@@ -54,7 +54,7 @@ pub enum ExecutionMode {
 
 pub struct Executor {
     pub on_step: Option<Box<dyn Fn(usize) + Send>>,
-    pub on_log: Option<Box<dyn Fn(String, crate::domain::EventType, chrono::DateTime<chrono::Utc>) + Send>>,
+    pub on_log: Option<Box<dyn Fn(String, crate::domain::EventType, chrono::NaiveDateTime) + Send>>,
     pub on_ask: Option<Box<dyn Fn(crate::domain::AskRequest) + Send>>,
     pub mode: ExecutionMode,
     pub input_receiver: Option<std::sync::mpsc::Receiver<crate::domain::InputMessage>>,
@@ -75,7 +75,7 @@ impl Executor {
 
     pub fn with_activites(
         line_cb: Box<dyn Fn(usize) + Send>,
-        log_cb: Box<dyn Fn(String, crate::domain::EventType, chrono::DateTime<chrono::Utc>) + Send>,
+        log_cb: Box<dyn Fn(String, crate::domain::EventType, chrono::NaiveDateTime) + Send>,
     ) -> Self {
         Executor {
             on_step: Some(line_cb),
@@ -110,14 +110,9 @@ impl Executor {
         let defs = env.definitions.clone();
 
         if let Some(crate::ast::Definition::Plan(plan_def)) = defs.get(plan_name) {
-            println!(
-                "DEBUG: Found plan '{}', blocks: {}",
-                plan_name,
-                plan_def.blocks.len()
-            );
-
             // Drain initial inputs (configuration)
             self.drain_inputs(env);
+
 
             let mut events = BinaryHeap::new();
             let start_time = env.now;
@@ -131,10 +126,6 @@ impl Executor {
             for block in &plan_def.blocks {
                 match block {
                     crate::ast::PlanBlock::DuringPlan(stmts) => {
-                        println!(
-                            "DEBUG: Executing DuringPlan block with {} stmts",
-                            stmts.len()
-                        );
                         self.execute_block(env, stmts);
                     }
                     crate::ast::PlanBlock::Trigger(block) => {
@@ -143,6 +134,7 @@ impl Executor {
                                 interval,
                                 interval_unit,
                                 duration,
+                                ..
                             } => {
                                 let interval_secs = match interval_unit {
                                     Unit::Second => *interval,
@@ -191,7 +183,7 @@ impl Executor {
                             }
                             crate::ast::Trigger::StartOf(target) => {
                                 if target == plan_name {
-                                    println!("DEBUG: Scheduling immediate StartOf trigger for {}", target);
+
                                     events.push(ScheduledEvent {
                                         time: start_time,
                                         kind: EventKind::Periodic {
@@ -218,7 +210,7 @@ impl Executor {
                             if let Some(def) = defs.get(target) {
                                 if let Some((next, _)) = Scheduler::next_occurrence(def, start_time)
                                 {
-                                    println!("DEBUG: Scheduled '{}' at {}", block.name, next);
+
                                     events.push(ScheduledEvent {
                                         time: next,
                                         kind: EventKind::StartOf {
@@ -243,11 +235,11 @@ impl Executor {
             // Event Loop
             while let Some(event) = events.pop() {
                 if self.stop_signal.load(AtomicOrdering::Relaxed) {
-                     println!("DEBUG: Execution stopped by signal.");
                      break;
                 }
 
                 let now = event.time;
+
 
                 if let Some(limit) = end_time {
                     if now > limit {
@@ -319,7 +311,6 @@ impl Executor {
                         }
                     }
                     EventKind::StartOf { block, period_name } => {
-                        println!("DEBUG: Executing Event '{}'", block.name);
                         self.execute_block(env, &block.statements);
 
                         // Reschedule next occurrence
@@ -362,10 +353,36 @@ impl Executor {
         }
 
         match &stmt.kind {
+            StatementKind::Timeframe(block) => {
+                 // TODO: Implement timeframe logic (context stacking?)
+                 // For now, just execute the block?
+                 // Or ignore "for analysis"?
+                 // "Timeframe for analysis" is declarative, might not execute?
+                 // But "Timeframe during X" acts as a guard?
+                 // For current scope: just execute statements.
+                 // Real implementation needs to handle constraints.
+                 for s in &block.block {
+                     self.execute_statement(env, s);
+                 }
+            }
             StatementKind::Action(action) => self.execute_action(env, action),
             StatementKind::Assignment(assign) => {
-                let val = Evaluator::evaluate(env, &assign.expression);
-                env.set_value(&assign.target, val);
+                loop {
+                    let val = Evaluator::evaluate(env, &assign.expression);
+                    if let crate::domain::RuntimeValue::Missing(var_name) = val {
+                        env.log(format!("Implicitly asking for missing variable: {}", var_name));
+                        self.execute_action(env, &Action::AskQuestion(var_name, None));
+                        continue;
+                    }
+                    
+                    env.set_value(&assign.target, val.clone());
+                    env.log_audit(
+                        crate::domain::EventType::Decision,
+                        format!("Assigned variable: {} = {}", assign.target, val),
+                        Some("Assignment".to_string())
+                    );
+                    break;
+                }
             }
             StatementKind::Command(cmd) => {
                 env.log(format!("Command: {}", cmd));
@@ -424,37 +441,56 @@ impl Executor {
     }
 
     fn execute_conditional(&mut self, env: &mut Environment, cond_stmt: &crate::ast::Conditional) {
-        let val = match &cond_stmt.condition {
-            crate::ast::ConditionalTarget::Expression(expr) => Evaluator::evaluate(env, expr),
-            crate::ast::ConditionalTarget::Confidence(_ident) => {
-                // Stub: return high confidence
-                crate::domain::RuntimeValue::Number(100.0)
-            }
-        };
+        loop {
+            let val = match &cond_stmt.condition {
+                crate::ast::ConditionalTarget::Expression(expr) => Evaluator::evaluate(env, expr),
+                crate::ast::ConditionalTarget::Confidence(_ident) => {
+                    // Stub: return high confidence
+                    crate::domain::RuntimeValue::Number(100.0)
+                }
+            };
 
-        // Context-aware resolution
-        let val = if let crate::domain::RuntimeValue::String(s) = &val {
-            if let Some(resolved) = env.get_value(s) {
-                resolved.clone()
+            if let crate::domain::RuntimeValue::Missing(var_name) = val {
+                env.log(format!("Implicitly asking for missing variable in conditional: {}", var_name));
+                self.execute_action(env, &Action::AskQuestion(var_name, None));
+                continue;
+            }
+            
+            // println!("DEBUG: Condition Value: {:?}", val);
+            println!("DEBUG: Condition Value: {:?}", val);
+
+
+            // Context-aware resolution
+            let val = if let crate::domain::RuntimeValue::String(s) = &val {
+                if let Some(resolved) = env.get_value(s) {
+                    resolved.clone()
+                } else {
+                    val
+                }
             } else {
                 val
-            }
-        } else {
-            val
-        };
+            };
 
-        for case in &cond_stmt.cases {
-            let selector = &case.condition;
-            let is_match = Evaluator::check_condition(env, selector, &val);
+            for case in &cond_stmt.cases {
+                let selector = &case.condition;
+                // Note: check_condition doesn't evaluate expression deeply enough to return Missing? 
+                // Wait, check_condition uses Evaluator::evaluate inside.
+                // We might need to handle Missing inside check_condition too, or accept that simple usage covers most cases. 
+                // For now, assume top-level expression check covers the implicit ask. 
+                // Deeper implicit asks inside `case` conditions are not handled here yet.
+                let is_match = Evaluator::check_condition(env, selector, &val);
+                println!("DEBUG: Checking selector {:?} (match={})", selector, is_match);
 
-            if is_match {
-                self.execute_block(env, &case.block);
-                break;
+                if is_match {
+                    self.execute_block(env, &case.block);
+                    break;
+                }
             }
+            break;
         }
     }
 
-    fn emit_log(&self, msg: String, event_type: crate::domain::EventType, timestamp: chrono::DateTime<chrono::Utc>) {
+    fn emit_log(&self, msg: String, event_type: crate::domain::EventType, timestamp: chrono::NaiveDateTime) {
         if let Some(cb) = &self.on_log {
             cb(msg, event_type, timestamp);
         }
@@ -466,18 +502,47 @@ impl Executor {
 
     fn execute_action(&mut self, env: &mut Environment, action: &Action) {
         match action {
-            Action::ShowMessage(parts, _) => {
-                let mut full_msg = String::new();
-                for part in parts {
-                    let val = Evaluator::evaluate(env, part);
-                    let s = val.to_string();
-                    full_msg.push_str(&s);
+            Action::ShowMessage(parts, stmts_opt) => {
+                loop {
+                    let mut full_msg = String::new();
+                    let mut missing_var = None;
+
+                    for part in parts {
+                        let val = Evaluator::evaluate(env, part);
+                        if let crate::domain::RuntimeValue::Missing(var_name) = val {
+                            missing_var = Some(var_name);
+                            break;
+                        }
+                        let s = val.to_string();
+                        full_msg.push_str(&s);
+                    }
+
+                    if let Some(var_name) = missing_var {
+                        env.log(format!("Implicitly asking for missing variable in message: {}", var_name));
+                        self.execute_action(env, &Action::AskQuestion(var_name, None));
+                        continue;
+                    }
+
+                    let message = full_msg;
+                    // Emit log with current env time
+                    env.log_audit(
+                        crate::domain::EventType::Message,
+                        message.clone(),
+                        Some("ShowMessage".to_string())
+                    );
+                    env.log(message.clone());
+                    
+                    self.emit_log(
+                        message,
+                        crate::domain::EventType::Message,
+                        env.now
+                    );
+                    
+                    if let Some(stmts) = stmts_opt {
+                        self.execute_block(env, stmts);
+                    }
+                    break;
                 }
-                let msg = full_msg;
-                // env.log is internal debug log, keep as is
-                env.log(msg.clone());
-                // Emit log with current env time
-                self.emit_log(msg, crate::domain::EventType::Message, env.now);
             }
             Action::AskQuestion(q, _) => {
 
@@ -526,8 +591,13 @@ impl Executor {
                                                 crate::ast::RangeSelector::Range(min, max) => {
                                                     let min_v = Evaluator::evaluate(env, min);
                                                     let max_v = Evaluator::evaluate(env, max);
-                                                     if let (crate::domain::RuntimeValue::Number(mn), crate::domain::RuntimeValue::Number(mx)) = (min_v, max_v) {
+                                                     if let (crate::domain::RuntimeValue::Number(mn), crate::domain::RuntimeValue::Number(mx)) = (min_v.clone(), max_v.clone()) {
                                                          range = Some((mn, mx));
+                                                     } else if let (crate::domain::RuntimeValue::Quantity(mn, u1), crate::domain::RuntimeValue::Quantity(mx, u2)) = (min_v, max_v) {
+                                                         // Ignore unit for now or check equality?
+                                                         if u1 == u2 {
+                                                             range = Some((mn, mx));
+                                                         }
                                                      }
                                                 }
                                                 _ => {}
@@ -608,9 +678,9 @@ impl Executor {
 
 
                 // Emit log with actual question text
-                let msg = format!("Action: Ask Question '{}'", question_text);
-
-                env.log(msg.clone());
+                let _msg = format!("Action: Ask Question '{}'", question_text);
+                
+                // Emit log with actual question text
                 self.emit_log(question_text.clone(), crate::domain::EventType::Question, env.now);
 
                 let mut validation_mode = None;
@@ -683,12 +753,19 @@ impl Executor {
                                 _ => *val,
                             };
                             let reuse_dur = chrono::Duration::milliseconds((reuse_secs * 1000.0) as i64);
-                            valid_after = Some((env.now - reuse_dur).timestamp_millis());
+                            valid_after = Some((env.now - reuse_dur).and_utc().timestamp_millis());
                        }
                     }
                 }
 
-                // Fire Callback
+                // Log the question to audit
+                env.log_audit(
+                    crate::domain::EventType::Question,
+                    format!("Asked question for '{}': {}", q, question_text),
+                    Some("AskQuestion".to_string())
+                );
+                
+                // Fire callback if present               
                 if let Some(cb) = &self.on_ask {
                     let req = crate::domain::AskRequest {
                         variable_name: variable_name.clone(),
@@ -698,7 +775,7 @@ impl Executor {
                         range,
                         validation_mode,
                         validation_timeout,
-                        timestamp: env.now.timestamp_millis(),
+                        timestamp: env.now.and_utc().timestamp_millis(),
                         valid_after,
                     };
                     cb(req);
@@ -709,34 +786,39 @@ impl Executor {
                 let rx_opt = self.input_receiver.take();
                 
                 if let Some(rx) = &rx_opt {
-                    env.log(format!("Waiting for answer to '{}'...", q));
+                    // Waiting for answer (silent)
                     loop {
                         match rx.recv() {
                             Ok(msg) => {
                                 if msg.variable == *q {
-                                    env.set_value(&msg.variable, msg.value.clone());
-                                    self.emit_log(format!("Received Answer: {:?}", msg.value), crate::domain::EventType::Answer, env.now);
-                                    
-                                    // Trigger Event Checks - Now safe because we don't hold valid reference to self.input_receiver
-                                    // Use the message timestamp to preserve data validity from session
                                     env.set_value_at(&msg.variable, msg.value.clone(), msg.timestamp);
+                                    self.emit_log(format!("Received Answer: {:?}", msg.value), crate::domain::EventType::Answer, env.now);
+                                    env.log_audit(
+                                        crate::domain::EventType::Decision,
+                                        format!("Answered question for '{}' with value: {:?}", msg.variable, msg.value),
+                                        Some("AnswerQuestion".to_string())
+                                    );
+                                    
+                                    // Trigger Event Checks
                                     self.check_triggers(env, &msg.variable);
                                     
                                     break;
                                 } else {
-                                    // Handle out-of-order updates (e.g. setting other variables)
+                                    // Handle out-of-order updates
                                     env.set_value_at(&msg.variable, msg.value.clone(), msg.timestamp);
                                     self.check_triggers(env, &msg.variable);
                                 }
                             }
                             Err(_) => {
                                 env.log("Input channel disconnected.".to_string());
+                                debug_log("EXECUTOR: Channel disconnected.");
                                 break; 
                             }
                         }
                     }
                 } else {
                     env.log("Warning: No input receiver configured. Skipping wait for answer.".to_string());
+                    debug_log("EXECUTOR: No receiver configured.");
                 }
                 
                 // Put receiver back
@@ -756,6 +838,8 @@ impl Executor {
                 env.log(msg.clone());
                 self.emit_log(msg, crate::domain::EventType::Log, env.now);
             }
+
+            Action::StartPeriod => {}
             _ => {}
         }
     }
@@ -796,5 +880,13 @@ impl Executor {
         for block in blocks_to_run {
             self.execute_block(env, &block);
         }
+    }
+}
+
+fn debug_log(msg: &str) {
+    use std::io::Write;
+    let path = "/tmp/hippocrates_engine.log";
+    if let Ok(mut file) = std::fs::OpenOptions::new().create(true).append(true).open(path) {
+        let _ = writeln!(file, "{} - {}", chrono::Utc::now(), msg);
     }
 }

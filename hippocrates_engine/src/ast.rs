@@ -89,6 +89,8 @@ pub enum Trigger {
         interval: f64,
         interval_unit: Unit,
         duration: Option<(f64, Unit)>,
+        offset: Option<String>,
+        specific_day: Option<String>,
     },
     StartOf(String),
     ChangeOf(String),
@@ -113,6 +115,7 @@ pub enum Property {
     ContactOrder(String), // Parallel or Sequence
     Timeframe(Vec<Vec<RangeSelector>>),
     Custom(String, String),
+    Unit(Unit),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -170,7 +173,15 @@ pub enum StatementKind {
     EventProgression(String, Vec<AssessmentCase>),
     Command(String),
     Constraint(Expression, String, RangeSelector),
+    Timeframe(TimeframeBlock),
     NoOp,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TimeframeBlock {
+    pub for_analysis: bool,
+    pub constraint: Option<(String, RangeSelector)>,
+    pub block: Vec<Statement>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -187,9 +198,25 @@ pub enum Action {
     SendInfo(String, Vec<Expression>),
     ListenFor(String),
     StartPeriod,
-    Configure(String),
+    Configure(QuestionConfig),
     MessageExpiration(RangeSelector),
     ValidateAnswer(crate::domain::ValidationMode, Option<(f64, Unit)>),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum QuestionConfig {
+    Generic(String), // Fallback
+    Type(String),
+    Style(String),
+    VisualAnalogScale(VasDef),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VasDef {
+    pub best_value: f64,
+    pub best_label: Option<String>,
+    pub worst_value: f64,
+    pub worst_label: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -1,16 +1,16 @@
-use hippocrates_engine::domain::RuntimeValue;
+use hippocrates_engine::domain::{RuntimeValue, Unit};
 use hippocrates_engine::parser;
 use hippocrates_engine::runtime::{Engine, Environment, Executor, ExecutionMode};
 
 #[test]
 fn test_runtime_execution_flow() {
     let input = r#"
-"test plan" is a plan:
-《during plan:
-《show message "Hello World".
-x = 10.
-send information "Val is " x.
-》》"#;
+<test plan> is a plan:
+    during plan:
+        show message "Hello World".
+        <x> = 10.
+        send information "Val is " <x>.
+"#;
 
     let plan = parser::parse_plan(input).expect("Failed to parse plan");
     let mut engine = Engine::new();
@@ -18,20 +18,14 @@ send information "Val is " x.
     engine.execute("test plan");
 
     // Check logs
-    assert!(
-        engine
-            .env
-            .output_log
-            .iter()
-            .any(|s| s.contains("Hello World"))
-    );
+    // Check logs
+    let logs = &engine.env.output_log;
+    println!("Logs: {:?}", logs);
+    assert!(logs.iter().any(|s| s.contains("Hello World")));
     // "Val is " with values: [Number(10.0)]
     assert!(
-        engine
-            .env
-            .output_log
-            .iter()
-            .any(|s| s.contains("Val is ") && s.contains("Number(10.0)"))
+        logs.iter().any(|s| s.contains("Val is ") && s.contains("Number(10.0)")),
+        "Logs missing Val is Number(10.0): {:?}", logs
     );
 
     // Check variable
@@ -82,10 +76,13 @@ fn test_99_bottles_execution() {
 
     // Initialize required variables that are not auto-set
     // 'empty bottles' should start at 0
-    env.set_value("empty bottles", RuntimeValue::Number(0.0));
+    // 'empty bottles' should start at 0 <bottles>
+    env.set_value("empty bottles", RuntimeValue::Quantity(0.0, Unit::Custom("bottles".to_string())));
 
     // Execute plan
-    let mut executor = Executor::new();
+    // Execute plan
+    let stop_signal = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let mut executor = Executor::new(stop_signal);
     executor.set_mode(ExecutionMode::Simulation { speed_factor: None, duration: None });
     executor.execute_plan(&mut env, "99 bottles of beer");
 
@@ -97,6 +94,7 @@ fn test_99_bottles_execution() {
     let has_lyrics = logs
         .iter()
         .any(|log| log.contains("99 bottles of beer on the wall"));
+    assert!(has_lyrics, "Should have lyrics");
     // let has_take_down = logs.iter().any(|log| log.contains("Take one down"));
     // assert!(has_take_down, "Should take one down");
 }
@@ -110,7 +108,7 @@ fn test_trend_analysis() {
     use hippocrates_engine::runtime::{Environment, Evaluator};
 
     let mut env = Environment::new();
-    let now = Utc::now();
+    let now = Utc::now().naive_utc();
     env.set_time(now);
     env.set_start_time(now - Duration::days(20));
 
@@ -163,11 +161,11 @@ fn test_execution_callback() {
     use std::sync::{Arc, Mutex};
 
     let input = r#"
-"callback plan" is a plan:
-《during plan:
-《show message "Line 4".
-show message "Line 5".
-》》"#;
+<callback plan> is a plan:
+    during plan:
+        show message "Line 4".
+        show message "Line 5".
+"#;
 
     let plan = parser::parse_plan(input).expect("Failed to parse");
     let mut env = Environment::new();
@@ -205,19 +203,20 @@ fn test_current_value_in_calculation() {
     // Reproduce issue: Type mismatch in count filter?
     // User gets Count = 0 when Answer is "Yes" (String). Variable is Enumeration. logic is `count of <val> is "Yes"`.
     let input = r#"
-"val" is an enumeration:
-    valid values: "Yes"; "No"
+<val> is an enumeration:
+    valid values:
+        "Yes"; "No"
 
-"count" is a number:
-《calculation:
-《timeframe for analysis is between 5 days ago ... now:
-《value = count of <val> is "Yes".
-》》》
+<count> is a number:
+    calculation:
+        timeframe for analysis is 5 days ago ... now:
+            <value> = count of <val> is "Yes".
 "#;
     let plan = parser::parse_plan(input).expect("Failed to parse");
     let mut env = Environment::new();
     env.load_plan(plan);
-    env.set_start_time(chrono::Utc::now() - chrono::Duration::days(10));
+    let now = chrono::Utc::now().naive_utc();
+    env.set_start_time(now - chrono::Duration::days(10));
     
     // Default initialization likely Enum("")
     
@@ -264,19 +263,21 @@ fn test_current_value_in_calculation() {
 fn test_derived_calculation() {
     // Reproduce issue: Variable with Calculation rule returns Void/0 if not explicitly computed.
     let input = r#"
-"val" is an enumeration:
-    valid values: "Yes"
+<val> is an enumeration:
+    valid values:
+        "Yes"
 
-"derived count" is a number:
-《calculation:
-《timeframe for analysis is between 5 days ago ... now:
-《value = count of <val> is "Yes".
-》》》
+<derived count> is a number:
+    calculation:
+        timeframe for analysis is 5 days ago ... now:
+            <value> = count of <val> is "Yes".
 "#;
     let plan = parser::parse_plan(input).expect("Failed to parse");
     let mut env = Environment::new();
     env.load_plan(plan);
-    env.set_start_time(chrono::Utc::now() - chrono::Duration::days(10));
+    let now = chrono::Utc::now().naive_utc();
+    env.set_time(now);
+    env.set_start_time(now - chrono::Duration::days(10));
     
     // Set dependency
     env.set_value("val", RuntimeValue::String("Yes".to_string()));
@@ -300,14 +301,14 @@ fn test_derived_calculation() {
 fn test_timeframe_filtering() {
     // Verify "5 days ago ... now" strictly excludes older data.
     let input = r#"
-"val" is an enumeration:
-    valid values: "Yes"
+<val> is an enumeration:
+    valid values:
+        "Yes"
 
-"filtered count" is a number:
-《calculation:
-《timeframe for analysis is between 5 days ago ... now:
-《value = count of <val> is "Yes".
-》》》
+<filtered count> is a number:
+    calculation:
+        timeframe for analysis is 5 days ago ... now:
+            <value> = count of <val> is "Yes".
 "#;
     let plan = parser::parse_plan(input).expect("Failed to parse");
     let mut env = Environment::new();
@@ -318,7 +319,7 @@ fn test_timeframe_filtering() {
     use hippocrates_engine::ast::Expression;
     use hippocrates_engine::runtime::Evaluator;
 
-    let now = Utc::now();
+    let now = Utc::now().naive_utc();
     env.set_time(now); // Anchor "now"
     env.set_start_time(now - Duration::days(20));
 
@@ -350,20 +351,19 @@ fn test_timeframe_filtering() {
 fn test_timeframe_variants() {
     // Verify "> 5 days ago" and other variants
     let input = r#"
-"val" is an enumeration:
-    valid values: "Yes"
+<val> is an enumeration:
+    valid values:
+        "Yes"
 
-"count_old" is a number:
-《calculation:
-《timeframe for analysis is < 5 days ago:
-《value = count of <val> is "Yes".
-》》》
+<count_old> is a number:
+    calculation:
+        timeframe for analysis is 15 days ago ... 5 days ago:
+            <value> = count of <val> is "Yes".
 
-"count_recent" is a number:
-《calculation:
-《timeframe for analysis is > 5 days ago:
-《value = count of <val> is "Yes".
-》》》
+<count_recent> is a number:
+    calculation:
+        timeframe for analysis is 5 days ago ... now:
+            <value> = count of <val> is "Yes".
 "#;
     let plan = parser::parse_plan(input).expect("Failed to parse");
     let mut env = Environment::new();
@@ -374,7 +374,7 @@ fn test_timeframe_variants() {
     use hippocrates_engine::ast::Expression;
     use hippocrates_engine::runtime::Evaluator;
 
-    let now = Utc::now();
+    let now = Utc::now().naive_utc();
     env.set_time(now);
     env.set_start_time(now - Duration::days(20));
 

@@ -518,7 +518,7 @@ fn parse_unit_def(pair: pest::iterators::Pair<Rule>) -> Result<UnitDef, ParseErr
         let value_pair = p_inner.next().unwrap(); 
         
         if s.starts_with("plural") {
-            let val = parse_string_literal(value_pair);
+            let val = parse_identifier_str(value_pair);
             plurals.push(val);
         } else if s.starts_with("singular") {
             let val = parse_string_literal(value_pair);
@@ -560,35 +560,42 @@ fn parse_event_trigger(pair: pest::iterators::Pair<Rule>) -> Result<Trigger, Par
     if s.starts_with("change of") {
         let inner = pair.into_inner();
         for child in inner {
+            if child.as_rule() == Rule::identifier {
+                return Ok(Trigger::ChangeOf(parse_identifier_str(child)));
+            }
             if child.as_rule() == Rule::multi_word_identifier {
                 return Ok(Trigger::ChangeOf(parse_multi_word_identifier(child)));
             }
         }
         // Fallback or Error
-        return Ok(Trigger::ChangeOf(s.to_string().replace("change of ", "")));
+        return Ok(Trigger::ChangeOf(s.trim_start_matches("change of").trim().to_string()));
     } else if s.starts_with("begin of") {
         let inner = pair.into_inner();
-        // "begin of" is silent? No, "begin of" is string literal in grammar
-        // pair: "begin of" ~ multi_word_identifier
-        // Skip "begin of"? Pest usually includes it if string literal?
-        // Let's inspect tokens.
-        // Actually best to look at inner rules.
-        // event_trigger = { "begin of" ~ multi_word_identifier | ... }
-        // The literal "begin of" might be token or not depending on if it's explicitly rule. It's not.
-        // So inner should contain multi_word_identifier.
         for child in inner {
+            if child.as_rule() == Rule::identifier {
+                 return Ok(Trigger::StartOf(parse_identifier_str(child)));
+            }
             if child.as_rule() == Rule::multi_word_identifier {
                 return Ok(Trigger::StartOf(parse_multi_word_identifier(child)));
             }
         }
-        return Ok(Trigger::StartOf(s.to_string())); // Fallback
+        return Ok(Trigger::StartOf(s.trim_start_matches("begin of").trim().to_string())); // Fallback
     } else if s.starts_with("every") {
         let inner = pair.into_inner();
         let mut quantities = Vec::new();
+        let mut anchor = None;
+        let mut specific_day = None;
 
         for child in inner {
-            if child.as_rule() == Rule::quantity {
-                quantities.push(parse_quantity_pair(child)?);
+            match child.as_rule() {
+                Rule::quantity => quantities.push(parse_quantity_pair(child)?),
+                Rule::identifier => {
+                     anchor = Some(parse_identifier_str(child));
+                }
+                Rule::weekday => {
+                     specific_day = Some(child.as_str().to_string());
+                }
+                _ => {}
             }
         }
 
@@ -596,18 +603,27 @@ fn parse_event_trigger(pair: pest::iterators::Pair<Rule>) -> Result<Trigger, Par
         let mut interval_unit = Unit::Second;
         let mut duration = None;
 
-        if let Some((v, u)) = quantities.get(0) {
-            interval_val = *v;
-            interval_unit = u.clone();
+        if let Some(_day) = &specific_day {
+             interval_val = 1.0;
+             interval_unit = Unit::Week;
+        } else if let Some((v, u)) = quantities.get(0) {
+             interval_val = *v;
+             interval_unit = u.clone();
+             if quantities.len() > 1 {
+                 duration = Some(quantities[1].clone());
+             }
         }
-        if let Some((v, u)) = quantities.get(1) {
-            duration = Some((*v, u.clone()));
+        
+        if specific_day.is_some() && !quantities.is_empty() {
+             duration = Some(quantities[0].clone());
         }
 
         return Ok(Trigger::Periodic {
             interval: interval_val,
             interval_unit,
             duration,
+            offset: anchor,
+            specific_day,
         });
     }
 
@@ -751,6 +767,11 @@ fn parse_value_property(pair: pest::iterators::Pair<Rule>) -> Result<Property, P
             Ok(Property::Inheritance(ident, None))
         }
         Rule::documentation_prop => Ok(Property::Documentation("Todo".to_string())),
+        Rule::unit_ref_prop => { // "unit" is/[:] <unit>
+            // inner: unit
+            let unit_pair = inner.into_inner().next().unwrap();
+            Ok(Property::Unit(parse_unit(unit_pair)?))
+        }
         Rule::reuse_prop => parse_reuse_prop(inner),
         _ => Ok(Property::Custom(inner.as_str().to_string(), "".to_string())),
     }
@@ -814,7 +835,7 @@ fn parse_assessment_case(
         let line = sel.as_span().start_pos().line_col().0;
         match sel.as_rule() {
             Rule::range_selector => selectors.push((parse_range_selector(sel)?, line)),
-            Rule::condition => selectors.push((parse_condition(sel)?, line)),
+
             _ => {
                 return Err(ParseError::UnknownRule(format!(
                     "Unexpected selector rule: {:?}",
@@ -842,46 +863,36 @@ fn parse_range_selector(pair: pest::iterators::Pair<Rule>) -> Result<RangeSelect
     let s = pair.as_str().trim().to_string();
     
     // Handle "Not enough data" literal directly
-    if s == "Not enough data" {
+    // Normalize whitespace to single space to handle newlines/tabs allowed by grammar
+    let normalized = s.split_whitespace().collect::<Vec<&str>>().join(" ");
+    if normalized == "Not enough data" {
         return Ok(RangeSelector::NotEnoughData);
     }
 
     let mut inner = pair.into_inner();
-    let first = inner.next().unwrap();
+    
+    // Check if empty (should not happen if grammar enforces)
+    let first = if let Some(p) = inner.next() { p } else {
+         // Maybe just string?
+         return Ok(RangeSelector::Equals(Expression::Literal(Literal::String(s))));
+    };
 
-
-    if first.as_rule() == Rule::compare_op {
-        let op_str = first.as_str();
-        let op = match op_str {
-            ">" => ConditionOperator::GreaterThan,
-            ">=" => ConditionOperator::GreaterThanOrEquals,
-            "<" => ConditionOperator::LessThan,
-            "<=" => ConditionOperator::LessThanOrEquals,
-            "=" => ConditionOperator::Equals,
-            "!=" => ConditionOperator::NotEquals,
-            _ => ConditionOperator::Equals,
-        };
-        let expr_pair = inner.next().unwrap();
-        let expr = parse_expression(expr_pair)?;
-        return Ok(RangeSelector::Condition(op, expr));
+    // If first is expression
+    if first.as_rule() == Rule::expression {
+         let e1 = parse_expression(first)?;
+         if let Some(second) = inner.next() {
+              if second.as_rule() == Rule::expression {
+                   let e2 = parse_expression(second)?;
+                   return Ok(RangeSelector::Range(e1, e2));
+              }
+         }
+         return Ok(RangeSelector::Equals(e1));
     }
-
-    if let Some(second) = inner.next() {
-        if s.starts_with("between") {
-            let e1 = parse_expression(first)?;
-            let e2 = parse_expression(second)?;
-            return Ok(RangeSelector::Between(e1, e2));
-        } else {
-            let e1 = parse_expression(first)?;
-            let e2 = parse_expression(second)?;
-            return Ok(RangeSelector::Range(e1, e2));
-        }
-    }
-
-    // Fallback for implicitly equality or hacked > support (now handled above)
-    // If we are here, it matches single expression
-    Ok(RangeSelector::Equals(parse_expression(first)?))
+    
+    // Fallback?
+    Ok(RangeSelector::Equals(Expression::Literal(Literal::String(s))))
 }
+
 
 // -----------------------------------------------------------------------------
 // Statement Parsers
@@ -917,6 +928,16 @@ fn parse_statement(pair: pest::iterators::Pair<Rule>) -> Result<Statement, Parse
             let expr = parse_expression(a_inner.next().unwrap())?;
             StatementKind::Assignment(Assignment {
                 target,
+                expression: expr,
+            })
+        }
+        Rule::meaning_assignment => {
+            // rule: "meaning" ~ "of" ~ "value" ~ "=" ~ expression
+            // inner contains only expression
+            let expr_pair = inner.into_inner().next().unwrap();
+            let expr = parse_expression(expr_pair)?;
+            StatementKind::Assignment(Assignment {
+                target: "meaning of value".to_string(),
                 expression: expr,
             })
         }
@@ -997,29 +1018,49 @@ fn parse_statement(pair: pest::iterators::Pair<Rule>) -> Result<Statement, Parse
             StatementKind::ContextBlock(ContextBlock { items, statements })
         }
         Rule::timeframe_block => {
-            let inner = inner.into_inner();
-            let mut items = Vec::new();
-            let mut statements = Vec::new();
+             let mut tf_inner = inner.into_inner();
+             let mut for_analysis = false;
+             let mut constraint = None;
+             let mut stmts = Vec::new();
+             
+             // Peekable iterator or manual tracking?
+             // Since order is fixed: flag? -> op? -> range? -> statements+
+             
+             let mut next_pair = tf_inner.next();
+             
+             if let Some(pair) = next_pair.as_ref() {
+                 if pair.as_rule() == Rule::for_analysis_flag {
+                      for_analysis = true;
+                      next_pair = tf_inner.next();
+                 }
+             }
+             
+             // Check operator/range
+             if let Some(pair) = next_pair.as_ref() {
+                 if pair.as_rule() == Rule::constraint_operator {
+                      let op = pair.as_str().to_string();
+                      if let Some(range_pair) = tf_inner.next() {
+                           let range = parse_range_selector(range_pair)?;
+                           constraint = Some((op, range));
+                      }
+                      next_pair = tf_inner.next();
+                 }
+             }
+             
+             while let Some(pair) = next_pair {
+                 if pair.as_rule() == Rule::statement {
+                      stmts.push(parse_statement(pair)?);
+                 }
+                 next_pair = tf_inner.next();
+             }
+             
+             StatementKind::Timeframe(crate::ast::TimeframeBlock {
+                 for_analysis,
+                 constraint,
+                 block: stmts,
+             })
+        }
 
-            for p in inner {
-                match p.as_rule() {
-                    Rule::range_selector => {
-                        items.push(ContextItem::Timeframe(parse_range_selector(p)?));
-                    }
-                    Rule::statement => {
-                        statements.push(parse_statement(p)?);
-                    }
-                    _ => {}
-                }
-            }
-            StatementKind::ContextBlock(ContextBlock { items, statements })
-        }
-        Rule::event_progression => {
-            // "assess event progression" has no variable target in grammar (it's a literal string in rule)
-            // So inner parts are just cases.
-            let cases = parse_assessment_cases(inner.into_inner())?;
-            StatementKind::EventProgression("event progression".to_string(), cases)
-        }
         Rule::documentation_prop => StatementKind::Command("Documentation".to_string()),
         Rule::constraint => {
             let mut c_inner = inner.into_inner();
@@ -1065,8 +1106,55 @@ fn parse_action(pair: pest::iterators::Pair<Rule>) -> Result<Action, ParseError>
                     return parse_validate_modifier(first);
                 }
             }
+            // detailed check for vas_block
+            if let Some(vas_pair) = inner.clone().into_inner().find(|p| p.as_rule() == Rule::vas_block) {
+                 let mut best_val = 0.0;
+                 let mut worst_val = 10.0; // defaults?
+                 let mut best_lbl = None;
+                 let mut worst_lbl = None;
+
+                 for p in vas_pair.into_inner() {
+                     match p.as_rule() {
+                         Rule::best_value_def => {
+                             let inner = p.into_inner().next().unwrap(); // quantity or number
+                             let expr = parse_expression(inner)?; // parse as expression to preserve value
+                             best_val = match expr {
+                                 Expression::Literal(Literal::Number(n, _)) => n,
+                                 Expression::Literal(Literal::Quantity(n, _, _)) => n,
+                                 _ => 0.0,
+                             };
+                         }
+                         Rule::worst_value_def => {
+                             let inner = p.into_inner().next().unwrap();
+                             let expr = parse_expression(inner)?;
+                             worst_val = match expr {
+                                 Expression::Literal(Literal::Number(n, _)) => n,
+                                 Expression::Literal(Literal::Quantity(n, _, _)) => n,
+                                 _ => 10.0,
+                             };
+                         }
+                         Rule::best_label_def => {
+                             let inner = p.into_inner().next().unwrap(); // string_literal
+                             best_lbl = Some(parse_string_literal(inner));
+                         }
+                         Rule::worst_label_def => {
+                             let inner = p.into_inner().next().unwrap(); // string_literal
+                             worst_lbl = Some(parse_string_literal(inner));
+                         }
+                         _ => {}
+                     }
+                 }
+
+                 return Ok(Action::Configure(QuestionConfig::VisualAnalogScale(VasDef {
+                     best_value: best_val,
+                     best_label: best_lbl,
+                     worst_value: worst_val,
+                     worst_label: worst_lbl,
+                 })));
+            }
+
             let s = inner.as_str().trim().to_string();
-            Ok(Action::Configure(s))
+            Ok(Action::Configure(QuestionConfig::Generic(s)))
         }
         Rule::start_period => {
             // start_period = { "start" ~ identifier ... }
@@ -1163,6 +1251,9 @@ fn parse_ask_question(pairs: pest::iterators::Pairs<Rule>) -> Result<Action, Par
         match p.as_rule() {
             Rule::multi_word_identifier => {
                 subject = parse_multi_word_identifier(p);
+            }
+            Rule::identifier | Rule::angled_identifier => {
+                subject = parse_identifier_str(p);
             }
             Rule::string_literal => {
                 subject = p.as_str().trim_matches('"').to_string();
@@ -1362,39 +1453,29 @@ fn parse_expression(pair: pest::iterators::Pair<Rule>) -> Result<Expression, Par
                 Ok(Expression::Variable(ident))
             }
         }
+        Rule::identifier => {
+            let s = parse_identifier_str(pair);
+            Ok(Expression::Variable(s))
+        }
         Rule::multi_word_identifier => Ok(Expression::Variable(parse_multi_word_identifier(pair))),
         Rule::time_literal => Ok(Expression::Literal(Literal::TimeOfDay(
             pair.as_str().to_string(),
         ))),
+        Rule::time_indication => {
+            let s = pair.as_str();
+            if s == "now" {
+                Ok(Expression::Variable("now".to_string()))
+            } else {
+                 Ok(Expression::Literal(Literal::String(s.to_string())))
+            }
+        }
         _ => Ok(Expression::Literal(Literal::String(
             pair.as_str().to_string(),
         ))),
     }
 }
 
-fn parse_condition(pair: pest::iterators::Pair<Rule>) -> Result<RangeSelector, ParseError> {
-    let mut inner = pair.into_inner();
-    let left = parse_expression(inner.next().unwrap())?;
-    let op = inner.next().unwrap();
-    let right = parse_expression(inner.next().unwrap())?;
 
-    let operator = match op.as_str() {
-        "is" | "=" => crate::ast::ConditionOperator::Equals,
-        "is not" | "!=" => crate::ast::ConditionOperator::NotEquals,
-        ">" => crate::ast::ConditionOperator::GreaterThan,
-        "<" => crate::ast::ConditionOperator::LessThan,
-        ">=" => crate::ast::ConditionOperator::GreaterThanOrEquals,
-        "<=" => crate::ast::ConditionOperator::LessThanOrEquals,
-        _ => {
-            return Err(ParseError::UnknownRule(format!(
-                "Unknown op {}",
-                op.as_str()
-            )));
-        }
-    };
-
-    Ok(RangeSelector::Comparison(left, operator, right))
-}
 
 fn parse_unit(pair: pest::iterators::Pair<Rule>) -> Result<Unit, ParseError> {
     match pair.as_str() {
@@ -1416,6 +1497,7 @@ fn parse_unit(pair: pest::iterators::Pair<Rule>) -> Result<Unit, ParseError> {
         "gal" | "gallon" | "gallons" => Ok(Unit::Gallon),
         "°C" | "celsius" => Ok(Unit::Celsius),
         "°F" | "fahrenheit" => Ok(Unit::Fahrenheit),
+        "mmHg" | "millimeter of mercury" => Ok(Unit::MillimeterOfMercury),
         "%" | "percent" => Ok(Unit::Percent),
         "year" | "years" => Ok(Unit::Year),
         "month" | "months" => Ok(Unit::Month),
@@ -1426,7 +1508,12 @@ fn parse_unit(pair: pest::iterators::Pair<Rule>) -> Result<Unit, ParseError> {
         "second" | "seconds" => Ok(Unit::Second),
         _ => {
             let s = pair.as_str();
-            Ok(Unit::Custom(s.to_string()))
+            let name = if s.starts_with('<') && s.ends_with('>') {
+                s[1..s.len() - 1].to_string()
+            } else {
+                s.to_string()
+            };
+            Ok(Unit::Custom(name))
         }
     }
 }

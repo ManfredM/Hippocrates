@@ -1,5 +1,6 @@
 <symptom severity> is a number:
-    valid values: 0 ... 10.
+    valid values:
+        0 ... 10.
 
 <weekly symptom count> is a number:
     calculation:

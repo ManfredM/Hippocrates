@@ -1,11 +1,13 @@
-<bottle> is an enumeration:
+<bottle state> is an enumeration:
     valid values:
-        assess value:
-            "empty"; "full": value is valid.
+        "empty"; "full"
+
+<bottle> is a unit:
+    plural is <bottles>
 
 <empty bottles> is a number:
     valid values:
-        value is between 0 ... 100.
+        0 <bottles> ... 100 <bottles>
 
 <99 bottles of beer> is a plan:
     every 1 hour for 100 hours:
@@ -13,12 +15,12 @@
         assess <empty bottles>:
             0 ... 97:
                 show message to patient (99 - <empty bottles>) + " bottles of beer on the wall.".
-                bottle = "empty".
+                <bottle state> = "empty".
                 <empty bottles> = <empty bottles> + 1.
             
             98:
                 show message to patient "1 bottle of beer on the wall...".
-                bottle = "empty".
+                <bottle state> = "empty".
                 <empty bottles> = <empty bottles> + 1.
             
             99:

@@ -1,15 +1,15 @@
 use hippocrates_engine::ast::{
-    Expression, StatisticalFunc, RangeSelector, RelativeDirection, ConditionOperator
+    Expression, StatisticalFunc, RangeSelector, RelativeDirection
 };
-use hippocrates_engine::domain::{RuntimeValue, ValueInstance, Unit};
+use hippocrates_engine::domain::{RuntimeValue, Unit};
 use hippocrates_engine::runtime::evaluator::Evaluator;
 use hippocrates_engine::runtime::environment::{Environment, EvaluationContext};
-use chrono::{Utc, Duration, TimeZone};
+use chrono::{Utc, Duration};
 
 #[test]
 fn test_not_enough_data() {
     let mut env = Environment::new();
-    let start_time = Utc::now();
+    let start_time = Utc::now().naive_utc();
     env.set_start_time(start_time);
     env.set_time(start_time + Duration::days(2)); // System running for 2 days
 

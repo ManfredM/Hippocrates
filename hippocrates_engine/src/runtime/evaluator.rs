@@ -60,6 +60,18 @@ impl Evaluator {
                                             result_expr = Some(&assign.expression);
                                         }
                                     }
+                                    StatementKind::Timeframe(tb) => {
+                                        if let Some((_, range)) = &tb.constraint {
+                                            timeframe = Some(range.clone());
+                                        }
+                                        for inner in &tb.block {
+                                            if let StatementKind::Assignment(assign) = &inner.kind {
+                                                if assign.target == "value" || assign.target == *name {
+                                                     result_expr = Some(&assign.expression);
+                                                }
+                                            }
+                                        }
+                                    }
                                     _ => {}
                                 }
                             }
@@ -76,11 +88,29 @@ impl Evaluator {
                 }
 
                 // If no calculation, return stored value or Void
-                if let Some(val) = env.get_value(name) {
-                    val.clone()
-                } else {
-                    RuntimeValue::Void
+                // If no calculation, return stored value or check definition for implicit ask
+                if let Some(v) = env.get_value(name) {
+                    if let RuntimeValue::NotEnoughData = v {
+                         // Check if askable
+                         if let Some(Definition::Value(v_def)) = env.definitions.get(name) {
+                             let has_question = v_def.properties.iter().any(|p| matches!(p, Property::Question(_)));
+                             if has_question {
+                                 return RuntimeValue::Missing(name.clone());
+                             }
+                         }
+                         return RuntimeValue::NotEnoughData; 
+                    }
+                    return v.clone();
                 }
+                
+                // If not in env, check definition for implicit ask (e.g. if default not set yet?)
+                if let Some(Definition::Value(v_def)) = env.definitions.get(name) {
+                     let has_question = v_def.properties.iter().any(|p| matches!(p, Property::Question(_)));
+                     if has_question {
+                         return RuntimeValue::Missing(name.clone());
+                     }
+                }
+                RuntimeValue::Void
             }
             Expression::Binary(left, op, right) => {
                 let mut l_val = Self::evaluate(env, left);
@@ -97,6 +127,10 @@ impl Evaluator {
                         r_val = v.clone();
                     }
                 }
+
+                // Propagate Missing
+                if let RuntimeValue::Missing(n) = &l_val { return RuntimeValue::Missing(n.clone()); }
+                if let RuntimeValue::Missing(n) = &r_val { return RuntimeValue::Missing(n.clone()); }
 
                 if op == "+" {
                     // If either is String, concat
@@ -181,6 +215,7 @@ impl Evaluator {
                                     };
 
                                         if let Some(min_date) = min_date_opt {
+
                                             if min_date < env.start_time {
                                                 return RuntimeValue::NotEnoughData;
                                             }
@@ -278,10 +313,12 @@ impl Evaluator {
                             };
 
                         if filtered.len() < 2 {
+
                             return RuntimeValue::String("stable".to_string());
                         }
 
                         // 3. Calculate Slope (Linear Regression)
+
                         // X = seconds from first point
                         // Y = value
                         let start_time = filtered[0].timestamp;
@@ -338,6 +375,7 @@ impl Evaluator {
                         RuntimeValue::List(l) => result.push_str(&format!("{:?}", l)), // Debug format for now
                         RuntimeValue::Void => {}
                         RuntimeValue::NotEnoughData => result.push_str("Not Enough Data"),
+                        RuntimeValue::Missing(_) => result.push_str("Missing"),
                     }
                 }
                 RuntimeValue::String(result)
@@ -455,7 +493,7 @@ impl Evaluator {
     pub fn check_timeframe_match(
         env: &Environment,
         selector: &RangeSelector,
-        timestamp: chrono::DateTime<chrono::Utc>,
+        timestamp: chrono::NaiveDateTime,
     ) -> bool {
         match selector {
             RangeSelector::Range(min, max) | RangeSelector::Between(min, max) => {

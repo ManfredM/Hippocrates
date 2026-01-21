@@ -1,0 +1,10 @@
+<TimeframePlan> is a plan:
+    during plan:
+        timeframe for analysis:
+            show message "Analyzing unrestricted".
+
+        timeframe during 08:00 ... 18:00:
+            show message "Working hours".
+            
+            timeframe after 12:00:
+                show message "Afternoon work".

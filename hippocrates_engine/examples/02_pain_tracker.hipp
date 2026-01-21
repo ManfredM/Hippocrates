@@ -1,5 +1,6 @@
 <pain level> is a number:
-    valid values: 0 ... 10
+    valid values:
+        0 ... 10
     question:
         ask "How severe is your pain now?":
             question style is visual analogue scale:

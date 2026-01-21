@@ -3,18 +3,22 @@ use hippocrates_engine::domain::RuntimeValue;
 use hippocrates_engine::parser;
 use std::sync::{Arc, Mutex, Condvar};
 use std::thread;
-use std::time::Duration;
+
 
 #[test]
 fn test_interactive_execution() {
     let input = r#"
 <my var> is an enumeration:
-    valid values: "A"; "B"
-    question: "Pick one".
+    valid values:
+        "A"; "B"
+    question:
+        ask "Pick one".
 
 <my range> is a number:
-    valid values: 0 ... 10
-    question: "Pick number".
+    valid values:
+        0 ... 10
+    question:
+        ask "Pick number".
     
 <My Plan> is a plan:
     during plan:
@@ -57,7 +61,7 @@ fn test_interactive_execution() {
 
     let log_check = Arc::new(Mutex::new(Vec::new()));
     let log_capture = log_check.clone();
-    let log_callback = Box::new(move |msg: String, _type: hippocrates_engine::domain::EventType, _ts: chrono::DateTime<chrono::Utc>| {
+    let log_callback = Box::new(move |msg: String, _type: hippocrates_engine::domain::EventType, _ts: chrono::NaiveDateTime| {
         println!("Callback: Log - {}", msg);
         log_capture.lock().unwrap().push(msg);
     });
@@ -101,7 +105,8 @@ fn test_interactive_execution() {
     // Send answer for var
     let answer1 = hippocrates_engine::domain::InputMessage {
         variable: "my var".to_string(),
-        value: RuntimeValue::Enumeration("A".to_string())
+        value: RuntimeValue::Enumeration("A".to_string()),
+        timestamp: chrono::Utc::now().naive_utc(),
     };
     tx.send(answer1).expect("Failed to send answer 1");
 
@@ -118,7 +123,8 @@ fn test_interactive_execution() {
 
     let answer2 = hippocrates_engine::domain::InputMessage {
         variable: "my range".to_string(),
-        value: RuntimeValue::Number(5.0)
+        value: RuntimeValue::Number(5.0),
+        timestamp: chrono::Utc::now().naive_utc(),
     };
     tx.send(answer2).expect("Failed to send answer 2");
 

@@ -1,4 +1,4 @@
-use chrono::{DateTime, Utc};
+use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
@@ -9,6 +9,17 @@ pub enum EventType {
     Message = 1,
     Question = 2,
     Answer = 3,
+    Decision = 4,
+    StateChange = 5,
+    EventTrigger = 6,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditEntry {
+    pub timestamp: NaiveDateTime,
+    pub event_type: EventType,
+    pub details: String, // JSON payload or text
+    pub context: Option<String>, // Context name or Rule name
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -44,6 +55,8 @@ pub enum Unit {
     Hour,
     Minute,
     Second,
+    // Pressure
+    MillimeterOfMercury,
     // Custom
     Custom(String),
 }
@@ -83,13 +96,14 @@ pub enum RuntimeValue {
     Boolean(bool),
     Enumeration(String),
     List(Vec<RuntimeValue>),
-    Date(DateTime<Utc>),
+    Date(NaiveDateTime),
     Void,
     NotEnoughData,
+    Missing(String),
 }
 
 impl RuntimeValue {
-    pub fn as_date(&self) -> Option<DateTime<Utc>> {
+    pub fn as_date(&self) -> Option<NaiveDateTime> {
         match self {
             RuntimeValue::Date(d) => Some(*d),
             _ => None,
@@ -128,6 +142,7 @@ impl fmt::Display for RuntimeValue {
             RuntimeValue::List(l) => write!(f, "{:?}", l),
             RuntimeValue::Date(d) => write!(f, "{}", d),
             RuntimeValue::NotEnoughData => write!(f, "Not Enough Data"),
+            RuntimeValue::Missing(v) => write!(f, "Missing({})", v),
         }
     }
 }
@@ -135,7 +150,7 @@ impl fmt::Display for RuntimeValue {
 #[derive(Debug, Clone, PartialEq)]
 pub struct ValueInstance {
     pub value: RuntimeValue,
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: NaiveDateTime,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -158,7 +173,7 @@ pub enum QuestionStyle {
 pub struct InputMessage {
     pub variable: String,
     pub value: RuntimeValue,
-    pub timestamp: DateTime<Utc>,
+    pub timestamp: NaiveDateTime,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

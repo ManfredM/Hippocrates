@@ -27,8 +27,8 @@ fn test_analysis_context_timeframe() {
     env.load_plan(plan);
 
     // Populate History
-    let now = Utc::now();
-    env.now = now;
+    let now = Utc::now().naive_utc();
+    env.set_time(now);
     env.set_start_time(now - Duration::days(100));
 
     // Use set_value_at directly
@@ -71,8 +71,8 @@ fn test_analysis_context_timeframe_full() {
     let plan = parse_plan(code).expect("Failed to parse plan");
     env.load_plan(plan);
 
-    let now = Utc::now();
-    env.now = now;
+    let now = Utc::now().naive_utc();
+    env.set_time(now);
     env.set_start_time(now - Duration::days(100));
 
     env.set_value_at("pain level", RuntimeValue::Number(10.0), now - Duration::days(5));
