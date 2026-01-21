@@ -50,6 +50,10 @@ void hippocrates_engine_execute(EngineContext* ctx, const char* plan_name);
 /// Returns 0 on success, non-zero on failure.
 int hippocrates_engine_set_value(EngineContext* ctx, const char* var_name, const char* json_val);
 
+/// Sets the current abstract time of the engine environment.
+/// Input: timestamp in milliseconds (treated as abstract local time).
+void hippocrates_engine_set_time(EngineContext* ctx, int64_t timestamp_ms);
+
 /// Enables simulation mode.
 void hippocrates_engine_enable_simulation(EngineContext* ctx, int duration_mins);
 

@@ -34,8 +34,13 @@ struct ContentView: View {
         try? FileManager.default.removeItem(atPath: "/tmp/hippocrates_debug.log")
         logToFile("Starting execution. Simulate: \(simulate)")
         
+        // Stop previous engine immediately (Main Thread)
+        if let current = appState.currentEngine {
+            current.stop()
+        }
+        
         DispatchQueue.global(qos: .userInitiated).async {
-            // 1. Identify Plan Name
+            // 2. Identify Plan Name
             var planName = "TreatmentPlan"
             let parseResult = HippocratesParser.parse(input: code)
             
@@ -175,6 +180,9 @@ struct ContentView: View {
             
             // Run/Simulate
             if let engine = HippocratesEditor.HippocratesParser.prepareEngine(code, simulate: simulate, simulationDays: simulationDays, onStep: onStep, onLog: onLog, onAsk: onAsk) {
+                // Set Abstract Local Time to synchronize Engine with Wall Clock
+                engine.setTime(Date())
+                
                 DispatchQueue.main.sync {
                     appState.currentEngine = engine
                 }
@@ -325,16 +333,29 @@ struct QuestionSheetView: View {
                     .frame(width: 200)
                     .onChange(of: textInput) { _, _ in errorMessage = nil }
                     
-            case .Selection:
-                // Selection doesn't support 'Twice' easily in this UI pattern without clearing buttons?
-                // Or maybe clicking same button twice?
-                // For now, let's assume 'Twice' is primarily for typed input.
-                // If Selection has Twice, we could ask user to click, then clear, then ask "Confirm".
-                ForEach(question.options, id: \.self) { option in
-                    Button(option) {
-                        handleSelection(option)
+            case .Selection, .Likert, .VisualAnalogueScale:
+                // If options are available, use Selection style
+                if !question.options.isEmpty {
+                    VStack(spacing: 8) {
+                        ForEach(question.options, id: \.self) { option in
+                            Button(option) {
+                                handleSelection(option)
+                            }
+                            .controlSize(.large)
+                        }
                     }
-                    .controlSize(.large)
+                    .frame(maxHeight: 300)
+                } else if question.style == .VisualAnalogueScale(min: 0, max: 0, min_label: "", max_label: "") || question.style == .Numeric || question.style == .Likert {
+                         // Fallback to numeric input if VAS/Likert has no options but is numeric based
+                         TextField("Number", text: $textInput)
+                            #if os(iOS)
+                            .keyboardType(.decimalPad)
+                            #endif
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 120)
+                            .onChange(of: textInput) { _, _ in errorMessage = nil }
+                } else {
+                    Text("No options available for selection")
                 }
                 
             case .Numeric:

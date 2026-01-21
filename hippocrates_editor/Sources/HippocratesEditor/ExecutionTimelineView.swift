@@ -1,5 +1,13 @@
 import SwiftUI
 
+extension Calendar {
+    static let gmt: Calendar = {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(secondsFromGMT: 0)!
+        return cal
+    }()
+}
+
 // Config
 private let defaultHourHeight: CGFloat = 60
 private let dayWidth: CGFloat = 350
@@ -40,7 +48,7 @@ struct ExecutionTimelineView: View {
     
     // Days to show: Union of days with events AND days with bands
     var visibleDates: [Date] {
-        let eventDates = Set(appState.executionLogs.map { Calendar.current.startOfDay(for: $0.time) })
+        let eventDates = Set(appState.executionLogs.map { Calendar.gmt.startOfDay(for: $0.time) })
         let bandDates = Set(periodBands.keys)
         let sorted = eventDates.union(bandDates).sorted()
         
@@ -51,8 +59,8 @@ struct ExecutionTimelineView: View {
     }
     
     func clusters(for date: Date) -> [TimelineCluster] {
-        let dayStart = Calendar.current.startOfDay(for: date)
-        let nextDay = Calendar.current.date(byAdding: .day, value: 1, to: dayStart)!
+        let dayStart = Calendar.gmt.startOfDay(for: date)
+        let nextDay = Calendar.gmt.date(byAdding: .day, value: 1, to: dayStart)!
         
         let events = appState.executionLogs.filter {
             $0.time >= dayStart && $0.time < nextDay
@@ -79,7 +87,7 @@ struct ExecutionTimelineView: View {
         
         // Determine window
         // If static (no logs), use Generic Week
-        let calendar = Calendar.current
+        let calendar = Calendar.gmt
         var anchorDate: Date
         var days: Int
         
@@ -210,6 +218,7 @@ struct ExecutionTimelineView: View {
                  refreshData()
              }
         }
+        .environment(\.timeZone, TimeZone(secondsFromGMT: 0)!)
     }
 }
 
@@ -219,7 +228,7 @@ struct DayHeader: View {
     let isStatic: Bool
     
     var body: some View {
-        Text(date, format: isStatic ? .dateTime.weekday(.wide) : .dateTime.weekday().day().month())
+        Text(date, format: (isStatic ? .dateTime.weekday(.wide) : .dateTime.weekday().day().month()))
             .font(.headline)
             .frame(width: width, height: 50)
             .background(Color(nsColor: .controlBackgroundColor))
@@ -282,7 +291,7 @@ struct DayTimeline: View {
     }
     
     func yOffset(for time: Date) -> CGFloat {
-        let cal = Calendar.current
+        let cal = Calendar.gmt
         let hour = cal.component(.hour, from: time)
         let minute = cal.component(.minute, from: time)
         let totalMinutes = hour * 60 + minute
@@ -315,7 +324,7 @@ struct PeriodBandView: View {
     }
     
     func yOffset(for time: Date) -> CGFloat {
-        let cal = Calendar.current
+        let cal = Calendar.gmt
         let hour = cal.component(.hour, from: time)
         let minute = cal.component(.minute, from: time)
         let totalMinutes = hour * 60 + minute
@@ -365,7 +374,7 @@ struct ClusterView: View {
         }
         .popover(isPresented: $isPresented, arrowEdge: .trailing) {
             ClusterDetailView(cluster: cluster)
-                .frame(width: 400, height: 300)
+                .frame(width: 400, height: 500)
         }
     }
 }
@@ -405,10 +414,15 @@ struct EventPillContent: View {
     var isAnswer: Bool {
         event.type == 3
     }
+
+    var isMessage: Bool {
+        event.type == 1
+    }
     
     var pillColor: Color {
         if isQuestion { return .orange }
         if isAnswer { return .green }
+        if isMessage { return .purple }
         return .blue
     }
     
@@ -420,7 +434,7 @@ struct EventPillContent: View {
                 .padding(.top, 2)
             
             VStack(alignment: .leading, spacing: 2) {
-                Text(event.name)
+                Text(isMessage ? "[Message] \(event.name)" : event.name)
                     .font(.callout)
                     .foregroundStyle(.white)
             }

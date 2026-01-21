@@ -1,0 +1,75 @@
+<x> is a number:
+    valid values:
+        0 mg ... 200 mg
+    question:
+        validate answer once.
+
+<y> is a number:
+    valid values:
+        0 mg ... 100 mg
+    question:
+        validate answer once.
+
+<z> is a number:
+    valid values:
+        0 mg ... 100 mg
+
+<no_question_var> is a number:
+    valid values:
+        0 mg ... 100 mg
+    question:
+        validate answer once.
+
+<historic_var> is a number:
+    valid values:
+        0 mg ... 1000 mg
+
+<color> is an enumeration:
+    valid values:
+        "Red"
+        "Green"
+        "Blue"
+    question:
+        validate answer once.
+
+<plan> is a plan:
+    during plan:
+        ask <y>.
+        (* OK: y initialized, range [0, 100] + 1 = [1, 101] subset of [0, 200] *)
+        <x> = <y> + 1 mg.
+
+        ask <x>.
+        (* OK: x is initialized *)
+        <y> = 10 mg. 
+        (* Literal 10 is safe for y [0, 100] *)
+
+        ask <no_question_var>.
+
+        (* OK: Logic covers all cases *)
+        assess trend of <historic_var>:
+            "increase": 
+                show message "Increasing".
+            "decrease":
+                show message "Decreasing".
+            "stable":
+                show message "Stable".
+        
+        <z> = 0 mg.
+
+        (* Test Flow: z assigned conditionally *)
+        assess <x>:
+            0 mg ... 50 mg:
+                <z> = 10 mg.
+            50 mg ... 200 mg:
+                <z> = 20 mg.
+        
+        <x> = <z>.
+
+        ask <color>.
+        assess <color>:
+            "Red": 
+                show message "Red".
+            "Green":
+                 show message "Green".
+            "Blue":
+                 show message "Blue".

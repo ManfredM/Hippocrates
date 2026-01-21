@@ -225,6 +225,9 @@ class HippocratesEngine: Equatable {
              guard let userData = userData, let msgPtr = msgPtr else { return }
              let engine = Unmanaged<HippocratesEngine>.fromOpaque(userData).takeUnretainedValue()
              let msg = String(cString: msgPtr)
+             // Engine sends "Naive Time" as timestamp (millis).
+             // Treated as GMT by Date(timeIntervalSince1970:) which corresponds to "Wall Clock Time" in UTC.
+             // UI should display this with .timeZone(.gmt) to show the exact clock digits.
              let date = Date(timeIntervalSince1970: TimeInterval(ts) / 1000.0)
              engine.onLog?(msg, Int(type), date)
         }
@@ -304,12 +307,21 @@ class HippocratesEngine: Equatable {
             
             // Helper to parse dates with multiple potential formats (ISO8601 with/without fractional seconds)
             func parse(_ s: String) -> Date? {
-                let f1 = ISO8601DateFormatter()
-                f1.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-                if let d = f1.date(from: s) { return d }
-                let f2 = ISO8601DateFormatter()
-                f2.formatOptions = [.withInternetDateTime]
-                return f2.date(from: s)
+                // Strict "Naive" matching: Input has no offset (e.g. "2026-01-01T12:00:00")
+                // We treat this as Abstract Time = GMT.
+                let f = DateFormatter()
+                f.dateFormat = "yyyy-MM-dd'T'HH:mm:ss"
+                f.timeZone = TimeZone(secondsFromGMT: 0)
+                f.locale = Locale(identifier: "en_US_POSIX")
+                if let d = f.date(from: s) { return d }
+                
+                // Fallback for fractional seconds if needed (e.g. .123)
+                f.dateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS"
+                if let d = f.date(from: s) { return d }
+                
+                // Fallback to ISO if serde adds Z (unexpected but safe)
+                let fISO = ISO8601DateFormatter()
+                return fISO.date(from: s)
             }
             
             guard let s = parse(startStr), let e = parse(endStr) else {
@@ -323,7 +335,15 @@ class HippocratesEngine: Equatable {
     func simulateOccurrences(periodName: String, days: Int, startDate: Date? = nil) -> [PeriodOccurrence] {
         guard let ctx = ctx, let cName = periodName.cString(using: .utf8) else { return [] }
         // Use provided start time or current time
-        let startTs = Int64((startDate ?? Date()).timeIntervalSince1970 * 1000)
+        let rawDate = startDate ?? Date()
+        // Convert Wall Clock Time (Local) to Abstract Time (GMT-as-Local)
+        // If Local is 15:00 (+1), rawDate is 14:00 GMT.
+        // We want engine to see "15:00". So we shift it by offset.
+        let tz = TimeZone.current
+        let seconds = tz.secondsFromGMT(for: rawDate)
+        let abstractDate = rawDate.addingTimeInterval(TimeInterval(seconds))
+        
+        let startTs = Int64(abstractDate.timeIntervalSince1970 * 1000)
         let ptr = hippocrates_simulate_occurrences(ctx, cName, startTs, Int32(days))
         guard let p = ptr else { return [] }
         defer { hippocrates_free_string(p) }
@@ -341,6 +361,17 @@ class HippocratesEngine: Equatable {
               let cName = name.cString(using: .utf8),
               let cVal = valueJson.cString(using: .utf8) else { return false }
         return hippocrates_engine_set_value(ctx, cName, cVal) == 0
+    }
+    
+    func setTime(_ date: Date) {
+        guard let ctx = ctx else { return }
+        // Convert Wall Clock Time to Abstract Time
+        let tz = TimeZone.current
+        let seconds = tz.secondsFromGMT(for: date)
+        let abstractDate = date.addingTimeInterval(TimeInterval(seconds))
+        let ts = Int64(abstractDate.timeIntervalSince1970 * 1000)
+        
+        hippocrates_engine_set_time(ctx, ts)
     }
 }
 

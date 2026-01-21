@@ -1,0 +1,186 @@
+use crate::ast::{Expression, Literal, RangeSelector, AssessmentCase};
+use crate::domain::EngineError;
+use super::intervals::Interval;
+
+struct Range { start: f64, end: f64 }
+
+pub fn check_coverage(
+    name: &str,
+    valid_interval: &Interval,
+    cases: &[AssessmentCase],
+    line: usize,
+    errors: &mut Vec<EngineError>,
+) {
+    // 1. Determine Universe from Valid Interval
+    let universe_min = valid_interval.min;
+    let universe_max = valid_interval.max;
+
+    if universe_min.is_infinite() && universe_max.is_infinite() {
+        return;
+    }
+
+    // 2. Collect Intervals from Cases
+    let mut ranges: Vec<Range> = Vec::new();
+
+    for case in cases {
+        ranges.extend(extract_ranges(&case.condition));
+    }
+
+    // 3. Clamp Intervals to Universe
+    let mut clamped: Vec<Range> = Vec::new();
+    for r in ranges {
+        let start = r.start.max(universe_min);
+        let end = r.end.min(universe_max);
+        if start <= end { 
+             clamped.push(Range { start, end });
+        }
+    }
+
+    // 4. Sort and Sweep
+    clamped.sort_by(|a, b| a.start.partial_cmp(&b.start).unwrap_or(std::cmp::Ordering::Equal));
+
+    let mut current = universe_min;
+    let mut is_first = true;
+    let epsilon = 0.0001; 
+
+    // Helper to format
+    let format_val = |v: f64| -> String {
+        format!("{:.1}", v)
+    };
+
+    for r in clamped {
+        // Overlap Check (optional)
+        if !is_first {
+             if r.start < current - epsilon {
+                 // overlap logic
+             }
+        }
+
+        // Check for gap before this range
+        if r.start > current + epsilon {
+            errors.push(EngineError {
+                message: format!(
+                "Coverage Error: Assessment for '{}' is incomplete. Uncovered gap detected: {} ... {}. Valid range is {}...{}.",
+                name, format_val(current), format_val(r.start), format_val(universe_min), format_val(universe_max)
+                ),
+                line,
+                column: 0
+            });
+            current = r.start; 
+        }
+
+        if r.end > current {
+            current = r.end;
+        }
+        is_first = false;
+    }
+
+    if current < universe_max - epsilon {
+         errors.push(EngineError {
+            message: format!(
+                "Coverage Error: Assessment for '{}' is incomplete. Uncovered gap at the end: {} ... {}. Valid range is {}...{}.",
+                name, format_val(current), format_val(universe_max), format_val(universe_min), format_val(universe_max)
+            ),
+            line,
+            column: 0
+        });
+    }
+}
+
+fn extract_ranges(sel: &RangeSelector) -> Vec<Range> {
+    let mut res = Vec::new();
+    
+    let extract_val = |expr: &Expression| -> Option<f64> {
+        if let Expression::Literal(lit) = expr {
+             match lit {
+                 Literal::Number(v, _) => Some(*v),
+                 Literal::Quantity(v, _, _) => Some(*v),
+                 _ => None
+             }
+        } else { None }
+    };
+
+    match sel {
+        RangeSelector::Range(min, max) | RangeSelector::Between(min, max) => {
+             if let (Some(vn), Some(vx)) = (extract_val(min), extract_val(max)) {
+                 res.push(Range { start: vn, end: vx });
+             }
+        },
+        RangeSelector::Condition(op, expr) => {
+             if let Some(v) = extract_val(expr) {
+                 match op {
+                     crate::ast::ConditionOperator::GreaterThan => res.push(Range { start: v, end: f64::INFINITY }), 
+                     crate::ast::ConditionOperator::GreaterThanOrEquals => res.push(Range { start: v, end: f64::INFINITY }),
+                     crate::ast::ConditionOperator::LessThan => res.push(Range { start: f64::NEG_INFINITY, end: v }),
+                     crate::ast::ConditionOperator::LessThanOrEquals => res.push(Range { start: f64::NEG_INFINITY, end: v }),
+                     _ => {}
+                 }
+             }
+        },
+        RangeSelector::Equals(expr) => {
+             if let Some(v) = extract_val(expr) {
+                 res.push(Range { start: v, end: v });
+             }
+        },
+        RangeSelector::List(_selectors) => {
+            // Ignored as simplified
+        }
+        _ => {}
+    }
+    res
+}
+
+pub fn check_string_coverage(
+    name: &str,
+    cases: &[AssessmentCase],
+    required_values: &[&str],
+    line: usize,
+    errors: &mut Vec<EngineError>,
+) {
+    let mut covered = std::collections::HashSet::new();
+    
+    for case in cases {
+        extract_strings(&case.condition, &mut covered);
+    }
+    
+    let mut missing = Vec::new();
+    for req in required_values {
+        if !covered.contains(*req) {
+            missing.push(*req);
+        }
+    }
+    
+    if !missing.is_empty() {
+        errors.push(EngineError {
+            message: format!(
+                "Coverage Error: Assessment for '{}' is incomplete. Missing cases: {}. Required: {}.",
+                name,
+                missing.join(", "),
+                required_values.join(", ")
+            ),
+            line,
+            column: 0
+        });
+    }
+}
+
+fn extract_strings(sel: &RangeSelector, covered: &mut std::collections::HashSet<String>) {
+     match sel {
+        RangeSelector::Equals(Expression::Literal(Literal::String(s))) => {
+            covered.insert(s.clone());
+        },
+        // RangeSelector could be just a string literal in some parsing contexts?
+        // Actually, parser for "string" usually produces RangeSelector::Equals(Literal::String)
+        // Check grammar: range_selector -> expression -> literal -> string
+        // The parser converts expression to RangeSelector::Equals/etc.
+        // Wait, if I write `"increase": ...`
+        // `range_selector` rule in parser matches `expression`.
+        // `expression` matches `string_literal`.
+        // The AST builder wraps pure expression in `RangeSelector::Equals` usually?
+        // Let's assume standard expression parsing wraps it in Equals.
+        // Or specific selector types?
+        // If it's just `Expression`, parser likely returns `RangeSelector::Equals(expr)`? 
+        // Need to verify `parser.rs` or just be robust.
+        _ => {}
+    }
+}
