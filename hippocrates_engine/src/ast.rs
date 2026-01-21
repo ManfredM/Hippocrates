@@ -180,7 +180,7 @@ pub enum StatementKind {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TimeframeBlock {
     pub for_analysis: bool,
-    pub constraint: Option<(String, RangeSelector)>,
+    pub constraints: Vec<(String, RangeSelector)>,
     pub block: Vec<Statement>,
 }
 

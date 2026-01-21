@@ -24,6 +24,7 @@ fn test_not_enough_data() {
     // Manually push context as if running a rule
     let ctx = EvaluationContext {
         timeframe: Some(RangeSelector::Range(five_days_ago, now_expr)),
+        period: None,
     };
     env.push_context(ctx);
 
@@ -55,6 +56,7 @@ fn test_not_enough_data() {
 
     let ctx = EvaluationContext {
         timeframe: Some(RangeSelector::Range(five_days_ago, now_expr)),
+        period: None,
     };
     env.push_context(ctx);
     let res_valid = Evaluator::evaluate(&env, &count_expr);

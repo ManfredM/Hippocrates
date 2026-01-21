@@ -1012,45 +1012,39 @@ fn parse_statement(pair: pest::iterators::Pair<Rule>) -> Result<Statement, Parse
             StatementKind::ContextBlock(ContextBlock { items, statements })
         }
         Rule::timeframe_block => {
-             let mut tf_inner = inner.into_inner();
+             let mut tf_inner = inner.into_inner().peekable();
              let mut for_analysis = false;
-             let mut constraint = None;
+             let mut constraints = Vec::new();
              let mut stmts = Vec::new();
-             
-             // Peekable iterator or manual tracking?
-             // Since order is fixed: flag? -> op? -> range? -> statements+
-             
-             let mut next_pair = tf_inner.next();
-             
-             if let Some(pair) = next_pair.as_ref() {
-                 if pair.as_rule() == Rule::for_analysis_flag {
-                      for_analysis = true;
-                      next_pair = tf_inner.next();
+
+             while let Some(pair) = tf_inner.peek() {
+                 match pair.as_rule() {
+                     Rule::for_analysis_flag => {
+                         for_analysis = true;
+                         tf_inner.next();
+                     }
+                     Rule::constraint_operator => {
+                         let op = tf_inner.next().unwrap().as_str().to_string();
+                         let range_pair = tf_inner.next().ok_or_else(|| {
+                             ParseError::ValidationError(
+                                 "Missing range selector for timeframe constraint".to_string(),
+                             )
+                         })?;
+                         let range = parse_range_selector(range_pair)?;
+                         constraints.push((op, range));
+                     }
+                     Rule::statement => {
+                         stmts.push(parse_statement(tf_inner.next().unwrap())?);
+                     }
+                     _ => {
+                         tf_inner.next();
+                     }
                  }
              }
-             
-             // Check operator/range
-             if let Some(pair) = next_pair.as_ref() {
-                 if pair.as_rule() == Rule::constraint_operator {
-                      let op = pair.as_str().to_string();
-                      if let Some(range_pair) = tf_inner.next() {
-                           let range = parse_range_selector(range_pair)?;
-                           constraint = Some((op, range));
-                      }
-                      next_pair = tf_inner.next();
-                 }
-             }
-             
-             while let Some(pair) = next_pair {
-                 if pair.as_rule() == Rule::statement {
-                      stmts.push(parse_statement(pair)?);
-                 }
-                 next_pair = tf_inner.next();
-             }
-             
+
              StatementKind::Timeframe(crate::ast::TimeframeBlock {
                  for_analysis,
-                 constraint,
+                 constraints,
                  block: stmts,
              })
         }

@@ -221,8 +221,9 @@ block = { statement };
 context_block = "context", [ " for analysis" ], ":", newline, indent, { context_item | statement }, dedent;
 
 timeframe_block =
-    "timeframe", [ " for analysis" ], [ constraint_operator, range_selector ], ":", newline,
-    indent, { statement }, dedent;
+    "timeframe", [ " for analysis" ],
+    [ constraint_operator, range_selector, { constraint_operator, range_selector } ],
+    ":", newline, indent, { statement }, dedent;
 ```
 
 ### 3.7. Actions and Questions
@@ -477,12 +478,23 @@ Before execution, the runtime validates that:
 <dose> is a unit:
     plural is <doses>
 
+<best inhalation period> is a period:
+    timeframe:
+        between Monday ... Sunday; 07:00 ... 09:00
+
 <inhaler used in past 5 days> is a number:
     valid values:
         0 <doses> ... 1000 <doses>
     calculation:
         timeframe for analysis is between 5 days ago ... now:
             <inhaler used in past 5 days> = count of <inhaler used> is "Yes".
+
+<inhaler used in past 5 days on time> is a number:
+    valid values:
+        0 <doses> ... 1000 <doses>
+    calculation:
+        timeframe for analysis is between 5 days ago ... now during <best inhalation period>:
+            <inhaler used in past 5 days on time> = count of <inhaler used> is "Yes".
 ```
 
 ### 6.3. Handling Insufficient Data

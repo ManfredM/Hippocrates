@@ -31,14 +31,14 @@ fn print_usage() {
     eprintln!("Usage:");
     eprintln!("  hippocrates-cli <file_path>");
     eprintln!(
-        "  hippocrates-cli simulate <file_path> [--plan <plan_name>] [--answers <answers.json>] [--mode real-time|time-lapse]"
+        "  hippocrates-cli simulate <file_path> [--plan <plan_name>] [--answers <answers.json>] [--mode real-time|time-lapse] [--duration <duration>]"
     );
 }
 
 fn print_simulate_usage() {
     eprintln!("Usage:");
     eprintln!(
-        "  hippocrates-cli simulate <file_path> [--plan <plan_name>] [--answers <answers.json>] [--mode real-time|time-lapse]"
+        "  hippocrates-cli simulate <file_path> [--plan <plan_name>] [--answers <answers.json>] [--mode real-time|time-lapse] [--duration <duration>]"
     );
 }
 
@@ -80,6 +80,7 @@ fn run_simulate(args: &[String]) {
     let mut answers_path: Option<String> = None;
 
     let mut mode = "time-lapse".to_string();
+    let mut duration_arg: Option<String> = None;
     let mut iter = args.iter();
     while let Some(arg) = iter.next() {
         match arg.as_str() {
@@ -91,6 +92,9 @@ fn run_simulate(args: &[String]) {
             }
             "--mode" => {
                 mode = next_arg_or_exit(&mut iter, "--mode");
+            }
+            "--duration" => {
+                duration_arg = Some(next_arg_or_exit(&mut iter, "--duration"));
             }
             "--help" | "-h" => {
                 print_simulate_usage();
@@ -166,21 +170,38 @@ fn run_simulate(args: &[String]) {
     let answers = Arc::new(Mutex::new(answers));
     let has_answers = answers_path.is_some();
 
+    let duration = match duration_arg {
+        Some(value) => match parse_duration_arg(&value) {
+            Ok(duration) => Some(duration),
+            Err(err) => {
+                eprintln!("Invalid duration '{}': {}", value, err);
+                process::exit(1);
+            }
+        },
+        None => None,
+    };
+
     let (tx_input, rx_input) = std::sync::mpsc::channel();
     let mut executor = Executor::new(Arc::new(AtomicBool::new(false)));
     match mode.as_str() {
         "real-time" => executor.set_mode(ExecutionMode::RealTime),
         "time-lapse" => executor.set_mode(ExecutionMode::Simulation {
             speed_factor: None,
-            duration: None,
+            duration,
         }),
         _ => {
             eprintln!("Invalid mode '{}'. Use 'real-time' or 'time-lapse'.", mode);
             process::exit(1);
         }
     }
+
+    if duration.is_some() && mode == "real-time" {
+        eprintln!("--duration is only supported with --mode time-lapse.");
+        process::exit(1);
+    }
     executor.set_input_receiver(rx_input);
 
+    let is_time_lapse = mode == "time-lapse";
     let answers_clone = Arc::clone(&answers);
     let unit_map_clone = Arc::clone(&unit_map);
     let value_types_clone = Arc::clone(&value_types);
@@ -207,8 +228,8 @@ fn run_simulate(args: &[String]) {
             guard.get_mut(&answer_key).and_then(|queue| queue.pop_front())
         };
 
-        let answer_value = match next_answer {
-            Some(value) => value,
+        let answer_entry = match next_answer {
+            Some(entry) => entry,
             None => {
                 eprintln!("No answer available for '{}'.", req.variable_name);
                 process::exit(1);
@@ -223,7 +244,7 @@ fn run_simulate(args: &[String]) {
             }
         };
 
-        let runtime_value = match parse_answer_value(value_type, &answer_value, &unit_map_clone) {
+        let runtime_value = match parse_answer_value(value_type, &answer_entry.value, &unit_map_clone) {
             Ok(value) => value,
             Err(err) => {
                 eprintln!("Invalid answer for '{}': {}", req.variable_name, err);
@@ -231,9 +252,14 @@ fn run_simulate(args: &[String]) {
             }
         };
 
-        let timestamp = DateTime::<Utc>::from_timestamp_millis(req.timestamp)
+        let mut timestamp = DateTime::<Utc>::from_timestamp_millis(req.timestamp)
             .unwrap_or_else(Utc::now)
             .naive_utc();
+        if let Some(delay) = answer_entry.delay {
+            if is_time_lapse {
+                timestamp = timestamp + delay;
+            }
+        }
 
         let msg = InputMessage {
             variable: normalized_name,
@@ -256,7 +282,13 @@ fn run_simulate(args: &[String]) {
     }
 
     executor.execute_plan(&mut env, &plan_name);
-    write_stdout_line(&output_lock, "Simulation finished.");
+    write_stdout_line(
+        &output_lock,
+        &format!(
+            "[{}] Simulation finished.",
+            env.now.format("%Y-%m-%d %H:%M:%S")
+        ),
+    );
 }
 
 fn read_file_or_exit(file_path: &str) -> String {
@@ -328,7 +360,13 @@ fn build_value_type_map(plan: &hippocrates_engine::ast::Plan) -> HashMap<String,
     map
 }
 
-type AnswerMap = HashMap<String, VecDeque<Value>>;
+#[derive(Debug, Clone)]
+struct AnswerEntry {
+    value: Value,
+    delay: Option<chrono::Duration>,
+}
+
+type AnswerMap = HashMap<String, VecDeque<AnswerEntry>>;
 
 fn load_answers(path: &str) -> Result<AnswerMap, String> {
     let content = fs::read_to_string(path).map_err(|e| format!("Error reading answers file: {}", e))?;
@@ -343,10 +381,10 @@ fn load_answers(path: &str) -> Result<AnswerMap, String> {
                 let name = format_identifier(&key);
                 if let Value::Array(items) = value {
                     for item in items {
-                        push_answer(&mut map, &name, item);
+                        push_answer(&mut map, &name, item)?;
                     }
                 } else {
-                    push_answer(&mut map, &name, value);
+                    push_answer(&mut map, &name, value)?;
                 }
             }
         }
@@ -365,8 +403,9 @@ fn load_answers(path: &str) -> Result<AnswerMap, String> {
                     .get("value")
                     .cloned()
                     .ok_or_else(|| "Answer items must include a 'value' field".to_string())?;
+                let delay = obj.get("delay").cloned();
                 let name = format_identifier(variable);
-                push_answer(&mut map, &name, value);
+                push_answer_with_delay(&mut map, &name, value, delay)?;
             }
         }
         _ => {
@@ -377,10 +416,32 @@ fn load_answers(path: &str) -> Result<AnswerMap, String> {
     Ok(map)
 }
 
-fn push_answer(map: &mut AnswerMap, variable: &str, value: Value) {
+fn push_answer(map: &mut AnswerMap, variable: &str, value: Value) -> Result<(), String> {
+    let entry = parse_answer_entry(value)?;
     map.entry(variable.to_string())
         .or_insert_with(VecDeque::new)
-        .push_back(value);
+        .push_back(entry);
+    Ok(())
+}
+
+fn push_answer_with_delay(
+    map: &mut AnswerMap,
+    variable: &str,
+    value: Value,
+    delay: Option<Value>,
+) -> Result<(), String> {
+    let mut entry = parse_answer_entry(value)?;
+    if let Some(delay_value) = delay {
+        let delay = parse_delay_value(&delay_value)?;
+        if entry.delay.is_some() {
+            return Err("Delay specified multiple times for an answer.".to_string());
+        }
+        entry.delay = Some(delay);
+    }
+    map.entry(variable.to_string())
+        .or_insert_with(VecDeque::new)
+        .push_back(entry);
+    Ok(())
 }
 
 fn parse_answer_value(
@@ -403,6 +464,101 @@ fn parse_answer_value(
             let text = parse_string_value(value)?;
             Ok(RuntimeValue::String(text))
         }
+    }
+}
+
+fn parse_answer_entry(value: Value) -> Result<AnswerEntry, String> {
+    match value {
+        Value::Object(mut obj) => {
+            let delay = if let Some(delay_value) = obj.remove("delay") {
+                Some(parse_delay_value(&delay_value)?)
+            } else {
+                None
+            };
+
+            if obj.contains_key("value")
+                && !obj.contains_key("unit")
+                && !obj.contains_key("units")
+                && obj.len() == 1
+            {
+                let inner = obj
+                    .remove("value")
+                    .ok_or_else(|| "Expected 'value' field.".to_string())?;
+                return Ok(AnswerEntry {
+                    value: inner,
+                    delay,
+                });
+            }
+
+            Ok(AnswerEntry {
+                value: Value::Object(obj),
+                delay,
+            })
+        }
+        other => Ok(AnswerEntry {
+            value: other,
+            delay: None,
+        }),
+    }
+}
+
+fn parse_delay_value(value: &Value) -> Result<chrono::Duration, String> {
+    match value {
+        Value::String(s) => parse_duration_arg(s),
+        Value::Number(n) => {
+            let secs = n
+                .as_f64()
+                .ok_or_else(|| "Delay must be a valid number.".to_string())?;
+            if secs <= 0.0 {
+                return Err("Delay must be greater than zero.".to_string());
+            }
+            Ok(chrono::Duration::milliseconds((secs * 1000.0) as i64))
+        }
+        Value::Object(obj) => {
+            let amount = obj
+                .get("value")
+                .ok_or_else(|| "Delay object must include 'value'.".to_string())?;
+            let unit = obj
+                .get("unit")
+                .or_else(|| obj.get("units"))
+                .and_then(|v| v.as_str())
+                .ok_or_else(|| "Delay object must include a string 'unit'.".to_string())?;
+
+            let numeric = match amount {
+                Value::Number(n) => n
+                    .as_f64()
+                    .ok_or_else(|| "Delay value must be a valid number.".to_string())?,
+                Value::String(s) => s
+                    .parse::<f64>()
+                    .map_err(|_| "Delay value must be a valid number.".to_string())?,
+                _ => return Err("Delay value must be a number or string.".to_string()),
+            };
+
+            if numeric <= 0.0 {
+                return Err("Delay must be greater than zero.".to_string());
+            }
+
+            let empty_units = HashMap::new();
+            let unit = parse_unit_string(unit, &empty_units);
+            let secs = match unit {
+                Unit::Second => numeric,
+                Unit::Minute => numeric * 60.0,
+                Unit::Hour => numeric * 3600.0,
+                Unit::Day => numeric * 86400.0,
+                Unit::Week => numeric * 604800.0,
+                Unit::Month => numeric * 2592000.0,
+                Unit::Year => numeric * 31536000.0,
+                _ => {
+                    return Err(format!(
+                        "Unsupported delay unit '{:?}'. Use seconds, minutes, hours, days, weeks, months, or years.",
+                        unit
+                    ));
+                }
+            };
+
+            Ok(chrono::Duration::milliseconds((secs * 1000.0) as i64))
+        }
+        _ => Err("Delay must be a string or object.".to_string()),
     }
 }
 
@@ -496,6 +652,36 @@ fn parse_quantity_string(input: &str) -> Option<(f64, String)> {
     }
 
     Some((value, unit.to_string()))
+}
+
+fn parse_duration_arg(input: &str) -> Result<chrono::Duration, String> {
+    let (value, unit_str) = parse_quantity_string(input)
+        .ok_or_else(|| "Expected a duration like '30 days' or '12 hours'.".to_string())?;
+
+    if value <= 0.0 {
+        return Err("Duration must be greater than zero.".to_string());
+    }
+
+    let empty_units = HashMap::new();
+    let unit = parse_unit_string(&unit_str, &empty_units);
+
+    let secs = match unit {
+        Unit::Second => value,
+        Unit::Minute => value * 60.0,
+        Unit::Hour => value * 3600.0,
+        Unit::Day => value * 86400.0,
+        Unit::Week => value * 604800.0,
+        Unit::Month => value * 2592000.0,
+        Unit::Year => value * 31536000.0,
+        _ => {
+            return Err(format!(
+                "Unsupported duration unit '{}'. Use seconds, minutes, hours, days, weeks, months, or years.",
+                unit_str
+            ));
+        }
+    };
+
+    Ok(chrono::Duration::milliseconds((secs * 1000.0) as i64))
 }
 
 fn parse_unit_string(unit_str: &str, unit_map: &HashMap<String, Unit>) -> Unit {

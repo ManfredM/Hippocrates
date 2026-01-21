@@ -114,7 +114,7 @@
         6 <doses> ... 1000 <doses>:
             meaning of value = "too many doses taken".
     calculation:
-        timeframe for analysis is between 5 days ago ... now:
+        timeframe for analysis is between 5 days ago ... now during <best inhalation period>:
             <value> = count of <inhaler used> is "Yes".
     (* reuse:
         reuse period of value is 1 day.
@@ -130,13 +130,13 @@
         
         show message to <patient> "It's the best time of the day to take your daily shot now":
             message expires after <best inhalation period>.
+        ask for <inhaler used>.
 
     <reporting> with begin of <fill in evening report>:
         documentation:
             english: "Ask for the daily reporting...".
         
         ask for <severity of breathlessness>.
-        ask for <inhaler used>.
         ask for <use of rescue medication>.
 
         context for analysis:
@@ -149,6 +149,8 @@
 
         timeframe for analysis is between 5 days ago ... now:
             <inhaler used in past 5 days> = count of <inhaler used> is "Yes".
+
+        timeframe for analysis is between 5 days ago ... now during <best inhalation period>:
             <inhaler used in past 5 days on time> = count of <inhaler used> is "Yes".
 
         assess <inhaler used in past 5 days on time>:
@@ -165,9 +167,9 @@
                         show message to <patient> "Not using a medication does not lead to improvement!".
                     1 <dose> ... 2 <doses>:
                         show message to <patient> "You must use the inhaler more regular".
-                    3 <doses> ... 5 <doses>:
+                    3 <doses> ... 6 <doses>:
                         show message to <patient> "You are using the inhaler frequently enough, but you should also use at the same time every day.".
-                    6 <doses> ... 10 <doses>:
+                    7 <doses> ... 10 <doses>:
                         show message to <patient> "You took between 6 and 10 doses in past 5 days. Please do not use more than one dose per day".
                     11 <doses> ... 1000 <doses>:
                         show message to <patient> "We have recorded more than 10 uses of the inhaler. Please contact us to investigate the reason for that.".

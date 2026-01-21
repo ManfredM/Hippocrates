@@ -1,0 +1,11 @@
+{
+  "<severity of breathlessness>": [
+    { "value": 2, "unit": "pts" }
+  ],
+  "<inhaler used>": [
+    "Yes"
+  ],
+  "<use of rescue medication>": [
+    { "value": 1, "unit": "uses" }
+  ]
+}

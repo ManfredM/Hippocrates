@@ -172,28 +172,13 @@ pub unsafe extern "C" fn hippocrates_simulate_occurrences(
     let start_dt = DateTime::from_timestamp_millis(start_ts).unwrap().naive_utc();
     
     let end_limit = start_dt + chrono::Duration::days(duration_days as i64);
-    let mut current_time = start_dt;
-    
-    // Loop to find occurrences
-    // Limit to reasonable count to prevent infinite loop
-    for _ in 0..100 {
-        if current_time >= end_limit { break; }
-        
-        if let Some((start, end)) = Scheduler::next_occurrence(&def, current_time) {
-            // Ensure we advance time
-            if start <= current_time {
-                 current_time = current_time + chrono::Duration::minutes(1);
-                 continue;
-            }
-            
-            occurrences.push(Occur {
-                start: start.and_utc().to_rfc3339(),
-                end: end.and_utc().to_rfc3339()
-            });
-            current_time = start; // Advance to start of this occurrence
-        } else {
-            break;
-        }
+
+    let scheduled = Scheduler::occurrences_in_range(&def, start_dt, end_limit);
+    for (start, end) in scheduled {
+        occurrences.push(Occur {
+            start: start.and_utc().to_rfc3339(),
+            end: end.and_utc().to_rfc3339(),
+        });
     }
     
     match serde_json::to_string(&occurrences) {

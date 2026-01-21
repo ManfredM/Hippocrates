@@ -1,4 +1,7 @@
-use crate::ast::{Definition, Plan, RangeSelector};
+use crate::ast::{
+    AssessmentCase, Definition, Expression, Literal, Plan, Property, RangeSelector, Statement,
+    StatementKind,
+};
 use crate::domain::{RuntimeValue, ValueInstance};
 use chrono::{Utc, NaiveDateTime};
 use std::collections::HashMap;
@@ -22,6 +25,7 @@ pub struct Environment {
 #[derive(Debug, Clone)]
 pub struct EvaluationContext {
     pub timeframe: Option<RangeSelector>,
+    pub period: Option<String>,
 }
 
 impl fmt::Debug for Environment {
@@ -35,6 +39,53 @@ impl fmt::Debug for Environment {
             .field("output_handler", &"fn(...)")
             .field("unit_map", &self.unit_map)
             .finish()
+    }
+}
+
+impl EvaluationContext {
+    pub fn from_constraints(
+        defs: &HashMap<String, Definition>,
+        constraints: &[(String, RangeSelector)],
+    ) -> Self {
+        let mut timeframe = None;
+        let mut period = None;
+
+        for (op, selector) in constraints {
+            match op.as_str() {
+                "during" => {
+                    if let Some(name) = Self::period_name_from_selector(defs, selector) {
+                        period = Some(name);
+                    } else {
+                        timeframe = Some(selector.clone());
+                    }
+                }
+                "is" | "after" => {
+                    timeframe = Some(selector.clone());
+                }
+                _ => {}
+            }
+        }
+
+        EvaluationContext { timeframe, period }
+    }
+
+    fn period_name_from_selector(
+        defs: &HashMap<String, Definition>,
+        selector: &RangeSelector,
+    ) -> Option<String> {
+        let name = match selector {
+            RangeSelector::Equals(expr) => match expr {
+                Expression::Variable(name) => name.clone(),
+                Expression::Literal(Literal::String(name)) => name.clone(),
+                _ => return None,
+            },
+            _ => return None,
+        };
+
+        match defs.get(&name) {
+            Some(Definition::Period(_)) => Some(name),
+            _ => None,
+        }
     }
 }
 
@@ -124,6 +175,43 @@ impl Environment {
             self.definitions.insert(name, def);
         }
     }
+
+    pub fn expected_unit_for_value(&self, name: &str) -> Option<crate::domain::Unit> {
+        let normalized = super::normalize_identifier(name);
+        let def = self.definitions.get(&normalized)?;
+        let value_def = match def {
+            Definition::Value(v) => v,
+            _ => return None,
+        };
+
+        if !matches!(value_def.value_type, crate::domain::ValueType::Number) {
+            return None;
+        }
+
+        for prop in &value_def.properties {
+            if let Property::Unit(unit) = prop {
+                return Some(canonicalize_unit(unit, &self.unit_map));
+            }
+        }
+
+        for prop in &value_def.properties {
+            match prop {
+                Property::ValidValues(stmts) => {
+                    if let Some(unit) = unit_from_statements(stmts, &self.unit_map) {
+                        return Some(unit);
+                    }
+                }
+                Property::Meaning(cases) => {
+                    if let Some(unit) = unit_from_cases(cases, &self.unit_map) {
+                        return Some(unit);
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        None
+    }
     
     fn default_value_for(&self, vt: &crate::domain::ValueType) -> RuntimeValue {
         use crate::domain::{RuntimeValue, ValueType};
@@ -141,6 +229,8 @@ impl Environment {
 
     pub fn set_value_at(&mut self, name: &str, value: RuntimeValue, timestamp: NaiveDateTime) {
         let normalized = super::normalize_identifier(name);
+        let value_display = value.to_string();
+        let timestamp_display = format_timestamp(timestamp);
         let instance = ValueInstance { value, timestamp };
         let history = self.values.entry(normalized).or_insert_with(Vec::new);
         history.push(instance);
@@ -148,6 +238,12 @@ impl Environment {
         // Ideally yes, but expensive if frequent. For now, assume append-only or sort on read if needed.
         // Let's sort on insert to be safe for analysis.
         history.sort_by_key(|v| v.timestamp);
+        println!(
+            "DEBUG: Created value instance {} at {} => {}",
+            super::format_identifier(name),
+            timestamp_display,
+            value_display
+        );
     }
 
     pub fn get_value(&self, name: &str) -> Option<&RuntimeValue> {
@@ -165,8 +261,8 @@ impl Environment {
 
     pub fn log(&mut self, message: String) {
         if let Some(handler) = &self.output_handler {
-            // println!("DEBUG: Calling output handler");
-            handler(message.clone());
+            let formatted = format!("[{}] {}", format_timestamp(self.now), message);
+            handler(formatted);
         } else {
             println!("DEBUG: No output handler set!");
         }
@@ -182,4 +278,83 @@ impl Environment {
         };
         self.audit_log.push(entry);
     }
+}
+
+fn canonicalize_unit(
+    unit: &crate::domain::Unit,
+    unit_map: &HashMap<String, crate::domain::Unit>,
+) -> crate::domain::Unit {
+    match unit {
+        crate::domain::Unit::Custom(name) => unit_map.get(name).cloned().unwrap_or_else(|| {
+            crate::domain::Unit::Custom(name.clone())
+        }),
+        _ => unit.clone(),
+    }
+}
+
+fn unit_from_statements(
+    stmts: &[Statement],
+    unit_map: &HashMap<String, crate::domain::Unit>,
+) -> Option<crate::domain::Unit> {
+    for stmt in stmts {
+        let unit = match &stmt.kind {
+            StatementKind::Constraint(_, _, selector) => unit_from_selector(selector, unit_map),
+            StatementKind::EventProgression(_, cases) => unit_from_cases(cases, unit_map),
+            _ => None,
+        };
+        if unit.is_some() {
+            return unit;
+        }
+    }
+    None
+}
+
+fn unit_from_cases(
+    cases: &[AssessmentCase],
+    unit_map: &HashMap<String, crate::domain::Unit>,
+) -> Option<crate::domain::Unit> {
+    for case in cases {
+        if let Some(unit) = unit_from_selector(&case.condition, unit_map) {
+            return Some(unit);
+        }
+    }
+    None
+}
+
+fn unit_from_selector(
+    selector: &RangeSelector,
+    unit_map: &HashMap<String, crate::domain::Unit>,
+) -> Option<crate::domain::Unit> {
+    match selector {
+        RangeSelector::Range(min, max) | RangeSelector::Between(min, max) => {
+            unit_from_expression(min, unit_map)
+                .or_else(|| unit_from_expression(max, unit_map))
+        }
+        RangeSelector::Equals(expr) => unit_from_expression(expr, unit_map),
+        RangeSelector::List(items) => {
+            for item in items {
+                if let Some(unit) = unit_from_expression(item, unit_map) {
+                    return Some(unit);
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+fn unit_from_expression(
+    expr: &Expression,
+    unit_map: &HashMap<String, crate::domain::Unit>,
+) -> Option<crate::domain::Unit> {
+    match expr {
+        Expression::Literal(Literal::Quantity(_, unit, _)) => {
+            Some(canonicalize_unit(unit, unit_map))
+        }
+        _ => None,
+    }
+}
+
+fn format_timestamp(timestamp: NaiveDateTime) -> String {
+    timestamp.format("%Y-%m-%d %H:%M:%S").to_string()
 }

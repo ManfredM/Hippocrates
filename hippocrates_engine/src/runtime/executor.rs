@@ -2,7 +2,7 @@ use crate::ast::{Action, Block, Statement, StatementKind};
 use crate::domain::Unit;
 use crate::runtime::{Environment, Evaluator, format_identifier, normalize_identifier, scheduler::Scheduler};
 use std::cmp::Ordering;
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, HashMap};
 use std::sync::{Arc, atomic::{AtomicBool, Ordering as AtomicOrdering}};
 
 #[derive(Debug, Clone)]
@@ -60,6 +60,7 @@ pub struct Executor {
     pub input_receiver: Option<std::sync::mpsc::Receiver<crate::domain::InputMessage>>,
     pub stop_signal: Arc<AtomicBool>,
     next_event_time: Option<chrono::NaiveDateTime>,
+    pending_inputs: Vec<crate::domain::InputMessage>,
 }
 
 impl Executor {
@@ -72,6 +73,7 @@ impl Executor {
             input_receiver: None,
             stop_signal,
             next_event_time: None,
+            pending_inputs: Vec::new(),
         }
     }
 
@@ -87,6 +89,7 @@ impl Executor {
             input_receiver: None,
             stop_signal: Arc::new(AtomicBool::new(false)),
             next_event_time: None,
+            pending_inputs: Vec::new(),
         }
     }
 
@@ -99,24 +102,35 @@ impl Executor {
     }
 
     pub fn drain_inputs(&mut self, env: &mut Environment) {
+        let mut incoming = Vec::new();
         if let Some(rx) = &self.input_receiver {
             while let Ok(msg) = rx.try_recv() {
-                let normalized = normalize_identifier(&msg.variable);
-                env.set_value_at(&normalized, msg.value, msg.timestamp);
+                incoming.push(msg);
             }
         }
+        for mut msg in incoming {
+            msg.variable = normalize_identifier(&msg.variable);
+            self.pending_inputs.push(msg);
+        }
+        self.pending_inputs.sort_by_key(|item| item.timestamp);
+        self.apply_due_inputs(env, false);
     }
 
     fn drain_inputs_with_triggers(&mut self, env: &mut Environment) {
         let rx_opt = self.input_receiver.take();
+        let mut incoming = Vec::new();
         if let Some(rx) = &rx_opt {
             while let Ok(msg) = rx.try_recv() {
-                let normalized = normalize_identifier(&msg.variable);
-                env.set_value_at(&normalized, msg.value.clone(), msg.timestamp);
-                self.check_triggers(env, &normalized);
+                incoming.push(msg);
             }
         }
+        for mut msg in incoming {
+            msg.variable = normalize_identifier(&msg.variable);
+            self.pending_inputs.push(msg);
+        }
+        self.pending_inputs.sort_by_key(|item| item.timestamp);
         self.input_receiver = rx_opt;
+        self.apply_due_inputs(env, true);
     }
 
     pub fn execute_plan(&mut self, env: &mut Environment, plan_name: &str) {
@@ -132,6 +146,8 @@ impl Executor {
 
             let mut events = BinaryHeap::new();
             let start_time = env.now;
+            let start_of_window = chrono::Duration::days(30);
+            let mut start_of_windows: HashMap<String, chrono::NaiveDateTime> = HashMap::new();
             
             let end_time = match self.mode {
                 ExecutionMode::Simulation { duration, .. } => duration.map(|d| start_time + d),
@@ -224,22 +240,29 @@ impl Executor {
                     crate::ast::PlanBlock::Event(block) => {
                         if let crate::ast::Trigger::StartOf(target) = &block.trigger {
                             if let Some(def) = defs.get(target) {
-                                if let Some((next, _)) = Scheduler::next_occurrence(def, start_time)
-                                {
+                                let window_end = start_time + start_of_window;
 
-                                    events.push(ScheduledEvent {
-                                        time: next,
-                                        kind: EventKind::StartOf {
-                                            block: block.clone(),
-                                            period_name: target.clone(),
-                                        },
-                                    });
-                                } else {
+                                let occurrences =
+                                    Scheduler::occurrences_in_range(def, start_time, window_end);
+                                if occurrences.is_empty() {
                                     println!(
                                         "DEBUG: Could not schedule '{}', no valid time found.",
                                         block.name
                                     );
                                 }
+                                for (start, _end) in occurrences {
+                                    events.push(ScheduledEvent {
+                                        time: start,
+                                        kind: EventKind::StartOf {
+                                            block: block.clone(),
+                                            period_name: target.clone(),
+                                        },
+                                    });
+                                }
+
+                                let window_key =
+                                    Self::start_of_window_key(&block.name, target);
+                                start_of_windows.insert(window_key, window_end);
                             } else {
                                 println!("DEBUG: Definition for '{}' not found.", target);
                             }
@@ -260,7 +283,10 @@ impl Executor {
 
                 if let Some(limit) = end_time {
                     if now > limit {
-                        println!("DEBUG: Simulation time limit reached.");
+                        println!(
+                            "DEBUG [{}] Simulation time limit reached.",
+                            now.format("%Y-%m-%d %H:%M:%S")
+                        );
                         break;
                     }
                 }
@@ -331,17 +357,28 @@ impl Executor {
                     EventKind::StartOf { block, period_name } => {
                         self.execute_block(env, &block.statements);
 
-                        // Reschedule next occurrence
-                        if let Some(def) = defs.get(&period_name)
-                        {
-                            if let Some((next, _)) = Scheduler::next_occurrence(def, now) {
-                                // Ensure we don't schedule same time again loop
-                                if next > now {
-                                    events.push(ScheduledEvent {
-                                        time: next,
-                                        kind: EventKind::StartOf { block, period_name },
-                                    });
+                        let window_key = Self::start_of_window_key(&block.name, &period_name);
+                        if let Some(window_end) = start_of_windows.get_mut(&window_key) {
+                            let desired_end = now + start_of_window;
+
+                            if desired_end > *window_end {
+                                if let Some(def) = defs.get(&period_name) {
+                                    let occurrences = Scheduler::occurrences_in_range(
+                                        def,
+                                        *window_end,
+                                        desired_end,
+                                    );
+                                    for (start, _end) in occurrences {
+                                        events.push(ScheduledEvent {
+                                            time: start,
+                                            kind: EventKind::StartOf {
+                                                block: block.clone(),
+                                                period_name: period_name.clone(),
+                                            },
+                                        });
+                                    }
                                 }
+                                *window_end = desired_end;
                             }
                         }
                     }
@@ -356,6 +393,10 @@ impl Executor {
             );
             env.log(format!("Plan not found: {}", plan_name));
         }
+    }
+
+    fn start_of_window_key(block_name: &str, period_name: &str) -> String {
+        format!("{}|{}", block_name, period_name)
     }
 
     pub fn execute_block(&mut self, env: &mut Environment, stmts: &Block) {
@@ -373,16 +414,21 @@ impl Executor {
 
         match &stmt.kind {
             StatementKind::Timeframe(block) => {
-                 // TODO: Implement timeframe logic (context stacking?)
-                 // For now, just execute the block?
-                 // Or ignore "for analysis"?
-                 // "Timeframe for analysis" is declarative, might not execute?
-                 // But "Timeframe during X" acts as a guard?
-                 // For current scope: just execute statements.
-                 // Real implementation needs to handle constraints.
-                 for s in &block.block {
-                     self.execute_statement(env, s);
-                 }
+                if block.for_analysis {
+                    let ctx = crate::runtime::environment::EvaluationContext::from_constraints(
+                        &env.definitions,
+                        &block.constraints,
+                    );
+                    env.push_context(ctx);
+                    for s in &block.block {
+                        self.execute_statement(env, s);
+                    }
+                    env.pop_context();
+                } else {
+                    for s in &block.block {
+                        self.execute_statement(env, s);
+                    }
+                }
             }
             StatementKind::Action(action) => self.execute_action(env, action),
             StatementKind::Assignment(assign) => {
@@ -396,6 +442,20 @@ impl Executor {
                     val = Evaluator::evaluate(env, &assign.expression);
                     if matches!(val, crate::domain::RuntimeValue::Missing(_)) {
                         return;
+                    }
+                }
+
+                if let Some(expected_unit) = env.expected_unit_for_value(&assign.target) {
+                    let is_count = matches!(
+                        &assign.expression,
+                        crate::ast::Expression::Statistical(
+                            crate::ast::StatisticalFunc::CountOf(_, _)
+                        )
+                    );
+                    if is_count {
+                        if let crate::domain::RuntimeValue::Number(n) = val {
+                            val = crate::domain::RuntimeValue::Quantity(n, expected_unit);
+                        }
                     }
                 }
 
@@ -452,7 +512,10 @@ impl Executor {
                         timeframe = Some(ts.clone());
                     }
                 }
-                let ctx = crate::runtime::environment::EvaluationContext { timeframe };
+                let ctx = crate::runtime::environment::EvaluationContext {
+                    timeframe,
+                    period: None,
+                };
 
                 env.push_context(ctx);
                 self.execute_block(env, &cb.statements);
@@ -491,7 +554,11 @@ impl Executor {
             }
         }
 
-        println!("DEBUG: Condition Value: {:?}", val);
+        println!(
+            "DEBUG [{}] Condition Value: {:?}",
+            env.now.format("%Y-%m-%d %H:%M:%S"),
+            val
+        );
 
         // Context-aware resolution
         let val = if let crate::domain::RuntimeValue::String(s) = &val {
@@ -507,7 +574,12 @@ impl Executor {
         for case in &cond_stmt.cases {
             let selector = &case.condition;
             let is_match = Evaluator::check_condition(env, selector, &val);
-            println!("DEBUG: Checking selector {:?} (match={})", selector, is_match);
+            println!(
+                "DEBUG [{}] Checking selector {:?} (match={})",
+                env.now.format("%Y-%m-%d %H:%M:%S"),
+                selector,
+                is_match
+            );
 
             if is_match {
                 self.execute_block(env, &case.block);
@@ -723,6 +795,11 @@ impl Executor {
         let rx_opt = self.input_receiver.take();
         let mut answered = false;
 
+        if self.apply_due_inputs_for_target(env, target) {
+            self.input_receiver = rx_opt;
+            return true;
+        }
+
         if let Some(rx) = &rx_opt {
             if let Some(deadline) = self.next_event_time {
                 let total_wait = match (deadline - env.now).to_std() {
@@ -741,6 +818,20 @@ impl Executor {
                     match rx.recv_timeout(remaining) {
                         Ok(msg) => {
                             let normalized = normalize_identifier(&msg.variable);
+                            let mut msg = msg;
+                            msg.variable = normalized.clone();
+
+                            if let ExecutionMode::Simulation { .. } = self.mode {
+                                if msg.timestamp > env.now {
+                                    if msg.timestamp > deadline {
+                                        self.pending_inputs.push(msg);
+                                        self.pending_inputs.sort_by_key(|item| item.timestamp);
+                                        break;
+                                    }
+                                    env.set_time(msg.timestamp);
+                                }
+                            }
+
                             if normalized == target {
                                 env.set_value_at(&normalized, msg.value.clone(), msg.timestamp);
                                 self.emit_log(
@@ -759,10 +850,18 @@ impl Executor {
 
                                 self.check_triggers(env, &normalized);
                                 answered = true;
-                                break;
                             } else {
                                 env.set_value_at(&normalized, msg.value.clone(), msg.timestamp);
                                 self.check_triggers(env, &normalized);
+                            }
+
+                            if answered {
+                                break;
+                            }
+
+                            if self.apply_due_inputs_for_target(env, target) {
+                                answered = true;
+                                break;
                             }
                         }
                         Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
@@ -780,6 +879,15 @@ impl Executor {
                     match rx.recv() {
                         Ok(msg) => {
                             let normalized = normalize_identifier(&msg.variable);
+                            let mut msg = msg;
+                            msg.variable = normalized.clone();
+
+                            if let ExecutionMode::Simulation { .. } = self.mode {
+                                if msg.timestamp > env.now {
+                                    env.set_time(msg.timestamp);
+                                }
+                            }
+
                             if normalized == target {
                                 env.set_value_at(&normalized, msg.value.clone(), msg.timestamp);
                                 self.emit_log(
@@ -798,10 +906,18 @@ impl Executor {
 
                                 self.check_triggers(env, &normalized);
                                 answered = true;
-                                break;
                             } else {
                                 env.set_value_at(&normalized, msg.value.clone(), msg.timestamp);
                                 self.check_triggers(env, &normalized);
+                            }
+
+                            if answered {
+                                break;
+                            }
+
+                            if self.apply_due_inputs_for_target(env, target) {
+                                answered = true;
+                                break;
                             }
                         }
                         Err(_) => {
@@ -929,6 +1045,72 @@ impl Executor {
         for block in blocks_to_run {
             self.execute_block(env, &block);
         }
+    }
+}
+
+impl Executor {
+    fn apply_due_inputs(&mut self, env: &mut Environment, with_triggers: bool) {
+        let now = env.now;
+        let mut due = Vec::new();
+        let mut remaining = Vec::new();
+        for msg in self.pending_inputs.drain(..) {
+            if msg.timestamp <= now {
+                due.push(msg);
+            } else {
+                remaining.push(msg);
+            }
+        }
+        self.pending_inputs = remaining;
+
+        for msg in due {
+            env.set_value_at(&msg.variable, msg.value.clone(), msg.timestamp);
+            if with_triggers {
+                self.check_triggers(env, &msg.variable);
+            }
+        }
+    }
+
+    fn apply_due_inputs_for_target(&mut self, env: &mut Environment, target: &str) -> bool {
+        let now = env.now;
+        let mut due = Vec::new();
+        let mut remaining = Vec::new();
+        let mut answered = false;
+
+        for msg in self.pending_inputs.drain(..) {
+            if msg.timestamp <= now {
+                due.push(msg);
+            } else {
+                remaining.push(msg);
+            }
+        }
+
+        self.pending_inputs = remaining;
+
+        for msg in due {
+            if msg.variable == target && !answered {
+                env.set_value_at(&msg.variable, msg.value.clone(), msg.timestamp);
+                self.emit_log(
+                    format!("Received Answer: {:?}", msg.value),
+                    crate::domain::EventType::Answer,
+                    env.now,
+                );
+                env.log_audit(
+                    crate::domain::EventType::Decision,
+                    format!(
+                        "Answered question for '{}' with value: {:?}",
+                        msg.variable, msg.value
+                    ),
+                    Some("AnswerQuestion".to_string()),
+                );
+                self.check_triggers(env, &msg.variable);
+                answered = true;
+            } else {
+                env.set_value_at(&msg.variable, msg.value.clone(), msg.timestamp);
+                self.check_triggers(env, &msg.variable);
+            }
+        }
+
+        answered
     }
 }
 

@@ -1,0 +1,308 @@
+{
+  "<severity of breathlessness>": [
+    {
+      "value": 3,
+      "unit": "pts"
+    },
+    {
+      "value": 4,
+      "unit": "pts"
+    },
+    {
+      "value": 5,
+      "unit": "pts"
+    },
+    {
+      "value": 3,
+      "unit": "pts"
+    },
+    {
+      "value": 4,
+      "unit": "pts"
+    },
+    {
+      "value": 5,
+      "unit": "pts"
+    },
+    {
+      "value": 3,
+      "unit": "pts"
+    },
+    {
+      "value": 4,
+      "unit": "pts"
+    },
+    {
+      "value": 5,
+      "unit": "pts"
+    },
+    {
+      "value": 3,
+      "unit": "pts"
+    },
+    {
+      "value": 4,
+      "unit": "pts"
+    },
+    {
+      "value": 5,
+      "unit": "pts"
+    },
+    {
+      "value": 3,
+      "unit": "pts"
+    },
+    {
+      "value": 4,
+      "unit": "pts"
+    },
+    {
+      "value": 5,
+      "unit": "pts"
+    },
+    {
+      "value": 3,
+      "unit": "pts"
+    },
+    {
+      "value": 4,
+      "unit": "pts"
+    },
+    {
+      "value": 5,
+      "unit": "pts"
+    },
+    {
+      "value": 3,
+      "unit": "pts"
+    },
+    {
+      "value": 4,
+      "unit": "pts"
+    },
+    {
+      "value": 5,
+      "unit": "pts"
+    },
+    {
+      "value": 3,
+      "unit": "pts"
+    },
+    {
+      "value": 4,
+      "unit": "pts"
+    },
+    {
+      "value": 5,
+      "unit": "pts"
+    },
+    {
+      "value": 3,
+      "unit": "pts"
+    },
+    {
+      "value": 4,
+      "unit": "pts"
+    },
+    {
+      "value": 5,
+      "unit": "pts"
+    },
+    {
+      "value": 3,
+      "unit": "pts"
+    },
+    {
+      "value": 4,
+      "unit": "pts"
+    },
+    {
+      "value": 5,
+      "unit": "pts"
+    }
+  ],
+  "<inhaler used>": [
+    "No",
+    "No",
+    "Yes",
+    "No",
+    "No",
+    "Yes",
+    "No",
+    "No",
+    "Yes",
+    "No",
+    {
+      "value": "No",
+      "delay": "30 minutes"
+    },
+    {
+      "value": "Yes",
+      "delay": "30 minutes"
+    },
+    {
+      "value": "No",
+      "delay": "30 minutes"
+    },
+    {
+      "value": "No",
+      "delay": "30 minutes"
+    },
+    {
+      "value": "Yes",
+      "delay": "30 minutes"
+    },
+    {
+      "value": "No",
+      "delay": "30 minutes"
+    },
+    {
+      "value": "No",
+      "delay": "30 minutes"
+    },
+    {
+      "value": "Yes",
+      "delay": "30 minutes"
+    },
+    {
+      "value": "No",
+      "delay": "30 minutes"
+    },
+    {
+      "value": "No",
+      "delay": "30 minutes"
+    },
+    "Yes",
+    "No",
+    "No",
+    "Yes",
+    "No",
+    "No",
+    "Yes",
+    "No",
+    "No",
+    "Yes"
+  ],
+  "<use of rescue medication>": [
+    {
+      "value": 5,
+      "unit": "uses"
+    },
+    {
+      "value": 4,
+      "unit": "uses"
+    },
+    {
+      "value": 3,
+      "unit": "uses"
+    },
+    {
+      "value": 5,
+      "unit": "uses"
+    },
+    {
+      "value": 4,
+      "unit": "uses"
+    },
+    {
+      "value": 3,
+      "unit": "uses"
+    },
+    {
+      "value": 5,
+      "unit": "uses"
+    },
+    {
+      "value": 4,
+      "unit": "uses"
+    },
+    {
+      "value": 3,
+      "unit": "uses"
+    },
+    {
+      "value": 5,
+      "unit": "uses"
+    },
+    {
+      "value": 4,
+      "unit": "uses"
+    },
+    {
+      "value": 3,
+      "unit": "uses"
+    },
+    {
+      "value": 5,
+      "unit": "uses"
+    },
+    {
+      "value": 4,
+      "unit": "uses"
+    },
+    {
+      "value": 3,
+      "unit": "uses"
+    },
+    {
+      "value": 5,
+      "unit": "uses"
+    },
+    {
+      "value": 4,
+      "unit": "uses"
+    },
+    {
+      "value": 3,
+      "unit": "uses"
+    },
+    {
+      "value": 5,
+      "unit": "uses"
+    },
+    {
+      "value": 4,
+      "unit": "uses"
+    },
+    {
+      "value": 3,
+      "unit": "uses"
+    },
+    {
+      "value": 5,
+      "unit": "uses"
+    },
+    {
+      "value": 4,
+      "unit": "uses"
+    },
+    {
+      "value": 3,
+      "unit": "uses"
+    },
+    {
+      "value": 5,
+      "unit": "uses"
+    },
+    {
+      "value": 4,
+      "unit": "uses"
+    },
+    {
+      "value": 3,
+      "unit": "uses"
+    },
+    {
+      "value": 5,
+      "unit": "uses"
+    },
+    {
+      "value": 4,
+      "unit": "uses"
+    },
+    {
+      "value": 3,
+      "unit": "uses"
+    }
+  ]
+}

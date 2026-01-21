@@ -234,7 +234,7 @@ constraint = { expression ~ constraint_operator ~ range_selector ~ ("!" | "?" | 
 constraint_operator = { "is" | "during" | "after" }
 timeframe_block = { "timeframe" ~ for_analysis_flag? ~ constraint_tail? ~ ":" ~ NEWLINE* ~ INDENT ~ statement+ ~ DEDENT }
 for_analysis_flag = { "for" ~ "analysis" }
-constraint_tail = _{ constraint_operator ~ range_selector }
+constraint_tail = _{ (constraint_operator ~ range_selector)+ }
 
 context_block = { "context" ~ ("for" ~ "analysis")? ~ ":" ~ NEWLINE* ~ INDENT ~ (context_item | statement)+ ~ DEDENT } 
 

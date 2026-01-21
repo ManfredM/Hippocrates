@@ -143,6 +143,7 @@ fn test_trend_analysis() {
 
     let ctx = EvaluationContext {
         timeframe: Some(RangeSelector::Range(start_expr, end_expr)),
+        period: None,
     };
 
     env.push_context(ctx);
@@ -238,6 +239,7 @@ fn test_current_value_in_calculation() {
     
     let ctx = EvaluationContext {
         timeframe: Some(RangeSelector::Range(start_expr, end_expr)),
+        period: None,
     };
     
     env.push_context(ctx);

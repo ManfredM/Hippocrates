@@ -44,6 +44,70 @@ impl Scheduler {
         }
     }
 
+    pub fn occurrences_in_range(
+        def: &Definition,
+        start: NaiveDateTime,
+        end: NaiveDateTime,
+    ) -> Vec<(NaiveDateTime, NaiveDateTime)> {
+        if start >= end {
+            return Vec::new();
+        }
+
+        let mut occurrences = Vec::new();
+        let mut cursor = start;
+
+        while cursor < end {
+            let next = Self::next_occurrence(def, cursor);
+            let (next_start, next_end) = match next {
+                Some(occurrence) => occurrence,
+                None => break,
+            };
+
+            if next_start >= end {
+                break;
+            }
+
+            if next_start <= cursor {
+                cursor = cursor + chrono::Duration::seconds(1);
+                continue;
+            }
+
+            occurrences.push((next_start, next_end));
+            cursor = next_start;
+        }
+
+        occurrences
+    }
+
+    pub fn is_within_period(def: &Definition, timestamp: NaiveDateTime) -> bool {
+        let mut timeframe_groups = None;
+
+        match def {
+            Definition::Period(p) => {
+                timeframe_groups = Some(&p.timeframes);
+            }
+            Definition::Value(v) => {
+                for prop in &v.properties {
+                    if let Property::Timeframe(groups) = prop {
+                        timeframe_groups = Some(groups);
+                        break;
+                    }
+                }
+            }
+            _ => {}
+        }
+
+        if let Some(groups) = timeframe_groups {
+            for group in groups {
+                if Self::matches_group(group, timestamp) {
+                    return true;
+                }
+            }
+        }
+
+        false
+    }
+
     fn next_for_group(selectors: &Vec<RangeSelector>, now: NaiveDateTime) -> Option<(NaiveDateTime, NaiveDateTime)> {
         // Separate selectors into Day constraints and Time constraints
         // Assumption: One day range and one time range per group (as seen in copd plan)
@@ -126,6 +190,59 @@ impl Scheduler {
         }
 
         None
+    }
+
+    fn matches_group(selectors: &Vec<RangeSelector>, timestamp: NaiveDateTime) -> bool {
+        let mut start_day = None;
+        let mut end_day = None;
+        let mut start_time = None;
+        let mut end_time = None;
+
+        for sel in selectors {
+            match sel {
+                RangeSelector::Between(e1, e2) | RangeSelector::Range(e1, e2) => {
+                    if let (Some(d1), Some(d2)) = (Self::eval_weekday(e1), Self::eval_weekday(e2)) {
+                        start_day = Some(d1);
+                        end_day = Some(d2);
+                    } else if let (Some(t1), Some(t2)) = (Self::eval_time(e1), Self::eval_time(e2))
+                    {
+                        start_time = Some(t1);
+                        end_time = Some(t2);
+                    }
+                }
+                RangeSelector::Equals(e) => {
+                    if let Some(d) = Self::eval_weekday(e) {
+                        start_day = Some(d);
+                        end_day = Some(d);
+                    } else if let Some(t) = Self::eval_time(e) {
+                        start_time = Some(t);
+                        end_time = Some(t + chrono::Duration::minutes(1));
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        if let (Some(s), Some(e)) = (start_day, end_day) {
+            if !Self::weekday_in_range(timestamp.weekday(), s, e) {
+                return false;
+            }
+        }
+
+        if let Some(start) = start_time {
+            let end = end_time.unwrap_or(start + chrono::Duration::minutes(1));
+            let time = timestamp.time();
+            let in_range = if start <= end {
+                time >= start && time <= end
+            } else {
+                time >= start || time <= end
+            };
+            if !in_range {
+                return false;
+            }
+        }
+
+        true
     }
 
     fn eval_weekday(expr: &Expression) -> Option<Weekday> {

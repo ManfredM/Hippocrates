@@ -2,6 +2,7 @@ use crate::ast::{Expression, Literal, RangeSelector, StatementKind, ContextItem,
 use crate::domain::RuntimeValue;
 use crate::runtime::Environment;
 use crate::runtime::environment::EvaluationContext;
+use crate::runtime::scheduler::Scheduler;
 
 pub struct Evaluator;
 
@@ -36,6 +37,7 @@ impl Evaluator {
                     for prop in &v_def.properties {
                         if let Property::Calculation(stmts) = prop {
                             let mut timeframe = None;
+                            let mut period = None;
                             let mut result_expr = None;
 
                             for stmt in stmts {
@@ -44,6 +46,7 @@ impl Evaluator {
                                         for item in &cb.items {
                                             if let ContextItem::Timeframe(ts) = item {
                                                 timeframe = Some(ts.clone());
+                                                period = None;
                                             }
                                         }
                                         // Also search for assignment inside the context block
@@ -61,9 +64,12 @@ impl Evaluator {
                                         }
                                     }
                                     StatementKind::Timeframe(tb) => {
-                                        if let Some((_, range)) = &tb.constraint {
-                                            timeframe = Some(range.clone());
-                                        }
+                                        let ctx = EvaluationContext::from_constraints(
+                                            &env.definitions,
+                                            &tb.constraints,
+                                        );
+                                        timeframe = ctx.timeframe;
+                                        period = ctx.period;
                                         for inner in &tb.block {
                                             if let StatementKind::Assignment(assign) = &inner.kind {
                                                 if assign.target == "value" || assign.target == *name {
@@ -77,10 +83,23 @@ impl Evaluator {
                             }
 
                             if let Some(expr) = result_expr {
-                                let ctx = EvaluationContext { timeframe };
+                                let ctx = EvaluationContext { timeframe, period };
                                 env.push_context(ctx);
-                                let res = Self::evaluate(env, expr);
+                                let mut res = Self::evaluate(env, expr);
                                 env.pop_context();
+                                if let Some(expected_unit) = env.expected_unit_for_value(name) {
+                                    let is_count = matches!(
+                                        expr,
+                                        Expression::Statistical(
+                                            crate::ast::StatisticalFunc::CountOf(_, _)
+                                        )
+                                    );
+                                    if is_count {
+                                        if let RuntimeValue::Number(n) = res {
+                                            res = RuntimeValue::Quantity(n, expected_unit);
+                                        }
+                                    }
+                                }
                                 return res;
                             }
                         }
@@ -226,17 +245,10 @@ impl Evaluator {
                     if let Some(history) = env.get_history(name) {
                         let filtered: Vec<&crate::domain::ValueInstance> =
                             if let Some(ctx) = env.active_context() {
-                                if let Some(selector) = &ctx.timeframe {
-
-
-
-                                    history
-                                        .iter()
-                                        .filter(|i| Self::check_timeframe_match(env, selector, i.timestamp))
-                                        .collect()
-                                } else {
-                                    history.iter().collect()
-                                }
+                                history
+                                    .iter()
+                                    .filter(|i| Self::matches_context(env, &ctx, i.timestamp))
+                                    .collect()
                             } else {
                                 history.iter().collect()
                             };
@@ -298,16 +310,10 @@ impl Evaluator {
                     if let Some(history) = env.get_history(name) {
                         let filtered: Vec<&crate::domain::ValueInstance> =
                             if let Some(ctx) = env.active_context() {
-                                if let Some(selector) = &ctx.timeframe {
-
-
-                                    history
-                                        .iter()
-                                        .filter(|i| Self::check_timeframe_match(env, selector, i.timestamp))
-                                        .collect()
-                                } else {
-                                    history.iter().collect()
-                                }
+                                history
+                                    .iter()
+                                    .filter(|i| Self::matches_context(env, &ctx, i.timestamp))
+                                    .collect()
                             } else {
                                 history.iter().collect()
                             };
@@ -490,6 +496,36 @@ impl Evaluator {
         }
     }
 
+    fn matches_context(
+        env: &Environment,
+        ctx: &EvaluationContext,
+        timestamp: chrono::NaiveDateTime,
+    ) -> bool {
+        if let Some(selector) = &ctx.timeframe {
+            if !Self::check_timeframe_match(env, selector, timestamp) {
+                return false;
+            }
+        }
+        if let Some(period_name) = &ctx.period {
+            if !Self::check_period_match(env, period_name, timestamp) {
+                return false;
+            }
+        }
+        true
+    }
+
+    fn check_period_match(
+        env: &Environment,
+        period_name: &str,
+        timestamp: chrono::NaiveDateTime,
+    ) -> bool {
+        if let Some(def) = env.definitions.get(period_name) {
+            Scheduler::is_within_period(def, timestamp)
+        } else {
+            false
+        }
+    }
+
     pub fn check_timeframe_match(
         env: &Environment,
         selector: &RangeSelector,
@@ -500,7 +536,8 @@ impl Evaluator {
                 let min_val = Self::evaluate(env, min);
                 let max_val = Self::evaluate(env, max);
                 if let (Some(min_date), Some(max_date)) = (min_val.as_date(), max_val.as_date()) {
-                    timestamp >= min_date && timestamp <= max_date
+                    // Use an exclusive lower bound to avoid off-by-one counts on day-sized windows.
+                    timestamp > min_date && timestamp <= max_date
                 } else {
                     false // Invalid bounds
                 }
