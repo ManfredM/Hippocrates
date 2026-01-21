@@ -32,7 +32,8 @@ standard_unit = {
     "°F" | "°C" | "%" | 
     "mg" | "kg" | "g" | "lb" | "oz" |
     "ml" | "l" | "fl oz" | "gal" |
-    "mmHg" | "cm" | "mm" | "km" | "inch" | "foot" | "mile" | "m" |
+    "mmHg" | "bpm" | "mg/dL" | "mmol/L" | 
+    "cm" | "mm" | "km" | "inch" | "foot" | "mile" | "m" |
     "years" | "months" | "weeks" | "days" | "hours" | "minutes" | "seconds" |
     "year" | "month" | "week" | "day" | "hour" | "minute" | "second"
 }
@@ -79,7 +80,7 @@ drug_definition = { identifier ~ "is a drug" ~ ":" ~ NEWLINE* ~ INDENT ~
 }
 
 addressee_definition = { 
-    identifier ~ ("is an addressee" | "is an addressee group") ~ ":" ~ NEWLINE* ~ INDENT ~ 
+    identifier ~ ("is an addressee group" | "is an addressee") ~ ":" ~ NEWLINE* ~ INDENT ~ 
     (contact_info_prop | grouped_addressees_prop | contact_logic_prop | after_consent_prop)* ~
     DEDENT
 }

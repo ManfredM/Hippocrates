@@ -57,8 +57,66 @@ pub enum Unit {
     Second,
     // Pressure
     MillimeterOfMercury,
+    // Clinical
+    Bpm,
+    MgPerDl,
+    MmolPerL,
     // Custom
     Custom(String),
+}
+
+impl Unit {
+    pub fn convert(&self, value: f64, target: &Unit) -> Result<f64, String> {
+        if self == target {
+            return Ok(value);
+        }
+
+        match (self, target) {
+            // Temperature
+            (Unit::Celsius, Unit::Fahrenheit) => Ok(value * 9.0 / 5.0 + 32.0),
+            (Unit::Fahrenheit, Unit::Celsius) => Ok((value - 32.0) * 5.0 / 9.0),
+
+            // Weight (to kg base)
+            (Unit::Kilogram, Unit::Gram) => Ok(value * 1000.0),
+            (Unit::Gram, Unit::Kilogram) => Ok(value / 1000.0),
+            (Unit::Milligram, Unit::Gram) => Ok(value / 1000.0),
+            (Unit::Gram, Unit::Milligram) => Ok(value * 1000.0),
+            (Unit::Milligram, Unit::Kilogram) => Ok(value / 1_000_000.0),
+            (Unit::Kilogram, Unit::Milligram) => Ok(value * 1_000_000.0),
+            (Unit::Pound, Unit::Kilogram) => Ok(value * 0.45359237),
+            (Unit::Kilogram, Unit::Pound) => Ok(value / 0.45359237),
+            (Unit::Ounce, Unit::Gram) => Ok(value * 28.34952),
+            (Unit::Gram, Unit::Ounce) => Ok(value / 28.34952),
+
+            // Length (to meter base)
+            (Unit::Meter, Unit::Centimeter) => Ok(value * 100.0),
+            (Unit::Centimeter, Unit::Meter) => Ok(value / 100.0),
+            (Unit::Meter, Unit::Millimeter) => Ok(value * 1000.0),
+            (Unit::Millimeter, Unit::Meter) => Ok(value / 1000.0),
+            (Unit::Kilometer, Unit::Meter) => Ok(value * 1000.0),
+            (Unit::Meter, Unit::Kilometer) => Ok(value / 1000.0),
+            (Unit::Inch, Unit::Centimeter) => Ok(value * 2.54),
+            (Unit::Centimeter, Unit::Inch) => Ok(value / 2.54),
+            (Unit::Foot, Unit::Meter) => Ok(value * 0.3048),
+            (Unit::Meter, Unit::Foot) => Ok(value / 0.3048),
+            (Unit::Mile, Unit::Kilometer) => Ok(value * 1.60934),
+            (Unit::Kilometer, Unit::Mile) => Ok(value / 1.60934),
+
+            // Volume (to Liter base)
+            (Unit::Liter, Unit::Milliliter) => Ok(value * 1000.0),
+            (Unit::Milliliter, Unit::Liter) => Ok(value / 1000.0),
+            (Unit::Gallon, Unit::Liter) => Ok(value * 3.78541),
+            (Unit::Liter, Unit::Gallon) => Ok(value / 3.78541),
+            (Unit::FluidOunce, Unit::Milliliter) => Ok(value * 29.5735),
+            (Unit::Milliliter, Unit::FluidOunce) => Ok(value / 29.5735),
+
+            // Clinical
+            (Unit::MmolPerL, Unit::MgPerDl) => Ok(value * 18.0182), // Glucose specific approximation
+            (Unit::MgPerDl, Unit::MmolPerL) => Ok(value / 18.0182),
+
+            _ => Err(format!("Cannot convert {:?} to {:?}", self, target)),
+        }
+    }
 }
 
 impl fmt::Display for Unit {

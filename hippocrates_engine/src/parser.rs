@@ -22,7 +22,7 @@ pub enum ParseError {
 
 pub fn parse_plan(input: &str) -> Result<Plan, EngineError> {
     let processed = preprocess_indentation(input);
-    println!("DEBUG: Preprocessed Input:\n{}", processed);
+
     
     let pairs = match HippocratesParser::parse(Rule::file, &processed) {
         Ok(p) => p,
@@ -1247,7 +1247,7 @@ fn parse_ask_question(pairs: pest::iterators::Pairs<Rule>) -> Result<Action, Par
     let mut statements = vec![];
 
     for p in pairs {
-        println!("DEBUG: parse_ask_question rule: {:?}", p.as_rule());
+
         match p.as_rule() {
             Rule::multi_word_identifier => {
                 subject = parse_multi_word_identifier(p);
@@ -1498,6 +1498,9 @@ fn parse_unit(pair: pest::iterators::Pair<Rule>) -> Result<Unit, ParseError> {
         "°C" | "celsius" => Ok(Unit::Celsius),
         "°F" | "fahrenheit" => Ok(Unit::Fahrenheit),
         "mmHg" | "millimeter of mercury" => Ok(Unit::MillimeterOfMercury),
+        "bpm" => Ok(Unit::Bpm),
+        "mg/dL" => Ok(Unit::MgPerDl),
+        "mmol/L" => Ok(Unit::MmolPerL),
         "%" | "percent" => Ok(Unit::Percent),
         "year" | "years" => Ok(Unit::Year),
         "month" | "months" => Ok(Unit::Month),
