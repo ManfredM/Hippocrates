@@ -31,14 +31,14 @@ fn print_usage() {
     eprintln!("Usage:");
     eprintln!("  hippocrates-cli <file_path>");
     eprintln!(
-        "  hippocrates-cli simulate <file_path> [--plan <plan_name>] [--answers <answers.json>]"
+        "  hippocrates-cli simulate <file_path> [--plan <plan_name>] [--answers <answers.json>] [--mode real-time|time-lapse]"
     );
 }
 
 fn print_simulate_usage() {
     eprintln!("Usage:");
     eprintln!(
-        "  hippocrates-cli simulate <file_path> [--plan <plan_name>] [--answers <answers.json>]"
+        "  hippocrates-cli simulate <file_path> [--plan <plan_name>] [--answers <answers.json>] [--mode real-time|time-lapse]"
     );
 }
 
@@ -79,6 +79,7 @@ fn run_simulate(args: &[String]) {
     let mut plan_name: Option<String> = None;
     let mut answers_path: Option<String> = None;
 
+    let mut mode = "time-lapse".to_string();
     let mut iter = args.iter();
     while let Some(arg) = iter.next() {
         match arg.as_str() {
@@ -87,6 +88,9 @@ fn run_simulate(args: &[String]) {
             }
             "--answers" => {
                 answers_path = Some(next_arg_or_exit(&mut iter, "--answers"));
+            }
+            "--mode" => {
+                mode = next_arg_or_exit(&mut iter, "--mode");
             }
             "--help" | "-h" => {
                 print_simulate_usage();
@@ -164,10 +168,17 @@ fn run_simulate(args: &[String]) {
 
     let (tx_input, rx_input) = std::sync::mpsc::channel();
     let mut executor = Executor::new(Arc::new(AtomicBool::new(false)));
-    executor.set_mode(ExecutionMode::Simulation {
-        speed_factor: None,
-        duration: None,
-    });
+    match mode.as_str() {
+        "real-time" => executor.set_mode(ExecutionMode::RealTime),
+        "time-lapse" => executor.set_mode(ExecutionMode::Simulation {
+            speed_factor: None,
+            duration: None,
+        }),
+        _ => {
+            eprintln!("Invalid mode '{}'. Use 'real-time' or 'time-lapse'.", mode);
+            process::exit(1);
+        }
+    }
     executor.set_input_receiver(rx_input);
 
     let answers_clone = Arc::clone(&answers);

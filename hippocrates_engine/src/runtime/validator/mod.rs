@@ -156,7 +156,25 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
     for def in &plan.definitions {
         match def {
             Definition::Plan(pd) => {
+                 let mut plan_start_state = data_flow::FlowState::new();
+                 let mut start_flags = Vec::with_capacity(pd.blocks.len());
+
                  for block in &pd.blocks {
+                      if is_plan_start_block(&pd.name, block) {
+                           let statements = match block {
+                               crate::ast::PlanBlock::DuringPlan(s) => s,
+                               crate::ast::PlanBlock::Trigger(t) => &t.statements,
+                               crate::ast::PlanBlock::Event(e) => &e.statements,
+                           };
+                           plan_start_state =
+                               data_flow::analyze_block(statements, &plan_start_state, &defs_map, &mut errors);
+                           start_flags.push(true);
+                      } else {
+                           start_flags.push(false);
+                      }
+                 }
+
+                 for (block_index, block) in pd.blocks.iter().enumerate() {
                       let statements = match block {
                           crate::ast::PlanBlock::DuringPlan(s) => s,
                           crate::ast::PlanBlock::Event(e) => &e.statements,
@@ -164,8 +182,9 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
                       };
                       
                       // Run Data Flow Analysis for this block
-                      let base_state = data_flow::FlowState::new();
-                      data_flow::analyze_block(statements, &base_state, &defs_map, &mut errors);
+                      if !start_flags[block_index] {
+                          data_flow::analyze_block(statements, &plan_start_state, &defs_map, &mut errors);
+                      }
                       
                       for stmt in statements {
                           // Run semantic checks (undefined vars, etc)
@@ -278,6 +297,17 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
         errors.sort();
         errors.dedup();
         Err(errors)
+    }
+}
+
+fn is_plan_start_block(plan_name: &str, block: &crate::ast::PlanBlock) -> bool {
+    match block {
+        crate::ast::PlanBlock::DuringPlan(_) => true,
+        crate::ast::PlanBlock::Trigger(t) => match &t.trigger {
+            crate::ast::Trigger::StartOf(target) => target == plan_name,
+            _ => false,
+        },
+        _ => false,
     }
 }
 
