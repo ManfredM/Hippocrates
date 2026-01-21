@@ -140,8 +140,9 @@ impl Environment {
     }
 
     pub fn set_value_at(&mut self, name: &str, value: RuntimeValue, timestamp: NaiveDateTime) {
+        let normalized = super::normalize_identifier(name);
         let instance = ValueInstance { value, timestamp };
-        let history = self.values.entry(name.to_string()).or_insert_with(Vec::new);
+        let history = self.values.entry(normalized).or_insert_with(Vec::new);
         history.push(instance);
         // Sort by timestamp to ensure history is ordered?
         // Ideally yes, but expensive if frequent. For now, assume append-only or sort on read if needed.
@@ -150,14 +151,16 @@ impl Environment {
     }
 
     pub fn get_value(&self, name: &str) -> Option<&RuntimeValue> {
+        let normalized = super::normalize_identifier(name);
         self.values
-            .get(name)
+            .get(&normalized)
             .and_then(|history| history.last())
             .map(|instance| &instance.value)
     }
 
     pub fn get_history(&self, name: &str) -> Option<&Vec<ValueInstance>> {
-        self.values.get(name)
+        let normalized = super::normalize_identifier(name);
+        self.values.get(&normalized)
     }
 
     pub fn log(&mut self, message: String) {

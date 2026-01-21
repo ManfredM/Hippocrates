@@ -14,6 +14,24 @@ pub use executor::Executor;
 use crate::ast::Plan;
 use std::sync::{Arc, atomic::AtomicBool};
 
+pub fn normalize_identifier(name: &str) -> String {
+    let trimmed = name.trim();
+    if trimmed.starts_with('<') && trimmed.ends_with('>') && trimmed.len() > 2 {
+        trimmed[1..trimmed.len() - 1].to_string()
+    } else {
+        trimmed.to_string()
+    }
+}
+
+pub fn format_identifier(name: &str) -> String {
+    let trimmed = name.trim();
+    if trimmed.starts_with('<') && trimmed.ends_with('>') && trimmed.len() > 2 {
+        trimmed.to_string()
+    } else {
+        format!("<{}>", trimmed)
+    }
+}
+
 pub struct Engine {
     pub env: Environment,
     pub mode: ExecutionMode,

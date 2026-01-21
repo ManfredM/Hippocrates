@@ -46,7 +46,7 @@ mod tests {
         thread::sleep(Duration::from_millis(500));
         
         // Provide Answer (creates value at T=0)
-        session.provide_answer("Temp", RuntimeValue::Quantity(37.0, Unit::Celsius));
+        session.provide_answer("<Temp>", RuntimeValue::Quantity(37.0, Unit::Celsius));
         
         // Wait for completion
         thread::sleep(Duration::from_millis(500));
@@ -84,7 +84,7 @@ mod tests {
         }
         
         // Provide answer to finish cleanly
-        session.provide_answer("Temp", RuntimeValue::Quantity(38.0, Unit::Celsius));
+        session.provide_answer("<Temp>", RuntimeValue::Quantity(38.0, Unit::Celsius));
         thread::sleep(Duration::from_millis(500));
     }
 }

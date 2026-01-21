@@ -62,3 +62,28 @@ fn test_float_gap_detection() {
         }
     }
 }
+
+#[test]
+fn test_meaning_coverage_disjoint_ranges() {
+    use hippocrates_engine::parser;
+    use hippocrates_engine::runtime::validator::validate_file;
+
+    let input = r#"
+<WindowedValue> is a number:
+    unit is mg
+    valid values:
+        1 mg ... 3 mg;
+        5 mg ... 10 mg
+    meaning:
+        1 mg ... 3 mg:
+            meaning of value = "Low"
+        5 mg ... 10 mg:
+            meaning of value = "High"
+"#;
+
+    let plan = parser::parse_plan(input).expect("Failed to parse plan input");
+    if let Err(errors) = validate_file(&plan) {
+        println!("Disjoint Range Errors: {:?}", errors);
+        panic!("Expected validation OK for disjoint ranges");
+    }
+}

@@ -24,7 +24,8 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
     let mut errors = Vec::new(); // Note: legacy->semantics calls below
     // ...
 
-    let mut value_intervals = HashMap::new();
+    let mut value_ranges = HashMap::new();
+    let mut value_bounds = HashMap::new();
     let mut value_precision = HashMap::new();
     let mut defined_values = HashSet::new();
     let mut valid_units = HashSet::new();
@@ -62,47 +63,39 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
                 enum_vars.insert(vd.name.clone());
             }
 
-            // Default to unbounded
-            let mut interval = Interval::unbounded();
-            
+            let mut ranges: Vec<Interval> = Vec::new();
             let mut precision = PrecisionInfo::new();
 
             // Try to narrow down from Valid Values
             for prop in &vd.properties {
                 if let Property::ValidValues(stmts) = prop {
-                    // Extract range union from valid values
-                    // For now, simplify: take the min(min) and max(max) of all ranges
-                    let mut min_all = f64::INFINITY;
-                    let mut max_all = f64::NEG_INFINITY;
-                    let mut found = false;
-                    
                     for stmt in stmts {
                          if let crate::ast::StatementKind::Constraint(_, _, sel) = &stmt.kind {
                              update_precision_from_selector(sel, &mut precision);
-                             if let Some((mn, mx)) = extract_const_range(sel) {
-                                 min_all = min_all.min(mn);
-                                 max_all = max_all.max(mx);
-                                 found = true;
-                             }
+                             ranges.extend(extract_selector_intervals(sel));
                          } else if let crate::ast::StatementKind::EventProgression(_, cases) = &stmt.kind {
                              // Also check progression cases
                              for case in cases {
                                  update_precision_from_selector(&case.condition, &mut precision);
-                                 if let Some((mn, mx)) = extract_const_range(&case.condition) {
-                                     min_all = min_all.min(mn);
-                                     max_all = max_all.max(mx);
-                                     found = true;
-                                 }
+                                 ranges.extend(extract_selector_intervals(&case.condition));
                              }
                          }
                     }
-                    
-                    if found {
-                        interval = Interval::new(min_all, max_all);
-                    }
                 }
             }
-            value_intervals.insert(vd.name.clone(), interval);
+            let bounds = if ranges.is_empty() {
+                Interval::unbounded()
+            } else {
+                let mut min_all = f64::INFINITY;
+                let mut max_all = f64::NEG_INFINITY;
+                for r in &ranges {
+                    min_all = min_all.min(r.min);
+                    max_all = max_all.max(r.max);
+                }
+                Interval::new(min_all, max_all)
+            };
+            value_ranges.insert(vd.name.clone(), ranges);
+            value_bounds.insert(vd.name.clone(), bounds);
             value_precision.insert(vd.name.clone(), precision);
         }
     }
@@ -139,7 +132,7 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
                         if !valid_refs.is_empty() {
                             coverage::check_string_coverage(&vd.name, cases, &valid_refs, line, &mut errors);
                         }
-                    } else if let Some(valid_int) = value_intervals.get(&vd.name) {
+                    } else if let Some(valid_ranges) = value_ranges.get(&vd.name) {
                         if cases.iter().any(|case| selector_has_unitless_number(&case.condition)) {
                             errors.push(EngineError {
                                 message: format!(
@@ -152,7 +145,7 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
                         }
 
                         let decimals = value_precision.get(&vd.name).and_then(|info| info.decimals);
-                        coverage::check_coverage(&vd.name, valid_int, cases, line, decimals, &mut errors);
+                        coverage::check_coverage(&vd.name, valid_ranges, cases, line, decimals, &mut errors);
                     }
                 }
             }
@@ -180,16 +173,17 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
 
                           match &stmt.kind {
                               crate::ast::StatementKind::Assignment(assign) => {
-                                  let target_interval = value_intervals.get(&assign.target);
+                                  let target_ranges = value_ranges.get(&assign.target);
                                   
-                                  if let Some(target_int) = target_interval {
-                                      let expr_interval = calculate_interval(&assign.expression, &value_intervals);
+                                  if let Some(ranges) = target_ranges {
+                                      let expr_intervals = intervals::calculate_interval_set(&assign.expression, &value_ranges);
                                       
-                                      if !expr_interval.is_subset_of(target_int) {
+                                      if !intervals_within_ranges(&expr_intervals, ranges) {
                                           errors.push(EngineError {
                                               message: format!(
-                                                  "Assignment Validity Warning: Value for '{}' may be out of bounds. Expression result range ({:.1}..{:.1}) is not fully contained in valid range ({:.1}..{:.1}).",
-                                                  assign.target, expr_interval.min, expr_interval.max, target_int.min, target_int.max
+                                                  "Assignment Validity Warning: Value for '{}' may be out of bounds. Expression result ranges ({}) are not fully contained in valid ranges.",
+                                                  assign.target,
+                                                  format_intervals(&expr_intervals)
                                               ),
                                               line: stmt.line,
                                               column: 0
@@ -200,7 +194,7 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
                                   // Check for subtraction safety
                                   if let Expression::Binary(l, op, r) = &assign.expression {
                                       if op == "-" {
-                                          if let Some(msg) = intervals::check_subtraction_safety(l, r, &value_intervals) {
+                                          if let Some(msg) = intervals::check_subtraction_safety(l, r, &value_bounds) {
                                                errors.push(EngineError {
                                                   message: msg,
                                                   line: stmt.line,
@@ -243,7 +237,7 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
                                               }
                                           } else {
                                               // Numeric Coverage
-                                              if let Some(valid_int) = value_intervals.get(name) {
+                                              if let Some(valid_ranges) = value_ranges.get(name) {
                                                   if cond.cases.iter().any(|case| selector_has_unitless_number(&case.condition)) {
                                                       errors.push(EngineError {
                                                           message: format!("Numeric values must have a unit. Assessment for '{}' uses unitless numbers.", name),
@@ -253,7 +247,7 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
                                                   }
 
                                                   let decimals = value_precision.get(name).and_then(|info| info.decimals);
-                                                  coverage::check_coverage(name, valid_int, &cond.cases, stmt.line, decimals, &mut errors);
+                                                  coverage::check_coverage(name, valid_ranges, &cond.cases, stmt.line, decimals, &mut errors);
                                               }
                                           }
                                       },
@@ -288,24 +282,70 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
 }
 
 
-fn extract_const_range(sel: &RangeSelector) -> Option<(f64, f64)> {
+fn extract_selector_intervals(sel: &RangeSelector) -> Vec<Interval> {
+    let mut intervals = Vec::new();
+    let get_val = |e: &Expression| match e {
+        Expression::Literal(Literal::Number(n, _)) => Some(*n),
+        Expression::Literal(Literal::Quantity(n, _, _)) => Some(*n),
+        _ => None,
+    };
+
     match sel {
         RangeSelector::Range(min, max) | RangeSelector::Between(min, max) => {
-             // simplified extraction logic
-             let get_val = |e: &Expression| match e {
-                 Expression::Literal(Literal::Number(n, _)) => *n,
-                 Expression::Literal(Literal::Quantity(n, _, _)) => *n,
-                 _ => f64::NAN
-             };
-             
-             let v1 = get_val(min);
-             let v2 = get_val(max);
-             if !v1.is_nan() && !v2.is_nan() {
-                 Some((v1, v2))
-             } else { None }
+            if let (Some(v1), Some(v2)) = (get_val(min), get_val(max)) {
+                intervals.push(Interval::new(v1, v2));
+            }
         }
-        _ => None
+        RangeSelector::Equals(expr) => {
+            if let Some(v) = get_val(expr) {
+                intervals.push(Interval::exact(v));
+            }
+        }
+        _ => {}
     }
+
+    intervals
+}
+
+fn intervals_within_ranges(interval_set: &[Interval], ranges: &[Interval]) -> bool {
+    if ranges.is_empty() {
+        return true;
+    }
+
+    let merged_ranges = intervals::merge_intervals(ranges);
+    let merged_intervals = intervals::merge_intervals(interval_set);
+
+    if merged_intervals.is_empty() {
+        return true;
+    }
+
+    for interval in merged_intervals {
+        let mut within_any = false;
+        for range in &merged_ranges {
+            if interval.min >= range.min && interval.max <= range.max {
+                within_any = true;
+                break;
+            }
+        }
+        if !within_any {
+            return false;
+        }
+    }
+
+    true
+}
+
+fn format_intervals(interval_set: &[Interval]) -> String {
+    let merged = intervals::merge_intervals(interval_set);
+    if merged.is_empty() {
+        return "unbounded".to_string();
+    }
+
+    let parts: Vec<String> = merged
+        .iter()
+        .map(|interval| format!("{:.1}..{:.1}", interval.min, interval.max))
+        .collect();
+    parts.join("; ")
 }
 
 fn update_precision_from_selector(sel: &RangeSelector, precision: &mut PrecisionInfo) {

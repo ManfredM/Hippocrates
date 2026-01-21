@@ -1,5 +1,5 @@
 use crate::domain::{AskRequest, InputMessage, RuntimeValue, EventType};
-use crate::runtime::{Environment, Executor};
+use crate::runtime::{Environment, Executor, normalize_identifier};
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex, mpsc};
 use std::thread;
@@ -28,21 +28,22 @@ impl Session {
 
     pub fn provide_answer(&self, variable: &str, value: RuntimeValue) {
         let now = chrono::Utc::now().naive_utc();
+        let normalized = normalize_identifier(variable);
         // 1. Update common definitions
         {
             let mut defs = self.common_definitions.lock().unwrap();
-            defs.insert(variable.to_string(), (value.clone(), now));
+            defs.insert(normalized.clone(), (value.clone(), now));
         }
 
         // 2. Remove from pending requests
         {
             let mut pending = self.pending_requests.lock().unwrap();
-            pending.remove(variable);
+            pending.remove(&normalized);
         }
 
         // 3. Broadcast to all executors
         let msg = InputMessage {
-            variable: variable.to_string(),
+            variable: normalized.clone(),
             value,
             timestamp: now,
         };
@@ -108,7 +109,7 @@ impl Session {
             let pending_clone = pending.clone();
             
             executor.set_ask_callback(Box::new(move |req| {
-                let var = req.variable_name.clone();
+                let var = normalize_identifier(&req.variable_name);
                 
                 // Check if already known
                 {

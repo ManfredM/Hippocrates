@@ -57,7 +57,7 @@ mod tests {
 
         // provide answer
         println!("Providing answer...");
-        session.provide_answer("Age", RuntimeValue::Quantity(30.0, Unit::Year));
+        session.provide_answer("<Age>", RuntimeValue::Quantity(30.0, Unit::Year));
 
         // Wait for completion
         thread::sleep(Duration::from_millis(500));
@@ -67,7 +67,7 @@ mod tests {
 
         // Verify "Age" was asked exactly once
         assert_eq!(inputs.len(), 1, "Should have asked for Age only once");
-        assert_eq!(inputs[0], "Age");
+        assert_eq!(inputs[0], "<Age>");
 
         // Verify both scripts ran and printed output
         let s1_ok = messages.iter().any(|m: &String| m.contains("Script1: Age is 30"));

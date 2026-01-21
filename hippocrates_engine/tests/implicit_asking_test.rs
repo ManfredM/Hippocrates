@@ -42,7 +42,7 @@ fn test_implicit_asking_scenario() {
         questions_clone.lock().unwrap().push(req.variable_name.clone());
         
         // Auto-reply logic for test
-        if req.variable_name == "user age" {
+        if req.variable_name == "<user age>" {
             let answer = InputMessage {
                 variable: "user age".to_string(),
                 value: RuntimeValue::Quantity(25.0, Unit::Year),
@@ -69,7 +69,7 @@ fn test_implicit_asking_scenario() {
     println!("Asked: {:?}", *asked);
     println!("Logs: {:?}", *captured_logs);
 
-    assert!(asked.contains(&"user age".to_string()), "Should have asked for 'user age'");
+    assert!(asked.contains(&"<user age>".to_string()), "Should have asked for '<user age>'");
     assert!(
         captured_logs.iter().any(|log| log.contains("Best age")),
         "Should have shown 'Best age' message"

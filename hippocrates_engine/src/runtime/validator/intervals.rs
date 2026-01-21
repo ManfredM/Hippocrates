@@ -28,6 +28,107 @@ impl Interval {
     }
 }
 
+pub type IntervalSet = Vec<Interval>;
+
+pub fn merge_intervals(ranges: &[Interval]) -> IntervalSet {
+    if ranges.is_empty() {
+        return Vec::new();
+    }
+
+    let mut sorted = ranges.to_vec();
+    sorted.sort_by(|a, b| a.min.partial_cmp(&b.min).unwrap_or(std::cmp::Ordering::Equal));
+
+    let mut merged = Vec::new();
+    let mut current = sorted[0].clone();
+    let epsilon = 0.0001;
+
+    for range in sorted.into_iter().skip(1) {
+        if range.min <= current.max + epsilon {
+            if range.max > current.max {
+                current.max = range.max;
+            }
+        } else {
+            merged.push(current);
+            current = range;
+        }
+    }
+
+    merged.push(current);
+    merged
+}
+
+pub fn calculate_interval_set(
+    expr: &Expression,
+    defined_ranges: &std::collections::HashMap<String, IntervalSet>,
+) -> IntervalSet {
+    let unbounded = || vec![Interval::unbounded()];
+
+    match expr {
+        Expression::Literal(lit) => match lit {
+            Literal::Number(n, _) => vec![Interval::exact(*n)],
+            Literal::Quantity(n, _, _) => vec![Interval::exact(*n)],
+            _ => vec![Interval::new(0.0, 0.0)],
+        },
+        Expression::Variable(name) => {
+            if let Some(ranges) = defined_ranges.get(name) {
+                if ranges.is_empty() {
+                    unbounded()
+                } else {
+                    merge_intervals(ranges)
+                }
+            } else {
+                unbounded()
+            }
+        }
+        Expression::Binary(left, op, right) => {
+            let lhs = calculate_interval_set(left, defined_ranges);
+            let rhs = calculate_interval_set(right, defined_ranges);
+            let mut ranges = Vec::new();
+
+            match op.as_str() {
+                "+" => {
+                    for l in &lhs {
+                        for r in &rhs {
+                            ranges.push(Interval::new(l.min + r.min, l.max + r.max));
+                        }
+                    }
+                }
+                "-" => {
+                    for l in &lhs {
+                        for r in &rhs {
+                            ranges.push(Interval::new(
+                                (l.min - r.max).max(0.0),
+                                (l.max - r.min).max(0.0),
+                            ));
+                        }
+                    }
+                }
+                "*" => {
+                    for l in &lhs {
+                        for r in &rhs {
+                            ranges.push(Interval::new(l.min * r.min, l.max * r.max));
+                        }
+                    }
+                }
+                "/" => {
+                    if rhs.iter().any(|r| r.min <= 0.0) {
+                        return unbounded();
+                    }
+                    for l in &lhs {
+                        for r in &rhs {
+                            ranges.push(Interval::new(l.min / r.max, l.max / r.min));
+                        }
+                    }
+                }
+                _ => return unbounded(),
+            }
+
+            merge_intervals(&ranges)
+        }
+        _ => unbounded(),
+    }
+}
+
 pub fn calculate_interval(
     expr: &Expression,
     defined_ranges: &std::collections::HashMap<String, Interval>, // Assuming pre-calculated ranges for variables

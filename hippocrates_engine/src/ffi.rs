@@ -5,6 +5,7 @@ use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 use serde::Serialize;
 use chrono::DateTime;
 use crate::runtime::scheduler::Scheduler;
+use crate::runtime::normalize_identifier;
 
 // Parses a Hippocrates plan string and returns the AST as a JSON string.
 /// The returned string must be freed using `hippocrates_free_string`.
@@ -278,6 +279,7 @@ pub unsafe extern "C" fn hippocrates_engine_set_value(
             Err(_) => return 1,
         }
     };
+    let normalized_name = normalize_identifier(name);
     let json = unsafe {
         match CStr::from_ptr(json_ptr).to_str() {
             Ok(s) => s,
@@ -286,7 +288,7 @@ pub unsafe extern "C" fn hippocrates_engine_set_value(
     };
 
     // Determine type from definition
-    let expected_type = context.env.definitions.get(name).and_then(|def| {
+    let expected_type = context.env.definitions.get(&normalized_name).and_then(|def| {
         if let crate::ast::Definition::Value(v) = def {
             Some(v.value_type.clone())
         } else {
@@ -331,7 +333,7 @@ pub unsafe extern "C" fn hippocrates_engine_set_value(
 
     if let Some(val) = runtime_val {
         let msg = crate::domain::InputMessage {
-            variable: name.to_string(),
+            variable: normalized_name,
             value: val,
             timestamp: chrono::Utc::now().naive_utc(),
         };

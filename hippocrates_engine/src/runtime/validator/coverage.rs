@@ -2,23 +2,29 @@ use crate::ast::{Expression, Literal, RangeSelector, AssessmentCase};
 use crate::domain::EngineError;
 use super::intervals::Interval;
 
+#[derive(Clone, Copy)]
 struct Range { start: f64, end: f64 }
 
 pub fn check_coverage(
     name: &str,
-    valid_interval: &Interval,
+    valid_ranges: &[Interval],
     cases: &[AssessmentCase],
     line: usize,
     decimals: Option<usize>,
     errors: &mut Vec<EngineError>,
 ) {
-    // 1. Determine Universe from Valid Interval
-    let universe_min = valid_interval.min;
-    let universe_max = valid_interval.max;
-
-    if universe_min.is_infinite() && universe_max.is_infinite() {
+    if valid_ranges.is_empty() {
         return;
     }
+
+    if valid_ranges
+        .iter()
+        .any(|r| r.min.is_infinite() || r.max.is_infinite())
+    {
+        return;
+    }
+
+    let valid_ranges = merge_ranges(intervals_to_ranges(valid_ranges));
 
     // 2. Collect Intervals from Cases
     let mut ranges: Vec<Range> = Vec::new();
@@ -29,30 +35,50 @@ pub fn check_coverage(
 
     if let Some(decimals) = decimals {
         let step = 10_f64.powi(-(decimals as i32));
-        check_discrete_coverage(
-            name,
-            universe_min,
-            universe_max,
-            &ranges,
-            line,
-            step,
-            decimals,
-            errors,
-        );
+        for valid in &valid_ranges {
+            check_discrete_coverage(
+                name,
+                valid.start,
+                valid.end,
+                &ranges,
+                line,
+                step,
+                decimals,
+                errors,
+            );
+        }
         return;
     }
 
-    // 3. Clamp Intervals to Universe
+    for valid in &valid_ranges {
+        check_continuous_coverage(
+            name,
+            valid.start,
+            valid.end,
+            &ranges,
+            line,
+            errors,
+        );
+    }
+}
+
+fn check_continuous_coverage(
+    name: &str,
+    universe_min: f64,
+    universe_max: f64,
+    ranges: &[Range],
+    line: usize,
+    errors: &mut Vec<EngineError>,
+) {
     let mut clamped: Vec<Range> = Vec::new();
     for r in ranges {
         let start = r.start.max(universe_min);
         let end = r.end.min(universe_max);
-        if start <= end { 
-             clamped.push(Range { start, end });
+        if start <= end {
+            clamped.push(Range { start, end });
         }
     }
 
-    // 4. Sort and Sweep
     clamped.sort_by(|a, b| a.start.partial_cmp(&b.start).unwrap_or(std::cmp::Ordering::Equal));
 
     let mut current = universe_min;
@@ -62,32 +88,32 @@ pub fn check_coverage(
     let format_val = |v: f64| -> String { format!("{:.1}", v) };
 
     for r in clamped {
-        // Overlap Check (optional)
-        if !is_first {
-             if r.start < current - epsilon {
-                 errors.push(EngineError {
-                     message: format!(
-                         "Constraint Violation: Assessment for '{}' has overlapping ranges; value {} is covered multiple times.",
-                         name,
-                         format_val(r.start)
-                     ),
-                     line,
-                     column: 0,
-                 });
-             }
+        if !is_first && r.start < current - epsilon {
+            errors.push(EngineError {
+                message: format!(
+                    "Constraint Violation: Assessment for '{}' has overlapping ranges; value {} is covered multiple times.",
+                    name,
+                    format_val(r.start)
+                ),
+                line,
+                column: 0,
+            });
         }
 
-        // Check for gap before this range
         if r.start > current + epsilon {
             errors.push(EngineError {
                 message: format!(
-                "Coverage Error: Assessment for '{}' is incomplete. Uncovered gap detected: {} ... {}. Valid range is {}...{}.",
-                name, format_val(current), format_val(r.start), format_val(universe_min), format_val(universe_max)
+                    "Coverage Error: Assessment for '{}' is incomplete. Uncovered gap detected: {} ... {}. Valid range is {}...{}.",
+                    name,
+                    format_val(current),
+                    format_val(r.start),
+                    format_val(universe_min),
+                    format_val(universe_max)
                 ),
                 line,
-                column: 0
+                column: 0,
             });
-            current = r.start; 
+            current = r.start;
         }
 
         if r.end > current {
@@ -97,13 +123,17 @@ pub fn check_coverage(
     }
 
     if current < universe_max - epsilon {
-         errors.push(EngineError {
+        errors.push(EngineError {
             message: format!(
                 "Coverage Error: Assessment for '{}' is incomplete. Uncovered gap at the end: {} ... {}. Valid range is {}...{}.",
-                name, format_val(current), format_val(universe_max), format_val(universe_min), format_val(universe_max)
+                name,
+                format_val(current),
+                format_val(universe_max),
+                format_val(universe_min),
+                format_val(universe_max)
             ),
             line,
-            column: 0
+            column: 0,
         });
     }
 }
@@ -217,6 +247,42 @@ fn extract_ranges(sel: &RangeSelector) -> Vec<Range> {
         _ => {}
     }
     res
+}
+
+fn intervals_to_ranges(intervals: &[Interval]) -> Vec<Range> {
+    intervals
+        .iter()
+        .map(|interval| Range {
+            start: interval.min,
+            end: interval.max,
+        })
+        .collect()
+}
+
+fn merge_ranges(mut ranges: Vec<Range>) -> Vec<Range> {
+    if ranges.is_empty() {
+        return ranges;
+    }
+
+    ranges.sort_by(|a, b| a.start.partial_cmp(&b.start).unwrap_or(std::cmp::Ordering::Equal));
+
+    let mut merged = Vec::new();
+    let mut current = ranges[0].clone();
+    let epsilon = 0.0001;
+
+    for range in ranges.into_iter().skip(1) {
+        if range.start <= current.end + epsilon {
+            if range.end > current.end {
+                current.end = range.end;
+            }
+        } else {
+            merged.push(current);
+            current = range;
+        }
+    }
+
+    merged.push(current);
+    merged
 }
 
 pub fn check_string_coverage(

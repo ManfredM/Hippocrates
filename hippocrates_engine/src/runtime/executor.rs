@@ -1,6 +1,6 @@
 use crate::ast::{Action, Block, Statement, StatementKind};
 use crate::domain::Unit;
-use crate::runtime::{Environment, Evaluator, scheduler::Scheduler};
+use crate::runtime::{Environment, Evaluator, format_identifier, normalize_identifier, scheduler::Scheduler};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::sync::{Arc, atomic::{AtomicBool, Ordering as AtomicOrdering}};
@@ -101,7 +101,8 @@ impl Executor {
     pub fn drain_inputs(&mut self, env: &mut Environment) {
         if let Some(rx) = &self.input_receiver {
             while let Ok(msg) = rx.try_recv() {
-                env.set_value_at(&msg.variable, msg.value, msg.timestamp);
+                let normalized = normalize_identifier(&msg.variable);
+                env.set_value_at(&normalized, msg.value, msg.timestamp);
             }
         }
     }
@@ -110,8 +111,9 @@ impl Executor {
         let rx_opt = self.input_receiver.take();
         if let Some(rx) = &rx_opt {
             while let Ok(msg) = rx.try_recv() {
-                env.set_value_at(&msg.variable, msg.value.clone(), msg.timestamp);
-                self.check_triggers(env, &msg.variable);
+                let normalized = normalize_identifier(&msg.variable);
+                env.set_value_at(&normalized, msg.value.clone(), msg.timestamp);
+                self.check_triggers(env, &normalized);
             }
         }
         self.input_receiver = rx_opt;
@@ -531,7 +533,7 @@ impl Executor {
         let mut options = Vec::new();
         let mut range = None;
         let mut question_text = q.to_string();
-        let variable_name = q.to_string();
+        let variable_name = format_identifier(q);
 
         // Lookup definition
         let val_def_opt = if let Some(crate::ast::Definition::Value(val_def)) = env.definitions.get(q) {
@@ -738,8 +740,9 @@ impl Executor {
                     let remaining = total_wait.saturating_sub(elapsed);
                     match rx.recv_timeout(remaining) {
                         Ok(msg) => {
-                            if msg.variable == target {
-                                env.set_value_at(&msg.variable, msg.value.clone(), msg.timestamp);
+                            let normalized = normalize_identifier(&msg.variable);
+                            if normalized == target {
+                                env.set_value_at(&normalized, msg.value.clone(), msg.timestamp);
                                 self.emit_log(
                                     format!("Received Answer: {:?}", msg.value),
                                     crate::domain::EventType::Answer,
@@ -754,12 +757,12 @@ impl Executor {
                                     Some("AnswerQuestion".to_string()),
                                 );
 
-                                self.check_triggers(env, &msg.variable);
+                                self.check_triggers(env, &normalized);
                                 answered = true;
                                 break;
                             } else {
-                                env.set_value_at(&msg.variable, msg.value.clone(), msg.timestamp);
-                                self.check_triggers(env, &msg.variable);
+                                env.set_value_at(&normalized, msg.value.clone(), msg.timestamp);
+                                self.check_triggers(env, &normalized);
                             }
                         }
                         Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
@@ -776,8 +779,9 @@ impl Executor {
                 loop {
                     match rx.recv() {
                         Ok(msg) => {
-                            if msg.variable == target {
-                                env.set_value_at(&msg.variable, msg.value.clone(), msg.timestamp);
+                            let normalized = normalize_identifier(&msg.variable);
+                            if normalized == target {
+                                env.set_value_at(&normalized, msg.value.clone(), msg.timestamp);
                                 self.emit_log(
                                     format!("Received Answer: {:?}", msg.value),
                                     crate::domain::EventType::Answer,
@@ -792,12 +796,12 @@ impl Executor {
                                     Some("AnswerQuestion".to_string()),
                                 );
 
-                                self.check_triggers(env, &msg.variable);
+                                self.check_triggers(env, &normalized);
                                 answered = true;
                                 break;
                             } else {
-                                env.set_value_at(&msg.variable, msg.value.clone(), msg.timestamp);
-                                self.check_triggers(env, &msg.variable);
+                                env.set_value_at(&normalized, msg.value.clone(), msg.timestamp);
+                                self.check_triggers(env, &normalized);
                             }
                         }
                         Err(_) => {
