@@ -16,7 +16,7 @@ fn test_interactive_execution() {
 
 <my range> is a number:
     valid values:
-        0 ... 10
+        0 kg ... 10 kg
     question:
         ask "Pick number".
     
@@ -123,7 +123,7 @@ fn test_interactive_execution() {
 
     let answer2 = hippocrates_engine::domain::InputMessage {
         variable: "my range".to_string(),
-        value: RuntimeValue::Number(5.0),
+        value: RuntimeValue::Quantity(5.0, hippocrates_engine::domain::Unit::Kilogram),
         timestamp: chrono::Utc::now().naive_utc(),
     };
     tx.send(answer2).expect("Failed to send answer 2");

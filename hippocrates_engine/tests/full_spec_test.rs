@@ -11,7 +11,7 @@ fn test_full_spec_features() {
     let plan = parser::parse_plan(&input).expect("Failed to parse plan");
 
     // Verify Definitions
-    assert_eq!(plan.definitions.len(), 13); 
+    assert_eq!(plan.definitions.len(), 10); 
 
     // Check Drug
     if let Some(Definition::Drug(drug)) = plan

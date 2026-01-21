@@ -1,28 +1,18 @@
 (* --- PASS: full_spec --- *)
-<mg> is a unit:
-    plural is <mg>
-
-<kg> is a unit:
-    plural is <kg>
-
 <Test Unit> is a unit:
     plural is <Test Units>
     abbreviation is "tu"
-
-<degree Celsius> is a unit:
-    plural is <degrees Celsius>
-    abbreviation is "°C"
 
 <count> is a unit:
     plural is <counts>
 
 <Temperature> is a number:
     valid values:
-        35.0 <degrees Celsius> ... 42.0 <degrees Celsius>
+        35.0 °C ... 42.0 °C
     meaning:
-        38.0 <degrees Celsius> ... 42.0 <degrees Celsius>:
+        38.0 °C ... 42.0 °C:
             <High Fever> = "yes".
-        35.0 <degrees Celsius> ... 37.9 <degrees Celsius>:
+        35.0 °C ... 37.9 °C:
             <High Fever> = "no".
     question:
         ask "What is the patient's temperature?"
@@ -43,10 +33,10 @@
     
 <Aspirin> is a drug:
     ingredients:
-        <Acetylsalicylic Acid> 500 <mg>
+        <Acetylsalicylic Acid> 500 mg
     dosage safety:
-        maximum single dose = 1000 <mg>
-        maximum daily dose = 4000 <mg>
+        maximum single dose = 1000 mg
+        maximum daily dose = 4000 mg
         minimum time between doses = 4 hours
     administration:
         form of administration is "Tablet"
@@ -73,13 +63,13 @@
 <Treatment Plan> is a plan:
     during plan:
         ask <Temperature>.
-        <Temperature> = 37.0 <degrees Celsius>.
+        <Temperature> = 37.0 °C.
         
         assess <Temperature>:
-            38.0 <degrees Celsius> ... 42.0 <degrees Celsius>:
+            38.0 °C ... 42.0 °C:
                 show message "Fever detected.".
                 <High Fever> = "yes".
-            35.0 <degrees Celsius> ... 37.9 <degrees Celsius>:
+            35.0 °C ... 37.9 °C:
                 show message "Normal temperature.".
                 <High Fever> = "no".
 
@@ -107,7 +97,7 @@
 (* --- FAIL: full_spec --- *)
 <mismatched unit> is a number:
     valid values:
-        0 <kg> ... 10 <kg> 
+        0 kg ... 10 kg 
 
 <duplicate enums> is an enumeration:
     valid values:
@@ -115,28 +105,28 @@
 
 <overlapping ranges> is a number:
     valid values:
-        0 ... 10;
-        5 ... 15
+        0 kg ... 10 kg;
+        5 kg ... 15 kg
 
 <incomplete meaning> is a number:
     valid values:
-        0 ... 100
+        0 kg ... 100 kg
     meaning:
-        0 ... 50:
+        0 kg ... 50 kg:
             <status> = "low".
-        80 ... 100:
+        80 kg ... 100 kg:
             <status> = "high".
 
 <undefined usage> is a plan:
     during plan:
-        <UndefinedVar> = 10.
+        <UndefinedVar> = 10 kg.
         show message to <UnknownPerson> "Hello".
 
 <unit mismatch assign> is a plan:
     during plan:
         <weight> = 10 <pounds>.
-        <conflicting val> = 5 <kg>.
-        <conflicting val> = 10 <meters>.
+        <conflicting val> = 5 kg.
+        <conflicting val> = 10 m.
 
 (* --- PASS: golden_master --- *)
 <testpoint> is a unit:
@@ -182,7 +172,7 @@
 (* --- FAIL: golden_master --- *)
 <BadNumber> is a number:
     valid values:
-        0 ... 10
+        0 kg ... 10 kg
 
 (* --- PASS: value_definition --- *)
 <TestUnit> is a unit:
@@ -258,7 +248,7 @@
 
 <MyDrug> is a drug:
     ingredients:
-        <Aspirin> 500 <mg>
+        <Aspirin> 500 mg
         <Caffeine> 50 <BadUnit>
 
 (* --- FAIL: question_config --- *)

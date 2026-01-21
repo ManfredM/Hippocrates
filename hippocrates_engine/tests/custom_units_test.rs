@@ -44,7 +44,7 @@ fn test_strict_units_without_definition() {
     let input = r#"
 <val> is a number:
     valid values:
-        0 ... 100
+        0 kg ... 100 kg
 
 <plan> is a plan:
     during plan:
@@ -77,7 +77,7 @@ fn test_standard_units_still_work() {
     let input = r#"
 <val> is a number:
     valid values:
-        0 ... 100
+        0 m ... 100 m
 
 <plan> is a plan:
     during plan:

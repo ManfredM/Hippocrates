@@ -189,7 +189,7 @@
 
         assess <empty bottles>:
             0 <bottles> ... 97 <bottles>:
-                show message to patient (99 - <empty bottles>) + " bottles of beer on the wall.".
+                show message to patient (99 <bottles> - <empty bottles>) + " of beer on the wall.".
                 <bottle state> = "empty".
                 <empty bottles> = <empty bottles> + 1 <bottle>.
             
@@ -256,10 +256,10 @@
 (* --- FAIL: invalid_plan --- *)
 <unitless value> is a number:
     valid values:
-        0 ... 10
+        0 kg ... 10 kg
 
 <Bad Plan> is a plan:
     during plan:
         assess <unitless value>:
-            0 ... 5:
+            0 kg ... 5 kg:
                 show message "Partial coverage".

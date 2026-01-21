@@ -24,6 +24,37 @@ pub fn check_drugs(defs: &HashMap<String, Definition>, valid_units: &HashSet<Str
     }
 }
 
+pub fn check_unit_definitions(defs: &HashMap<String, Definition>, errors: &mut Vec<EngineError>) {
+    for def in defs.values() {
+        if let Definition::Unit(ud) = def {
+            let mut aliases = Vec::new();
+            aliases.push(ud.name.as_str());
+            for name in &ud.plurals {
+                aliases.push(name.as_str());
+            }
+            for name in &ud.singulars {
+                aliases.push(name.as_str());
+            }
+            for name in &ud.abbreviations {
+                aliases.push(name.as_str());
+            }
+
+            for alias in aliases {
+                if is_builtin_unit(alias) {
+                    errors.push(EngineError {
+                        message: format!(
+                            "Built-in units cannot be redefined. Custom unit '{}' conflicts with built-in unit '{}'.",
+                            ud.name, alias
+                        ),
+                        line: 0,
+                        column: 0,
+                    });
+                }
+            }
+        }
+    }
+}
+
 pub fn check_addressees(defs: &HashMap<String, Definition>, errors: &mut Vec<EngineError>) {
     for def in defs.values() {
         if let crate::ast::Definition::Addressee(ad) = def {
@@ -233,6 +264,78 @@ pub fn check_statement_semantics(
         },
         _ => {}
     }
+}
+
+fn is_builtin_unit(name: &str) -> bool {
+    matches!(
+        name,
+        "\u{00B0}F"
+            | "\u{00B0}C"
+            | "%"
+            | "milligrams"
+            | "milligram"
+            | "mg"
+            | "kilograms"
+            | "kilogram"
+            | "kg"
+            | "grams"
+            | "gram"
+            | "g"
+            | "pounds"
+            | "pound"
+            | "lb"
+            | "ounces"
+            | "ounce"
+            | "oz"
+            | "milliliters"
+            | "milliliter"
+            | "ml"
+            | "liters"
+            | "liter"
+            | "l"
+            | "fluid ounces"
+            | "fluid ounce"
+            | "fl oz"
+            | "gallons"
+            | "gallon"
+            | "gal"
+            | "mmHg"
+            | "bpm"
+            | "mg/dL"
+            | "mmol/L"
+            | "centimeters"
+            | "centimeter"
+            | "cm"
+            | "millimeters"
+            | "millimeter"
+            | "mm"
+            | "kilometers"
+            | "kilometer"
+            | "km"
+            | "inches"
+            | "inch"
+            | "feet"
+            | "foot"
+            | "miles"
+            | "mile"
+            | "meters"
+            | "meter"
+            | "m"
+            | "years"
+            | "months"
+            | "weeks"
+            | "days"
+            | "hours"
+            | "minutes"
+            | "seconds"
+            | "year"
+            | "month"
+            | "week"
+            | "day"
+            | "hour"
+            | "minute"
+            | "second"
+    )
 }
 
 fn validate_expression(

@@ -8,14 +8,14 @@ fn test_validator_numeric_overlap() {
     let input = r#"
 <val> is a number:
     valid values:
-        0 ... 100
+        0 kg ... 100 kg
 
 <plan> is a plan:
     during plan:
         assess <val>:
-            1:
+            1 kg:
                 <log> = "one".
-            0 ... 40:
+            0 kg ... 40 kg:
                 <log> = "low".
 "#;
     let plan = parser::parse_plan(input).expect("Failed to parse");

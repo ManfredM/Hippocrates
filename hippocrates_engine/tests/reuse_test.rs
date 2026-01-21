@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use hippocrates_engine::Session;
-    use hippocrates_engine::domain::{RuntimeValue, AskRequest, EventType};
+    use hippocrates_engine::domain::{RuntimeValue, AskRequest, EventType, Unit};
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
     use std::thread;
@@ -27,6 +27,9 @@ mod tests {
 
         let script = r#"
 <Temp> is a number:
+    unit is °C
+    valid values:
+        35.0 °C ... 42.0 °C
     reuse:
         reuse period of value is 5 seconds.
 
@@ -43,7 +46,7 @@ mod tests {
         thread::sleep(Duration::from_millis(500));
         
         // Provide Answer (creates value at T=0)
-        session.provide_answer("Temp", RuntimeValue::Number(37.0));
+        session.provide_answer("Temp", RuntimeValue::Quantity(37.0, Unit::Celsius));
         
         // Wait for completion
         thread::sleep(Duration::from_millis(500));
@@ -81,7 +84,7 @@ mod tests {
         }
         
         // Provide answer to finish cleanly
-        session.provide_answer("Temp", RuntimeValue::Number(38.0));
+        session.provide_answer("Temp", RuntimeValue::Quantity(38.0, Unit::Celsius));
         thread::sleep(Duration::from_millis(500));
     }
 }

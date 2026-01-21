@@ -312,14 +312,8 @@ fn parse_drug_def(pair: pest::iterators::Pair<Rule>) -> Result<DrugDef, ParseErr
                     // ingredient rule
                     let mut i_inner = i_pair.into_inner();
                     let i_name = parse_identifier_str(i_inner.next().unwrap());
-                    let i_amt = i_inner
-                        .next()
-                        .unwrap()
-                        .as_str()
-                        .trim()
-                        .parse::<f64>()
-                        .unwrap_or(0.0);
-                    let i_unit = parse_unit(i_inner.next().unwrap())?;
+                    let qty_pair = i_inner.next().unwrap();
+                    let (i_amt, i_unit) = parse_quantity_pair(qty_pair)?;
                     ingredients.push(Ingredient {
                         name: i_name,
                         amount: i_amt,

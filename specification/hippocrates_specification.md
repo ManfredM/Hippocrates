@@ -49,10 +49,23 @@ All identifiers are angle-bracketed. When a rule introduces an indented block (`
 ```ebnf
 standard_unit = 
     "°F" | "°C" | "%" |
-    "mg" | "kg" | "g" | "lb" | "oz" |
-    "ml" | "l" | "fl oz" | "gal" |
-    "mmHg" | "bpm" | "mg/dL" | "mmol/L" |
-    "cm" | "mm" | "km" | "inch" | "foot" | "mile" | "m" |
+    "mmHg" | "mg/dL" | "mmol/L" | "bpm" |
+    "milligrams" | "milligram" | "mg" |
+    "kilograms" | "kilogram" | "kg" |
+    "grams" | "gram" | "g" |
+    "pounds" | "pound" | "lb" |
+    "ounces" | "ounce" | "oz" |
+    "milliliters" | "milliliter" | "ml" |
+    "liters" | "liter" | "l" |
+    "fluid ounces" | "fluid ounce" | "fl oz" |
+    "gallons" | "gallon" | "gal" |
+    "centimeters" | "centimeter" | "cm" |
+    "millimeters" | "millimeter" | "mm" |
+    "kilometers" | "kilometer" | "km" |
+    "meters" | "meter" | "m" |
+    "inches" | "inch" |
+    "feet" | "foot" |
+    "miles" | "mile" |
     "years" | "months" | "weeks" | "days" | "hours" | "minutes" | "seconds" |
     "year" | "month" | "week" | "day" | "hour" | "minute" | "second";
 
@@ -63,8 +76,9 @@ quantity = number, [ " " ], unit;
 ```
 
 All numeric literals in user scripts must be expressed as quantities with units; unitless numbers are invalid.
+Built-in units are reserved and cannot be redefined or aliased in unit definitions.
 
-Precision rule: integer ranges (e.g., `0 <points> ... 10 <points>`) use step size 1; decimal ranges (e.g., `0.0 <mg> ... 10.0 <mg>`) use the smallest declared decimal precision (step size `10^-precision`).
+Precision rule: integer ranges (e.g., `0 <points> ... 10 <points>`) use step size 1; decimal ranges (e.g., `0.0 mg ... 10.0 mg`) use the smallest declared decimal precision (step size `10^-precision`).
 
 ### 3.3. Program Structure
 
@@ -259,13 +273,13 @@ validation_mode = "once" | "twice";
 
 vas_block = { best_value_def | best_label_def | worst_value_def | worst_label_def };
 
-best_value_def = "best value is ", ( quantity | number ), [ "." ], newline;
+best_value_def = "best value is ", quantity, [ "." ], newline;
 best_label_def = "text for best value is ", string_literal, [ "." ], newline;
-worst_value_def = "worst value is ", ( quantity | number ), [ "." ], newline;
+worst_value_def = "worst value is ", quantity, [ "." ], newline;
 worst_label_def = "text for worst value is ", string_literal, [ "." ], newline;
 ```
 
-If a question expires without an answer, the engine does not block subsequent loop triggers. The question is treated as unanswered, and the next loop execution may re-ask or continue according to the script. An optional block on `question expires after` runs at expiration time and can send a reminder or log a message.
+Question waits do not block subsequent loop triggers. If the next scheduled trigger occurs before an answer arrives, the engine resumes the loop with the question still pending (the block may re-ask or continue). If a question expires without an answer, an optional `question expires after` block runs at expiration time and can send a reminder or log a message.
 
 ### 3.8. Events and Timing
 
@@ -310,7 +324,7 @@ drug_definition =
     dedent;
 
 ingredients_block = "ingredients:", newline, indent, { ingredient }, dedent;
-ingredient = identifier, number, unit;
+ingredient = identifier, quantity;
 
 dosage_block = "dosage safety:", newline, indent, { dosage_rule }, dedent;
 dosage_rule =
@@ -348,7 +362,6 @@ term =
     statistical_func |
     quantity |
     time_indication |
-    number |
     string_literal |
     identifier |
     "(", expression, ")";

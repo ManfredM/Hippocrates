@@ -20,7 +20,7 @@ fn test_unitless_range_parsing() {
         0 ... 100
 "#;
     let result = parser::parse_plan(input);
-    assert!(result.is_ok(), "Expected valid parse for unitless range. Error: {:?}", result.err());
+    assert!(result.is_err(), "Expected parser error for unitless range");
 }
 
 #[test]

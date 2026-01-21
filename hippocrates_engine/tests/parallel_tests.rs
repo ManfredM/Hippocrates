@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use hippocrates_engine::runtime::session::Session;
-    use hippocrates_engine::domain::{RuntimeValue, AskRequest, EventType};
+    use hippocrates_engine::domain::{RuntimeValue, AskRequest, EventType, Unit};
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
     use std::thread;
@@ -26,7 +26,9 @@ mod tests {
         ));
 
         let script1 = r#"
-<Age> is a number.
+<Age> is a number:
+    valid values:
+        0 years ... 130 years
 <Script1> is a plan:
     during plan:
         ask <Age>.
@@ -34,7 +36,9 @@ mod tests {
 "#;
 
         let script2 = r#"
-<Age> is a number.
+<Age> is a number:
+    valid values:
+        0 years ... 130 years
 <Script2> is a plan:
     during plan:
         ask <Age>.
@@ -53,7 +57,7 @@ mod tests {
 
         // provide answer
         println!("Providing answer...");
-        session.provide_answer("Age", RuntimeValue::Number(30.0));
+        session.provide_answer("Age", RuntimeValue::Quantity(30.0, Unit::Year));
 
         // Wait for completion
         thread::sleep(Duration::from_millis(500));

@@ -59,6 +59,7 @@ pub struct Executor {
     pub mode: ExecutionMode,
     pub input_receiver: Option<std::sync::mpsc::Receiver<crate::domain::InputMessage>>,
     pub stop_signal: Arc<AtomicBool>,
+    next_event_time: Option<chrono::NaiveDateTime>,
 }
 
 impl Executor {
@@ -70,6 +71,7 @@ impl Executor {
             mode: ExecutionMode::RealTime,
             input_receiver: None,
             stop_signal,
+            next_event_time: None,
         }
     }
 
@@ -84,6 +86,7 @@ impl Executor {
             mode: ExecutionMode::RealTime,
             input_receiver: None,
             stop_signal: Arc::new(AtomicBool::new(false)),
+            next_event_time: None,
         }
     }
 
@@ -101,6 +104,17 @@ impl Executor {
                 env.set_value_at(&msg.variable, msg.value, msg.timestamp);
             }
         }
+    }
+
+    fn drain_inputs_with_triggers(&mut self, env: &mut Environment) {
+        let rx_opt = self.input_receiver.take();
+        if let Some(rx) = &rx_opt {
+            while let Ok(msg) = rx.try_recv() {
+                env.set_value_at(&msg.variable, msg.value.clone(), msg.timestamp);
+                self.check_triggers(env, &msg.variable);
+            }
+        }
+        self.input_receiver = rx_opt;
     }
 
     pub fn execute_plan(&mut self, env: &mut Environment, plan_name: &str) {
@@ -239,6 +253,7 @@ impl Executor {
                 }
 
                 let now = event.time;
+                self.next_event_time = events.peek().map(|next| next.time);
 
 
                 if let Some(limit) = end_time {
@@ -276,6 +291,7 @@ impl Executor {
                     }
                 }
                 env.set_time(now);
+                self.drain_inputs_with_triggers(env);
 
                 // Execute
                 match event.kind {
@@ -329,6 +345,7 @@ impl Executor {
                     }
                 }
             }
+            self.next_event_time = None;
         } else {
             println!(
                 "DEBUG: Plan '{}' not found. Available: {:?}",
@@ -367,22 +384,25 @@ impl Executor {
             }
             StatementKind::Action(action) => self.execute_action(env, action),
             StatementKind::Assignment(assign) => {
-                loop {
-                    let val = Evaluator::evaluate(env, &assign.expression);
-                    if let crate::domain::RuntimeValue::Missing(var_name) = val {
-                        env.log(format!("Implicitly asking for missing variable: {}", var_name));
-                        self.execute_action(env, &Action::AskQuestion(var_name, None));
-                        continue;
+                let mut val = Evaluator::evaluate(env, &assign.expression);
+                if let crate::domain::RuntimeValue::Missing(var_name) = val {
+                    env.log(format!("Implicitly asking for missing variable: {}", var_name));
+                    let answered = self.ask_question(env, &var_name, None);
+                    if !answered {
+                        return;
                     }
-                    
-                    env.set_value(&assign.target, val.clone());
-                    env.log_audit(
-                        crate::domain::EventType::Decision,
-                        format!("Assigned variable: {} = {}", assign.target, val),
-                        Some("Assignment".to_string())
-                    );
-                    break;
+                    val = Evaluator::evaluate(env, &assign.expression);
+                    if matches!(val, crate::domain::RuntimeValue::Missing(_)) {
+                        return;
+                    }
                 }
+
+                env.set_value(&assign.target, val.clone());
+                env.log_audit(
+                    crate::domain::EventType::Decision,
+                    format!("Assigned variable: {} = {}", assign.target, val),
+                    Some("Assignment".to_string()),
+                );
             }
             StatementKind::Command(cmd) => {
                 env.log(format!("Command: {}", cmd));
@@ -441,52 +461,56 @@ impl Executor {
     }
 
     fn execute_conditional(&mut self, env: &mut Environment, cond_stmt: &crate::ast::Conditional) {
-        loop {
-            let val = match &cond_stmt.condition {
+        let mut val = match &cond_stmt.condition {
+            crate::ast::ConditionalTarget::Expression(expr) => Evaluator::evaluate(env, expr),
+            crate::ast::ConditionalTarget::Confidence(_ident) => {
+                // Stub: return high confidence
+                crate::domain::RuntimeValue::Number(100.0)
+            }
+        };
+
+        if let crate::domain::RuntimeValue::Missing(var_name) = val {
+            env.log(format!(
+                "Implicitly asking for missing variable in conditional: {}",
+                var_name
+            ));
+            let answered = self.ask_question(env, &var_name, None);
+            if !answered {
+                return;
+            }
+            val = match &cond_stmt.condition {
                 crate::ast::ConditionalTarget::Expression(expr) => Evaluator::evaluate(env, expr),
                 crate::ast::ConditionalTarget::Confidence(_ident) => {
-                    // Stub: return high confidence
                     crate::domain::RuntimeValue::Number(100.0)
                 }
             };
-
-            if let crate::domain::RuntimeValue::Missing(var_name) = val {
-                env.log(format!("Implicitly asking for missing variable in conditional: {}", var_name));
-                self.execute_action(env, &Action::AskQuestion(var_name, None));
-                continue;
+            if matches!(val, crate::domain::RuntimeValue::Missing(_)) {
+                return;
             }
-            
-            // println!("DEBUG: Condition Value: {:?}", val);
-            println!("DEBUG: Condition Value: {:?}", val);
+        }
 
+        println!("DEBUG: Condition Value: {:?}", val);
 
-            // Context-aware resolution
-            let val = if let crate::domain::RuntimeValue::String(s) = &val {
-                if let Some(resolved) = env.get_value(s) {
-                    resolved.clone()
-                } else {
-                    val
-                }
+        // Context-aware resolution
+        let val = if let crate::domain::RuntimeValue::String(s) = &val {
+            if let Some(resolved) = env.get_value(s) {
+                resolved.clone()
             } else {
                 val
-            };
-
-            for case in &cond_stmt.cases {
-                let selector = &case.condition;
-                // Note: check_condition doesn't evaluate expression deeply enough to return Missing? 
-                // Wait, check_condition uses Evaluator::evaluate inside.
-                // We might need to handle Missing inside check_condition too, or accept that simple usage covers most cases. 
-                // For now, assume top-level expression check covers the implicit ask. 
-                // Deeper implicit asks inside `case` conditions are not handled here yet.
-                let is_match = Evaluator::check_condition(env, selector, &val);
-                println!("DEBUG: Checking selector {:?} (match={})", selector, is_match);
-
-                if is_match {
-                    self.execute_block(env, &case.block);
-                    break;
-                }
             }
-            break;
+        } else {
+            val
+        };
+
+        for case in &cond_stmt.cases {
+            let selector = &case.condition;
+            let is_match = Evaluator::check_condition(env, selector, &val);
+            println!("DEBUG: Checking selector {:?} (match={})", selector, is_match);
+
+            if is_match {
+                self.execute_block(env, &case.block);
+                break;
+            }
         }
     }
 
@@ -496,6 +520,303 @@ impl Executor {
         }
     }
 
+    fn ask_question(
+        &mut self,
+        env: &mut Environment,
+        q: &str,
+        block_opt: Option<&Vec<Statement>>,
+    ) -> bool {
+        // Build AskRequest
+        let mut style = crate::domain::QuestionStyle::Text;
+        let mut options = Vec::new();
+        let mut range = None;
+        let mut question_text = q.to_string();
+        let variable_name = q.to_string();
+
+        // Lookup definition
+        let val_def_opt = if let Some(crate::ast::Definition::Value(val_def)) = env.definitions.get(q) {
+            Some(val_def.clone())
+        } else {
+            env.log(format!(
+                "DEBUG: Definition for '{}' not found. Available: {:?}",
+                q,
+                env.definitions.keys()
+            ));
+            None
+        };
+
+        if let Some(val_def) = &val_def_opt {
+            // Determine style/options from definition
+            for prop in &val_def.properties {
+                match prop {
+                    crate::ast::Property::ValidValues(stmts) => {
+                        // Extract valid values as options
+                        for stmt in stmts {
+                            if let StatementKind::EventProgression(_, cases) = &stmt.kind {
+                                for case in cases {
+                                    match &case.condition {
+                                        crate::ast::RangeSelector::Equals(expr) => {
+                                            let v = Evaluator::evaluate(env, expr);
+                                            // If string or enum, add to options
+                                            if let crate::domain::RuntimeValue::String(s) = &v {
+                                                options.push(s.clone());
+                                            } else if let crate::domain::RuntimeValue::Enumeration(s) = &v {
+                                                options.push(s.clone());
+                                            } else {
+                                                options.push(v.to_string());
+                                            }
+                                        }
+                                        crate::ast::RangeSelector::Range(min, max) => {
+                                            let min_v = Evaluator::evaluate(env, min);
+                                            let max_v = Evaluator::evaluate(env, max);
+                                            if let (crate::domain::RuntimeValue::Number(mn), crate::domain::RuntimeValue::Number(mx)) =
+                                                (min_v.clone(), max_v.clone())
+                                            {
+                                                range = Some((mn, mx));
+                                            } else if let (crate::domain::RuntimeValue::Quantity(mn, u1), crate::domain::RuntimeValue::Quantity(mx, u2)) =
+                                                (min_v, max_v)
+                                            {
+                                                if u1 == u2 {
+                                                    range = Some((mn, mx));
+                                                }
+                                            }
+                                        }
+                                        _ => {}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    crate::ast::Property::Question(action) => {
+                        // Check for explicit question text in definition
+                        if let Action::AskQuestion(text, _) = action {
+                            if !text.is_empty() {
+                                question_text = text.clone();
+                            }
+                        }
+                    }
+                    crate::ast::Property::Reuse(val, unit) => {
+                        // Check if we have a valid value in history
+                        let last_entry_data = if let Some(history) = env.get_history(q) {
+                            history.last().map(|entry| (entry.value.clone(), entry.timestamp))
+                        } else {
+                            None
+                        };
+
+                        if let Some((val_data, timestamp)) = last_entry_data {
+                            // Calculate age
+                            let age = env.now - timestamp;
+                            let age_secs = age.num_seconds() as f64;
+
+                            let reuse_secs = match unit {
+                                Unit::Second => *val,
+                                Unit::Minute => *val * 60.0,
+                                Unit::Hour => *val * 3600.0,
+                                Unit::Day => *val * 86400.0,
+                                Unit::Week => *val * 604800.0,
+                                Unit::Month => *val * 2592000.0,
+                                Unit::Year => *val * 31536000.0,
+                                _ => *val, // Fallback
+                            };
+
+                            if age_secs < reuse_secs {
+                                // Ensure value is not NotEnoughData
+                                if let crate::domain::RuntimeValue::NotEnoughData = val_data {
+                                    // If value is NotEnoughData, it's not valid to reuse, so ask.
+                                } else {
+                                    env.log(format!(
+                                        "Skipping question '{}', existing value is fresh (Age: {}s < Reuse: {}s)",
+                                        q, age_secs, reuse_secs
+                                    ));
+                                    return true; // Skip asking!
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            // Infer Style
+            if !options.is_empty() {
+                style = crate::domain::QuestionStyle::Selection;
+            } else if range.is_some() {
+                style = crate::domain::QuestionStyle::Numeric;
+            } else if val_def.value_type == crate::domain::ValueType::Enumeration {
+                style = crate::domain::QuestionStyle::Selection;
+            }
+        }
+
+        // Emit log with actual question text
+        self.emit_log(question_text.clone(), crate::domain::EventType::Question, env.now);
+
+        let mut validation_mode = None;
+        let mut validation_timeout = None;
+
+        if let Some(stmts) = block_opt {
+            for stmt in stmts {
+                if let StatementKind::Action(Action::ValidateAnswer(mode, timeout)) = &stmt.kind {
+                    validation_mode = Some(mode.clone());
+                    if let Some((val, unit)) = timeout {
+                        let secs = match unit {
+                            Unit::Second => *val,
+                            Unit::Minute => *val * 60.0,
+                            _ => *val,
+                        };
+                        validation_timeout = Some(secs as i64);
+                    }
+                }
+            }
+        }
+
+        // Calculate valid_after timestamp from Reuse property if present
+        let mut valid_after = None;
+        if let Some(val_def) = &val_def_opt {
+            for prop in &val_def.properties {
+                if let crate::ast::Property::Reuse(val, unit) = prop {
+                    let reuse_secs = match unit {
+                        Unit::Second => *val,
+                        Unit::Minute => *val * 60.0,
+                        Unit::Hour => *val * 3600.0,
+                        Unit::Day => *val * 86400.0,
+                        Unit::Week => *val * 604800.0,
+                        Unit::Month => *val * 2592000.0,
+                        Unit::Year => *val * 31536000.0,
+                        _ => *val,
+                    };
+                    let reuse_dur = chrono::Duration::milliseconds((reuse_secs * 1000.0) as i64);
+                    valid_after = Some((env.now - reuse_dur).and_utc().timestamp_millis());
+                }
+            }
+        }
+
+        // Log the question to audit
+        env.log_audit(
+            crate::domain::EventType::Question,
+            format!("Asked question for '{}': {}", q, question_text),
+            Some("AskQuestion".to_string()),
+        );
+
+        // Fire callback if present
+        if let Some(cb) = &self.on_ask {
+            let req = crate::domain::AskRequest {
+                variable_name: variable_name.clone(),
+                question_text: question_text.clone(),
+                style: style.clone(),
+                options: options.clone(),
+                range,
+                validation_mode,
+                validation_timeout,
+                timestamp: env.now.and_utc().timestamp_millis(),
+                valid_after,
+            };
+            cb(req);
+        }
+
+        // Wait for answer via Channel
+        self.wait_for_answer(env, q)
+    }
+
+    fn wait_for_answer(&mut self, env: &mut Environment, target: &str) -> bool {
+        let rx_opt = self.input_receiver.take();
+        let mut answered = false;
+
+        if let Some(rx) = &rx_opt {
+            if let Some(deadline) = self.next_event_time {
+                let total_wait = match (deadline - env.now).to_std() {
+                    Ok(dur) => dur,
+                    Err(_) => std::time::Duration::from_secs(0),
+                };
+                let start = std::time::Instant::now();
+
+                loop {
+                    let elapsed = start.elapsed();
+                    if elapsed >= total_wait {
+                        break;
+                    }
+
+                    let remaining = total_wait.saturating_sub(elapsed);
+                    match rx.recv_timeout(remaining) {
+                        Ok(msg) => {
+                            if msg.variable == target {
+                                env.set_value_at(&msg.variable, msg.value.clone(), msg.timestamp);
+                                self.emit_log(
+                                    format!("Received Answer: {:?}", msg.value),
+                                    crate::domain::EventType::Answer,
+                                    env.now,
+                                );
+                                env.log_audit(
+                                    crate::domain::EventType::Decision,
+                                    format!(
+                                        "Answered question for '{}' with value: {:?}",
+                                        msg.variable, msg.value
+                                    ),
+                                    Some("AnswerQuestion".to_string()),
+                                );
+
+                                self.check_triggers(env, &msg.variable);
+                                answered = true;
+                                break;
+                            } else {
+                                env.set_value_at(&msg.variable, msg.value.clone(), msg.timestamp);
+                                self.check_triggers(env, &msg.variable);
+                            }
+                        }
+                        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                            break;
+                        }
+                        Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => {
+                            env.log("Input channel disconnected.".to_string());
+                            debug_log("EXECUTOR: Channel disconnected.");
+                            break;
+                        }
+                    }
+                }
+            } else {
+                loop {
+                    match rx.recv() {
+                        Ok(msg) => {
+                            if msg.variable == target {
+                                env.set_value_at(&msg.variable, msg.value.clone(), msg.timestamp);
+                                self.emit_log(
+                                    format!("Received Answer: {:?}", msg.value),
+                                    crate::domain::EventType::Answer,
+                                    env.now,
+                                );
+                                env.log_audit(
+                                    crate::domain::EventType::Decision,
+                                    format!(
+                                        "Answered question for '{}' with value: {:?}",
+                                        msg.variable, msg.value
+                                    ),
+                                    Some("AnswerQuestion".to_string()),
+                                );
+
+                                self.check_triggers(env, &msg.variable);
+                                answered = true;
+                                break;
+                            } else {
+                                env.set_value_at(&msg.variable, msg.value.clone(), msg.timestamp);
+                                self.check_triggers(env, &msg.variable);
+                            }
+                        }
+                        Err(_) => {
+                            env.log("Input channel disconnected.".to_string());
+                            debug_log("EXECUTOR: Channel disconnected.");
+                            break;
+                        }
+                    }
+                }
+            }
+        } else {
+            env.log("Warning: No input receiver configured. Skipping wait for answer.".to_string());
+            debug_log("EXECUTOR: No receiver configured.");
+        }
+
+        self.input_receiver = rx_opt;
+        answered
+    }
+
     pub fn set_ask_callback(&mut self, cb: Box<dyn Fn(crate::domain::AskRequest) + Send>) {
         self.on_ask = Some(cb);
     }
@@ -503,7 +824,7 @@ impl Executor {
     fn execute_action(&mut self, env: &mut Environment, action: &Action) {
         match action {
             Action::ShowMessage(parts, stmts_opt) => {
-                loop {
+                for _ in 0..2 {
                     let mut full_msg = String::new();
                     let mut missing_var = None;
 
@@ -518,311 +839,35 @@ impl Executor {
                     }
 
                     if let Some(var_name) = missing_var {
-                        env.log(format!("Implicitly asking for missing variable in message: {}", var_name));
-                        self.execute_action(env, &Action::AskQuestion(var_name, None));
+                        env.log(format!(
+                            "Implicitly asking for missing variable in message: {}",
+                            var_name
+                        ));
+                        let answered = self.ask_question(env, &var_name, None);
+                        if !answered {
+                            return;
+                        }
                         continue;
                     }
 
                     let message = full_msg;
-                    // Emit log with current env time
                     env.log_audit(
                         crate::domain::EventType::Message,
                         message.clone(),
-                        Some("ShowMessage".to_string())
+                        Some("ShowMessage".to_string()),
                     );
                     env.log(message.clone());
-                    
-                    self.emit_log(
-                        message,
-                        crate::domain::EventType::Message,
-                        env.now
-                    );
-                    
+
+                    self.emit_log(message, crate::domain::EventType::Message, env.now);
+
                     if let Some(stmts) = stmts_opt {
                         self.execute_block(env, stmts);
                     }
-                    break;
+                    return;
                 }
             }
-            Action::AskQuestion(q, _) => {
-
-
-                // Build AskRequest
-                let mut style = crate::domain::QuestionStyle::Text;
-                let mut options = Vec::new();
-                let mut range = None;
-                let mut question_text = q.clone();
-                let variable_name = q.clone();
-                // let mut is_defined_var = false; // Unused after removing auto-simulation
-
-                // Lookup definition
-                // Hack: We need to access definitions. Environment borrow?
-                // We have `env`.
-                // Clone needed to avoid immutable borrow of env while mutating env later (log)
-                let val_def_opt = if let Some(crate::ast::Definition::Value(val_def)) = env.definitions.get(q) {
-                    Some(val_def.clone())
-                } else {
-                    env.log(format!("DEBUG: Definition for '{}' not found. Available: {:?}", q, env.definitions.keys()));
-                    None
-                };
-
-                if let Some(val_def) = &val_def_opt {
-                    // is_defined_var = true;
-                    // Determine style/options from definition
-                    for prop in &val_def.properties {
-                        match prop {
-                            crate::ast::Property::ValidValues(stmts) => {
-                                // Extract valid values as options
-                                for stmt in stmts {
-                                    if let StatementKind::EventProgression(_, cases) = &stmt.kind {
-                                        for case in cases {
-                                            match &case.condition {
-                                                crate::ast::RangeSelector::Equals(expr) => {
-                                                     let v = Evaluator::evaluate(env, expr);
-                                                     // If string or enum, add to options
-                                                     if let crate::domain::RuntimeValue::String(s) = &v {
-                                                         options.push(s.clone());
-                                                     } else if let crate::domain::RuntimeValue::Enumeration(s) = &v {
-                                                         options.push(s.clone());
-                                                     } else {
-                                                         options.push(v.to_string());
-                                                     }
-                                                }
-                                                crate::ast::RangeSelector::Range(min, max) => {
-                                                    let min_v = Evaluator::evaluate(env, min);
-                                                    let max_v = Evaluator::evaluate(env, max);
-                                                     if let (crate::domain::RuntimeValue::Number(mn), crate::domain::RuntimeValue::Number(mx)) = (min_v.clone(), max_v.clone()) {
-                                                         range = Some((mn, mx));
-                                                     } else if let (crate::domain::RuntimeValue::Quantity(mn, u1), crate::domain::RuntimeValue::Quantity(mx, u2)) = (min_v, max_v) {
-                                                         // Ignore unit for now or check equality?
-                                                         if u1 == u2 {
-                                                             range = Some((mn, mx));
-                                                         }
-                                                     }
-                                                }
-                                                _ => {}
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            crate::ast::Property::Question(action) => {
-                                 // Check for explicit question text in definition
-                                 if let Action::AskQuestion(text, _) = action {
-                                     // If the definition says: ask "How severe...?"
-                                     // We use that text instead of variable name.
-                                     // But only if `q` was the variable name.
-                                     // The `q` here matches `val_def.name`.
-                                     if !text.is_empty() { 
-                                         // Check if text is string literal or another var?
-                                         // Parsing logic: subject.
-                                         // Ideally we check if text looks like a question or string.
-                                         question_text = text.clone();
-                                     }
-                                 }
-                             }
-                            crate::ast::Property::Reuse(val, unit) => {
-                                // Check if we have a valid value in history
-                                let last_entry_data = if let Some(history) = env.get_history(q) {
-                                    history.last().map(|entry| (entry.value.clone(), entry.timestamp))
-                                } else {
-                                    None
-                                };
-
-                                if let Some((val_data, timestamp)) = last_entry_data {
-                                     // Calculate age
-                                     let age = env.now - timestamp;
-                                     let age_secs = age.num_seconds() as f64;
-                                     
-                                     let reuse_secs = match unit {
-                                         Unit::Second => *val,
-                                         Unit::Minute => *val * 60.0,
-                                         Unit::Hour => *val * 3600.0,
-                                         Unit::Day => *val * 86400.0,
-                                         Unit::Week => *val * 604800.0,
-                                         Unit::Month => *val * 2592000.0,
-                                         Unit::Year => *val * 31536000.0,
-                                         _ => *val, // Fallback
-                                     };
-                                     
-                                     
-                                     if age_secs < reuse_secs {
-                                         // Ensure value is not NotEnoughData
-                                         if let crate::domain::RuntimeValue::NotEnoughData = val_data {
-                                             // If value is NotEnoughData, it's not valid to reuse, so ask.
-                                         } else {
-                                             env.log(format!(
-                                                 "Skipping question '{}', existing value is fresh (Age: {}s < Reuse: {}s)",
-                                                 q, age_secs, reuse_secs
-                                             ));
-                                             return; // Skip asking!
-                                         }
-                                     }
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-
-                    // Infer Style
-                    if !options.is_empty() {
-                        style = crate::domain::QuestionStyle::Selection;
-                    } else if range.is_some() {
-                        style = crate::domain::QuestionStyle::Numeric;
-                        // TODO: Check for VAS specifically if I could parse it
-                    } else if val_def.value_type == crate::domain::ValueType::Enumeration {
-                         // Even if options empty (?), it's selection-like
-                         style = crate::domain::QuestionStyle::Selection;
-                    }
-                }
-
-
-                // Emit log with actual question text
-                let _msg = format!("Action: Ask Question '{}'", question_text);
-                
-                // Emit log with actual question text
-                self.emit_log(question_text.clone(), crate::domain::EventType::Question, env.now);
-
-                let mut validation_mode = None;
-                let mut validation_timeout = None;
-
-                // Inspect Action Block for Validation
-                if let Action::AskQuestion(_, Some(block)) = action {
-                     for stmt in block {
-                         if let StatementKind::Action(Action::ValidateAnswer(mode, timeout)) = &stmt.kind {
-                             validation_mode = Some(mode.clone());
-                             if let Some((val, unit)) = timeout {
-                                 let secs = match unit {
-                                     Unit::Second => *val,
-                                     Unit::Minute => *val * 60.0,
-                                     _ => *val, // Default logic
-                                 };
-                                 validation_timeout = Some(secs as i64);
-                             }
-                         }
-                     }
-                }
-
-                // Look for block in definition if not in action?
-                // The current Action extraction in executor.rs (line 453) matches keys.
-                // We need to match the action correctly at line 453.
-                // The match currently is: Action::AskQuestion(q, _)
-                // We should capture the second arg: Action::AskQuestion(q, block_opt)
-                
-                // Let's refine the replacement to be correct in context.
-                // We need to look at how we matched `action` in `execute_action`.
-                // It was `match action { Action::AskQuestion(q, _) => ...`
-                
-                // We need to access `block_opt` from `action`. 
-                // Since we are inside the match branch, we can't easily re-match `action` binding unless we use it.
-                // But `action` is `&Action`.
-                
-                // Let's execute logic.
-                
-                if let Action::AskQuestion(_, Some(stmts)) = action {
-                     for stmt in stmts {
-                          if let StatementKind::Action(Action::ValidateAnswer(mode, timeout)) = &stmt.kind {
-                              validation_mode = Some(mode.clone());
-                              if let Some((val, unit)) = timeout {
-                                   let secs = match unit {
-                                     Unit::Second => *val,
-                                     Unit::Minute => *val * 60.0,
-                                     _ => *val,
-                                   };
-                                   validation_timeout = Some(secs as i64);
-                              }
-                          }
-                     }
-                }
-
-                // ... (existing logic) ...
-
-                // Calculate valid_after timestamp from Reuse property if present
-                let mut valid_after = None;
-                if let Some(val_def) = &val_def_opt {
-                    for prop in &val_def.properties {
-                       if let crate::ast::Property::Reuse(val, unit) = prop {
-                            let reuse_secs = match unit {
-                                Unit::Second => *val,
-                                Unit::Minute => *val * 60.0,
-                                Unit::Hour => *val * 3600.0,
-                                Unit::Day => *val * 86400.0,
-                                Unit::Week => *val * 604800.0,
-                                Unit::Month => *val * 2592000.0,
-                                Unit::Year => *val * 31536000.0,
-                                _ => *val,
-                            };
-                            let reuse_dur = chrono::Duration::milliseconds((reuse_secs * 1000.0) as i64);
-                            valid_after = Some((env.now - reuse_dur).and_utc().timestamp_millis());
-                       }
-                    }
-                }
-
-                // Log the question to audit
-                env.log_audit(
-                    crate::domain::EventType::Question,
-                    format!("Asked question for '{}': {}", q, question_text),
-                    Some("AskQuestion".to_string())
-                );
-                
-                // Fire callback if present               
-                if let Some(cb) = &self.on_ask {
-                    let req = crate::domain::AskRequest {
-                        variable_name: variable_name.clone(),
-                        question_text: question_text.clone(),
-                        style: style.clone(),
-                        options: options.clone(),
-                        range,
-                        validation_mode,
-                        validation_timeout,
-                        timestamp: env.now.and_utc().timestamp_millis(),
-                        valid_after,
-                    };
-                    cb(req);
-                }
-
-                // Wait for answer via Channel
-                // We take the receiver out to satisfy borrow checker when calling check_triggers (which needs &mut self)
-                let rx_opt = self.input_receiver.take();
-                
-                if let Some(rx) = &rx_opt {
-                    // Waiting for answer (silent)
-                    loop {
-                        match rx.recv() {
-                            Ok(msg) => {
-                                if msg.variable == *q {
-                                    env.set_value_at(&msg.variable, msg.value.clone(), msg.timestamp);
-                                    self.emit_log(format!("Received Answer: {:?}", msg.value), crate::domain::EventType::Answer, env.now);
-                                    env.log_audit(
-                                        crate::domain::EventType::Decision,
-                                        format!("Answered question for '{}' with value: {:?}", msg.variable, msg.value),
-                                        Some("AnswerQuestion".to_string())
-                                    );
-                                    
-                                    // Trigger Event Checks
-                                    self.check_triggers(env, &msg.variable);
-                                    
-                                    break;
-                                } else {
-                                    // Handle out-of-order updates
-                                    env.set_value_at(&msg.variable, msg.value.clone(), msg.timestamp);
-                                    self.check_triggers(env, &msg.variable);
-                                }
-                            }
-                            Err(_) => {
-                                env.log("Input channel disconnected.".to_string());
-                                debug_log("EXECUTOR: Channel disconnected.");
-                                break; 
-                            }
-                        }
-                    }
-                } else {
-                    env.log("Warning: No input receiver configured. Skipping wait for answer.".to_string());
-                    debug_log("EXECUTOR: No receiver configured.");
-                }
-                
-                // Put receiver back
-                self.input_receiver = rx_opt;
+            Action::AskQuestion(q, block_opt) => {
+                self.ask_question(env, q, block_opt.as_ref());
             }
             Action::SendInfo(msg_text, vars) => {
                 let vals: Vec<String> = vars

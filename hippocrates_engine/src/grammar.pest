@@ -23,17 +23,30 @@ raw_identifier = @{ !keyword ~ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 // Strict: Identifier must be <Angled> or Quoted "String"
 // Strict: Identifier must be <Angled>
 identifier = { angled_identifier }
-multi_word_identifier = { identifier ~ (identifier | number)* }
+multi_word_identifier = { identifier ~ identifier* }
 
 // Extended units to support plurals as seen in test files
 unit = { custom_unit | standard_unit }
 
 standard_unit = { 
     "°F" | "°C" | "%" | 
-    "mg" | "kg" | "g" | "lb" | "oz" |
-    "ml" | "l" | "fl oz" | "gal" |
-    "mmHg" | "bpm" | "mg/dL" | "mmol/L" | 
-    "cm" | "mm" | "km" | "inch" | "foot" | "mile" | "m" |
+    "mmHg" | "mg/dL" | "mmol/L" | "bpm" |
+    "milligrams" | "milligram" | "mg" |
+    "kilograms" | "kilogram" | "kg" |
+    "grams" | "gram" | "g" |
+    "pounds" | "pound" | "lb" |
+    "ounces" | "ounce" | "oz" |
+    "milliliters" | "milliliter" | "ml" |
+    "liters" | "liter" | "l" |
+    "fluid ounces" | "fluid ounce" | "fl oz" |
+    "gallons" | "gallon" | "gal" |
+    "centimeters" | "centimeter" | "cm" |
+    "millimeters" | "millimeter" | "mm" |
+    "kilometers" | "kilometer" | "km" |
+    "meters" | "meter" | "m" |
+    "inches" | "inch" |
+    "feet" | "foot" |
+    "miles" | "mile" |
     "years" | "months" | "weeks" | "days" | "hours" | "minutes" | "seconds" |
     "year" | "month" | "week" | "day" | "hour" | "minute" | "second"
 }
@@ -93,7 +106,7 @@ context_item = {
 ~ NEWLINE* }
 
 ingredients_block = { "ingredients" ~ ":" ~ NEWLINE* ~ INDENT ~ ingredient+ ~ DEDENT }
-ingredient = { identifier ~ number ~ unit ~ NEWLINE* }
+ingredient = { identifier ~ quantity ~ NEWLINE* }
 
 dosage_block = { "dosage safety" ~ ":" ~ NEWLINE* ~ INDENT ~ dosage_rule+ ~ DEDENT }
 dosage_rule = { ("maximum single dose" | "maximum daily dose" | "minimum time between doses") ~ "=" ~ expression ~ NEWLINE* }
@@ -252,10 +265,10 @@ validation_mode = { "once" | "twice" }
 
 vas_block = { (best_value_def | best_label_def | worst_value_def | worst_label_def)+ }
 
-best_value_def = { "best value is" ~ (quantity | number) ~ "."? ~ NEWLINE* }
+best_value_def = { "best value is" ~ quantity ~ "."? ~ NEWLINE* }
 best_label_def = { "text for best value is" ~ string_literal ~ "."? ~ NEWLINE* }
 
-worst_value_def = { "worst value is" ~ (quantity | number) ~ "."? ~ NEWLINE* }
+worst_value_def = { "worst value is" ~ quantity ~ "."? ~ NEWLINE* }
 worst_label_def = { "text for worst value is" ~ string_literal ~ "."? ~ NEWLINE* }
 
 start_period = { "start" ~ identifier ~ "."? }
@@ -290,7 +303,6 @@ term = {
     statistical_func |
     quantity | 
     time_indication |
-    number | 
     string_literal | 
     identifier |
     "(" ~ expression ~ ")"
@@ -302,4 +314,3 @@ statistical_func = {
 infix_op = { "+" | "-" | "*" | "/" }
 relative_time_modifier = { "ago" | "from now" }
 quantity = { number ~ unit }
-
