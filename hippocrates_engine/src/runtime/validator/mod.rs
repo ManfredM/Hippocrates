@@ -9,11 +9,23 @@ use std::collections::{HashMap, HashSet};
 
 pub use intervals::{Interval, calculate_interval};
 
+#[derive(Copy, Clone)]
+struct PrecisionInfo {
+    decimals: Option<usize>,
+}
+
+impl PrecisionInfo {
+    fn new() -> Self {
+        PrecisionInfo { decimals: None }
+    }
+}
+
 pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
     let mut errors = Vec::new(); // Note: legacy->semantics calls below
     // ...
 
     let mut value_intervals = HashMap::new();
+    let mut value_precision = HashMap::new();
     let mut defined_values = HashSet::new();
     let mut valid_units = HashSet::new();
     let mut enum_vars = HashSet::new();
@@ -53,6 +65,8 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
             // Default to unbounded
             let mut interval = Interval::unbounded();
             
+            let mut precision = PrecisionInfo::new();
+
             // Try to narrow down from Valid Values
             for prop in &vd.properties {
                 if let Property::ValidValues(stmts) = prop {
@@ -64,6 +78,7 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
                     
                     for stmt in stmts {
                          if let crate::ast::StatementKind::Constraint(_, _, sel) = &stmt.kind {
+                             update_precision_from_selector(sel, &mut precision);
                              if let Some((mn, mx)) = extract_const_range(sel) {
                                  min_all = min_all.min(mn);
                                  max_all = max_all.max(mx);
@@ -72,6 +87,7 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
                          } else if let crate::ast::StatementKind::EventProgression(_, cases) = &stmt.kind {
                              // Also check progression cases
                              for case in cases {
+                                 update_precision_from_selector(&case.condition, &mut precision);
                                  if let Some((mn, mx)) = extract_const_range(&case.condition) {
                                      min_all = min_all.min(mn);
                                      max_all = max_all.max(mx);
@@ -87,6 +103,7 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
                 }
             }
             value_intervals.insert(vd.name.clone(), interval);
+            value_precision.insert(vd.name.clone(), precision);
         }
     }
     
@@ -94,6 +111,52 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
     semantics::check_drugs(&defs_map, &valid_units, &mut errors);
     semantics::check_addressees(&defs_map, &mut errors);
     semantics::check_value_definitions(&defs_map, &mut errors);
+
+    // 1.5 Meaning coverage for value definitions
+    for def in &plan.definitions {
+        if let Definition::Value(vd) = def {
+            for prop in &vd.properties {
+                if let Property::Meaning(cases) = prop {
+                    let line = cases.first().map(|case| case.line).unwrap_or(0);
+                    if enum_vars.contains(&vd.name) {
+                        let mut valid_strings = Vec::new();
+                        for prop in &vd.properties {
+                            if let Property::ValidValues(stmts) = prop {
+                                for stmt in stmts {
+                                    if let crate::ast::StatementKind::Constraint(_, _, sel) = &stmt.kind {
+                                        extract_defined_strings(sel, &mut valid_strings);
+                                    } else if let crate::ast::StatementKind::EventProgression(_, cases) = &stmt.kind {
+                                        for case in cases {
+                                            extract_defined_strings(&case.condition, &mut valid_strings);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        let valid_refs: Vec<&str> = valid_strings.iter().map(|s| s.as_str()).collect();
+                        if !valid_refs.is_empty() {
+                            coverage::check_string_coverage(&vd.name, cases, &valid_refs, line, &mut errors);
+                        }
+                    } else if let Some(valid_int) = value_intervals.get(&vd.name) {
+                        if cases.iter().any(|case| selector_has_unitless_number(&case.condition)) {
+                            errors.push(EngineError {
+                                message: format!(
+                                    "Numeric values must have a unit. Meaning for '{}' uses unitless numbers.",
+                                    vd.name
+                                ),
+                                line,
+                                column: 0,
+                            });
+                        }
+
+                        let decimals = value_precision.get(&vd.name).and_then(|info| info.decimals);
+                        coverage::check_coverage(&vd.name, valid_int, cases, line, decimals, &mut errors);
+                    }
+                }
+            }
+        }
+    }
 
     // 2. Validate Assignments and Expressions using Intervals AND Data Flow
     for def in &plan.definitions {
@@ -180,7 +243,16 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
                                           } else {
                                               // Numeric Coverage
                                               if let Some(valid_int) = value_intervals.get(name) {
-                                                  coverage::check_coverage(name, valid_int, &cond.cases, stmt.line, &mut errors);
+                                                  if cond.cases.iter().any(|case| selector_has_unitless_number(&case.condition)) {
+                                                      errors.push(EngineError {
+                                                          message: format!("Numeric values must have a unit. Assessment for '{}' uses unitless numbers.", name),
+                                                          line: stmt.line,
+                                                          column: 0,
+                                                      });
+                                                  }
+
+                                                  let decimals = value_precision.get(name).and_then(|info| info.decimals);
+                                                  coverage::check_coverage(name, valid_int, &cond.cases, stmt.line, decimals, &mut errors);
                                               }
                                           }
                                       },
@@ -232,6 +304,72 @@ fn extract_const_range(sel: &RangeSelector) -> Option<(f64, f64)> {
              } else { None }
         }
         _ => None
+    }
+}
+
+fn update_precision_from_selector(sel: &RangeSelector, precision: &mut PrecisionInfo) {
+    match sel {
+        RangeSelector::Range(min, max) | RangeSelector::Between(min, max) => {
+            update_precision_from_expr(min, precision);
+            update_precision_from_expr(max, precision);
+        }
+        RangeSelector::Equals(expr) => update_precision_from_expr(expr, precision),
+        RangeSelector::List(items) => {
+            for item in items {
+                update_precision_from_expr(item, precision);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn update_precision_from_expr(expr: &Expression, precision: &mut PrecisionInfo) {
+    match expr {
+        Expression::Literal(Literal::Number(_, decimals)) => {
+            apply_precision(decimals, precision);
+        }
+        Expression::Literal(Literal::Quantity(_, _, decimals)) => {
+            apply_precision(decimals, precision);
+        }
+        _ => {}
+    }
+}
+
+fn apply_precision(decimals: &Option<usize>, precision: &mut PrecisionInfo) {
+    match decimals {
+        Some(d) => {
+            precision.decimals = Some(match precision.decimals {
+                Some(current) => current.max(*d),
+                None => *d,
+            });
+        }
+        None => {
+            if precision.decimals.is_none() {
+                precision.decimals = Some(0);
+            }
+        }
+    }
+}
+
+fn selector_has_unitless_number(sel: &RangeSelector) -> bool {
+    match sel {
+        RangeSelector::Range(min, max) | RangeSelector::Between(min, max) => {
+            expr_has_unitless_number(min) || expr_has_unitless_number(max)
+        }
+        RangeSelector::Equals(expr) => expr_has_unitless_number(expr),
+        RangeSelector::List(items) => items.iter().any(expr_has_unitless_number),
+        _ => false,
+    }
+}
+
+fn expr_has_unitless_number(expr: &Expression) -> bool {
+    match expr {
+        Expression::Literal(Literal::Number(_, _)) => true,
+        Expression::Literal(Literal::Quantity(_, _, _)) => false,
+        Expression::Binary(left, _, right) => {
+            expr_has_unitless_number(left) || expr_has_unitless_number(right)
+        }
+        _ => false,
     }
 }
 

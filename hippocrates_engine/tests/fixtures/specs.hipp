@@ -1,0 +1,275 @@
+(* --- PASS: full_spec --- *)
+<mg> is a unit:
+    plural is <mg>
+
+<kg> is a unit:
+    plural is <kg>
+
+<Test Unit> is a unit:
+    plural is <Test Units>
+    abbreviation is "tu"
+
+<degree Celsius> is a unit:
+    plural is <degrees Celsius>
+    abbreviation is "°C"
+
+<count> is a unit:
+    plural is <counts>
+
+<Temperature> is a number:
+    valid values:
+        35.0 <degrees Celsius> ... 42.0 <degrees Celsius>
+    meaning:
+        38.0 <degrees Celsius> ... 42.0 <degrees Celsius>:
+            <High Fever> = "yes".
+        35.0 <degrees Celsius> ... 37.9 <degrees Celsius>:
+            <High Fever> = "no".
+    question:
+        ask "What is the patient's temperature?"
+
+<High Fever> is an enumeration:
+    valid values:
+        "yes"; "no"
+
+<Pain Level> is a number:
+    unit is <count>
+    question:
+        style of question is <VisualAnalogScale>.
+        question style is visual analogue scale:
+            best value is 0 <count>.
+            text for best value is "No Pain".
+            worst value is 10 <counts>.
+            text for worst value is "Worst Pain".
+    
+<Aspirin> is a drug:
+    ingredients:
+        <Acetylsalicylic Acid> 500 <mg>
+    dosage safety:
+        maximum single dose = 1000 <mg>
+        maximum daily dose = 4000 <mg>
+        minimum time between doses = 4 hours
+    administration:
+        form of administration is "Tablet"
+    interactions:
+        assess interaction with <Warfarin>:
+            show message "Warning: Risk of bleeding".
+
+<Dr. House> is an addressee:
+    contact information:
+        email is "house@princeton-plainsboro.com"
+        phone is "555-1234"
+    after consent has been rejected:
+         show message "Patient rejected consent.".
+
+<Dr. Wilson> is an addressee:
+    contact information:
+        email is "wilson@princeton-plainsboro.com"
+
+<OncologyTeam> is an addressee group:
+    grouped addressees are <Dr. House>; <Dr. Wilson>
+    order of contacting:
+        contact all addressees in parallel
+
+<Treatment Plan> is a plan:
+    during plan:
+        ask <Temperature>.
+        <Temperature> = 37.0 <degrees Celsius>.
+        
+        assess <Temperature>:
+            38.0 <degrees Celsius> ... 42.0 <degrees Celsius>:
+                show message "Fever detected.".
+                <High Fever> = "yes".
+            35.0 <degrees Celsius> ... 37.9 <degrees Celsius>:
+                show message "Normal temperature.".
+                <High Fever> = "no".
+
+        show message to <Dr. House> "Assessment complete.".
+        send information "Temp Log" <Temperature>.
+
+    every 1 day for 7 days:
+        assess trend of <Temperature>:
+            "increase":
+                show message "Temperature is rising.".
+            "decrease":
+                show message "Temperature is falling.".
+            "stable":
+                show message "Temperature is stable.".
+
+    change of <Pain Level>:
+        context:
+            timeframe: 24 hours ago
+            data: <Pain Level>
+        
+        assess count of <Pain Level>:
+            3 <counts> ... 100 <counts>:
+                show message "Pain recorded multiple times today.".
+
+(* --- FAIL: full_spec --- *)
+<mismatched unit> is a number:
+    valid values:
+        0 <kg> ... 10 <kg> 
+
+<duplicate enums> is an enumeration:
+    valid values:
+        "A"; "B"; "A"
+
+<overlapping ranges> is a number:
+    valid values:
+        0 ... 10;
+        5 ... 15
+
+<incomplete meaning> is a number:
+    valid values:
+        0 ... 100
+    meaning:
+        0 ... 50:
+            <status> = "low".
+        80 ... 100:
+            <status> = "high".
+
+<undefined usage> is a plan:
+    during plan:
+        <UndefinedVar> = 10.
+        show message to <UnknownPerson> "Hello".
+
+<unit mismatch assign> is a plan:
+    during plan:
+        <weight> = 10 <pounds>.
+        <conflicting val> = 5 <kg>.
+        <conflicting val> = 10 <meters>.
+
+(* --- PASS: golden_master --- *)
+<testpoint> is a unit:
+    plural is <testpoints>
+    abbreviation is "tp"
+
+<Test Number> is a number:
+    valid values:
+        0 <testpoints> ... 100 <testpoints>
+
+<Test String> is a string.
+
+<TestEnum> is an enumeration:
+    valid values:
+        "A";
+        "B";
+        "C"
+
+<Golden Plan> is a plan:
+    during plan:
+        <Test Number> = 42 <testpoint>.
+        <Test String> = "Hello World".
+        <TestEnum> = "A".
+        
+        show message "Number is " + <Test Number>.
+        
+        assess <Test Number>:
+            1 <testpoint>:
+                show message "Single Point".
+            41 <testpoints> ... 100 <testpoints>:
+                show message "High Value".
+            0 <testpoints>:
+                show message "Low Value".
+            2 <testpoints> ... 40 <testpoints>:
+                show message "Low Value".
+                
+        assess <TestEnum>:
+            "A":
+                show message "Enum is A".
+            "B"; "C":
+                show message "Either B or C".
+
+(* --- FAIL: golden_master --- *)
+<BadNumber> is a number:
+    valid values:
+        0 ... 10
+
+(* --- PASS: value_definition --- *)
+<TestUnit> is a unit:
+    plural is <TestUnits>
+    abbreviation is "tu"
+
+<BloodPressure> is a number:
+    unit is mmHg
+    valid values:
+        0 mmHg ... 300 mmHg
+    meaning:
+        0 mmHg ... 90 mmHg:
+            meaning of value = "Low"
+        91 mmHg ... 120 mmHg:
+            meaning of value = "Normal"
+    documentation:
+        english: "The force of circulating blood."
+
+<Status> is an enumeration:
+    valid values:
+        "Active"; "Inactive"; "Pending"
+    reuse:
+        reuse period of value is 1 day.
+
+(* --- PASS: period_definition --- *)
+<Morning> is a period:
+    timeframe:
+        06:00 ... 12:00
+
+<Week> is a period:
+    timeframe:
+        1 week
+
+(* --- PASS: event_trigger --- *)
+<TriggerPlan> is a plan:
+    change of <Status>:
+        show message "Status changed".
+
+    begin of <Treatment>:
+        show message "Treatment started".
+
+    every 1 week:
+        show message "Weekly check".
+
+    every Monday after <Start> for 1 year:
+        show message "Monday check".
+
+(* --- PASS: timeframe --- *)
+<TimeframePlan> is a plan:
+    during plan:
+        timeframe for analysis:
+            show message "Analyzing unrestricted".
+
+        timeframe during 08:00 ... 18:00:
+            show message "Working hours".
+            
+            timeframe after 12:00:
+                show message "Afternoon work".
+
+(* --- PASS: addressee_definition --- *)
+<DrHouse> is an addressee:
+    contact information:
+        email is "dr.house@example.com"
+
+(* --- FAIL: addressee_definition --- *)
+<DrHouse> is an addressee:
+    contact information:
+        email is "bad_email_no_at_sign"
+
+(* --- FAIL: drug_definition --- *)
+<MyUnit> is a unit:
+    plural is <MyUnits>
+
+<MyDrug> is a drug:
+    ingredients:
+        <Aspirin> 500 <mg>
+        <Caffeine> 50 <BadUnit>
+
+(* --- FAIL: question_config --- *)
+<Pain> is a number.
+
+<MyPlan> is a plan:
+    during plan:
+        question style is visual analogue scale:
+            best value is 0 <count>
+            text for best value is "No Pain"
+            worst value is 10 <counts>
+            text for worst value is "Worst Pain"
+
+        show message "Hello " + <UnknownVar>

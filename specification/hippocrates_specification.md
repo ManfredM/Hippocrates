@@ -7,506 +7,525 @@ This document formalizes the **Hippocrates Language**, a domain-specific languag
 ## 2. Language Principles
 
 * **Natural Language Syntax**: Statements mimic English sentences to ensure readability by medical professionals.
-* **Type Safety & Units**: All numerical values representing physical quantities must have associated units.
+* **Type Safety & Units**: All numeric literals must be quantities with units (built-in or custom), e.g., `10 mg` or `7 days`.
 * **Contextual Execution**: Scripts execute within a specific context (Patient, Timeframe).
 * **Event-Driven**: The core runtime is an event loop reacting to time, value changes, and external triggers.
 * **Completeness**: A plan describes a self-contained logic for a single subject (the Patient).
+* **Angle-Bracket Identifiers**: All identifiers are written as `<...>`.
+* **Indented Blocks**: Any `:` that opens a block requires a newline followed by an indented block.
+* **No Comparison Operators**: Use ranges (`min ... max`) instead of `<`, `>`, `<=`, `>=`.
 
 ## 3. Formal Grammar (EBNF)
 
-The following grammar defines the syntax of Hippocrates.
+The following grammar defines the syntax of Hippocrates. Indentation is significant and is converted into explicit `INDENT`/`DEDENT` tokens by the parser.
 
 ### 3.1. Basic Elements
 
 ```ebnf
+(* Layout *)
+newline = "\n" | "\r\n";
+comment = "(*", { character - "*)" }, "*)";
+
 (* Basic Tokens *)
 digit = "0" | "1" | ... | "9";
 integer = [ "-" ], digit, { digit };
-float = integer, [ ".", digit, { digit } ];
-word = character, { character };
-string_literal = '"', { character - ( "<" | ">" ) }, '"';
-identifier = ( "<", { character - ">" }, ">" ) | ( word, { " ", word } );
-
-(* Basic Types *)
-percentage = ( "0" | "100" | digit, [ digit ] ), "%";
-time_unit = "year" | "month" | "week" | "day" | "hour" | "minute" | "second";
-period_of_time = 
-    integer, " ", time_unit, [ "s" ] |
-    "until ", event_trigger; (* e.g., 2 weeks, until next visit *)
-
-(* Units *)
-(* Units *)
-temperature_unit = "°F" | "°C";
-weight_unit = "mg" | "g" | "kg" | "lb" | "oz";
-length_unit = "m" | "cm" | "mm" | "km" | "inch" | "foot" | "mile";
-volume_unit = "l" | "ml" | "fl oz" | "gal";
-time_unit = "year" | "month" | "week" | "day" | "hour" | "minute" | "second";
-
-(* Custom Units *)
-(* Custom units must now be explicitly defined to support pluralization and abbreviations. *)
-(* If not defined, "drop" and "drops" are treated as distinct, unrelated units. *)
-unit = temperature_unit | weight_unit | length_unit | volume_unit | time_unit | identifier; 
-
-(* Unit Definition *)
-unit_definition = 
-    identifier, " is a unit:", newline,
-        indent, { unit_property }, dedent;
-        
-unit_property = 
-    "plural is ", string_literal |
-    "singular is ", string_literal |
-    "abbreviation is ", string_literal;
-    
+float = integer, ".", digit, { digit };
 number = integer | float;
-(* Precision Rule: Ranges like 0 ... 10 imply integer steps; 0.0 ... 10.0 imply float steps *)
+
+(* Strings and Identifiers *)
+string_literal = '"', { character - ( '"' | "<" | ">" ) }, '"';
+identifier = "<", { character - ">" }, ">";
+
+(* Time *)
+time_literal = digit, [ digit ], ":", digit, digit; (* H:MM or HH:MM *)
+weekday = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
+time_indication = time_literal | weekday | "now";
+```
+
+All identifiers are angle-bracketed. When a rule introduces an indented block (`:` followed by `indent`/`dedent`), a newline is required. Inline `:` forms are only allowed where explicitly shown (e.g., `documentation` strings).
+
+### 3.2. Units and Quantities
+
+```ebnf
+standard_unit = 
+    "°F" | "°C" | "%" |
+    "mg" | "kg" | "g" | "lb" | "oz" |
+    "ml" | "l" | "fl oz" | "gal" |
+    "mmHg" | "bpm" | "mg/dL" | "mmol/L" |
+    "cm" | "mm" | "km" | "inch" | "foot" | "mile" | "m" |
+    "years" | "months" | "weeks" | "days" | "hours" | "minutes" | "seconds" |
+    "year" | "month" | "week" | "day" | "hour" | "minute" | "second";
+
+custom_unit = identifier;
+unit = standard_unit | custom_unit;
+
 quantity = number, [ " " ], unit;
 ```
 
-### 3.2. Program Structure
+All numeric literals in user scripts must be expressed as quantities with units; unitless numbers are invalid.
+
+Precision rule: integer ranges (e.g., `0 <points> ... 10 <points>`) use step size 1; decimal ranges (e.g., `0.0 <mg> ... 10.0 <mg>`) use the smallest declared decimal precision (step size `10^-precision`).
+
+### 3.3. Program Structure
 
 ```ebnf
-hippocrates_file = 
-    [ intended_use_chapter ],
-    [ library_reference_chapter ],
-    [ settings_chapter ],
-    { definition_chapter },
-    plan_chapter;
+hippocrates_file = { definition };
 
-plan_chapter = 
-    identifier, " is a plan:", newline,
-        indent, { plan_block }, dedent;
-
-plan_block = 
-    "during plan:", newline, indent, { statement }, dedent |
-    trigger_block | 
-    identifier, " with ", event_trigger, ":", newline, indent, { statement }, dedent;
-
-
-definition_chapter = 
-    addressee_chapter |
-    value_definition_chapter |
-    period_definition_chapter |
-    event_definition_chapter;
-
-period_definition_chapter = 
-    identifier, " is a period:", newline,
-        indent, { period_property }, dedent;
-
-period_property = 
-    "timeframe: ", { range_selector } |
-    "customization:", newline, indent, block, dedent;
-
+definition =
+    unit_definition |
+    drug_definition |
+    addressee_definition |
+    context_definition |
+    plan_definition |
+    period_definition |
+    value_definition;
 ```
 
-### 3.3. Values
-
-Values are the core state containers.
+### 3.4. Values
 
 ```ebnf
-value_definition = 
-    identifier, " is ", value_type, ":", newline,
-        indent, { value_property }, dedent;
+value_definition =
+    identifier, " is ", value_type,
+    [ ":", newline, indent, { value_property }, dedent ],
+    [ "." ];
 
-value_type = "a number" | "an enumeration" | "a time indication";
+value_type =
+    "a number" | "an enumeration" | "a string" | "a time indication" |
+    "a period" | "a plan" | "a drug" | "an addressee";
 
-value_property = 
-    intended_use_prop |
-    inheritance_prop |
-    valid_units_prop |
+value_property =
     valid_values_prop |
+    timeframe_prop |
     meaning_prop |
     question_prop |
     calculation_prop |
-    reuse_prop;
+    reuse_prop |
+    inheritance_prop |
+    documentation_prop |
+    unit_ref_prop |
+    generic_property;
+
+valid_values_prop =
+    "valid values:", newline, indent, valid_values_block, dedent;
+
+valid_values_block = { range_selector, [ ";" ], newline };
 
 meaning_prop = "meaning:", newline, indent, { assessment_case }, dedent;
 
-inheritance_prop = "definition is the same as for ", identifier, [ " except:", newline, indent, { value_property }, dedent ];
+question_prop = "question:", newline, indent, { statement }, dedent;
 
-question_prop = "question:", newline, indent, ask_question_block, dedent;
+calculation_prop = "calculation:", newline, indent, { statement }, dedent;
 
-ask_question_block = 
-    ask_question_statement, 
-    [ "question expires after ", period_of_time, [ ":", newline, indent, block, dedent ] ],
-    [ "validate answer ", ("once" | "twice"), [ " within ", period_of_time ], [ ":", newline, indent, block, dedent ] ],
-    [ "type of question is ", string_literal, "." ],
-    [ "style of question is ", identifier, "." ],
-    [ "question style is visual analogue scale:", newline, indent, vas_block, dedent ];
+reuse_prop = "reuse:", newline, indent, reuse_stmt, dedent;
+reuse_stmt = "reuse period of value is ", quantity, [ "." ];
 
-vas_block = 
-    ( "best value is ", ( number | quantity ), ":", newline, indent, "text for best value is ", string_literal, ".", dedent ),
-    ( "worst value is ", ( number | quantity ), ":", newline, indent, "text for worst value is ", string_literal, ".", dedent );
+inheritance_prop =
+    "definition is the same as for ", identifier,
+    [ " except:", newline, indent, { value_property }, dedent ];
 
+documentation_prop = "documentation:", newline, indent, "english", flexible_string_block, dedent;
+flexible_string_block =
+    ":", newline, indent, string_literal, [ "." ], dedent |
+    ":", string_literal, [ "." ];
 
-question_style = "Likert" | "visual analogue scale" | "selection" | "text" | "number" | "date";
+timeframe_prop = "timeframe:", newline, indent, timeframe_line, { timeframe_line }, dedent;
+timeframe_line = range_selector, { ";", range_selector }, newline;
 
-valid_values_prop = "valid values: ", { range_selector };
+unit_ref_prop = "unit", (" is " | ":"), unit;
 
-calculation_prop = "calculation:", newline, indent, ( calculation_statement | timeframe_block ), dedent;
-
-timeframe_block = 
-    "timeframe for analysis is ", range_selector, ":", newline, 
-    indent, { calculation_statement }, dedent;
-
-reuse_prop = "reuse:", newline, indent, "reuse period of value is ", quantity, ".", dedent;
-
-(* Example: 
-<body weight> is a number:
-    valid values: 0 kg ... 200 kg
-
-*)
+generic_property = identifier, flexible_property_content;
+flexible_property_content =
+    ":", newline, indent, property_content, dedent |
+    ":", property_line;
+property_content = { character };
+property_line = { character - newline };
 ```
 
-### 3.4. Logic and Control Flow
-
-Statements inside a Plan or Paragraph.
+### 3.5. Periods and Plans
 
 ```ebnf
-statement = 
-    action_statement |
-    assignment_statement |
-    conditional_statement |
-    loop_statement;
+period_definition =
+    identifier, " is a period:", newline, indent, { period_property }, dedent;
 
-(* Assignment *)
-assignment_statement = identifier, " = ", expression, ".";
+period_property =
+    "timeframe:", newline, indent, timeframe_line, { timeframe_line }, dedent |
+    "customization:", newline, indent, block_text, dedent;
 
-(* Actions *)
-action_statement = 
-    show_message_statement |
-    ask_question_statement |
-    start_period_statement;
+plan_definition =
+    identifier, " is a plan:", newline, indent, { plan_block }, dedent;
 
-ask_question_statement = 
-    "ask", [ " for ", ("patient" | "physician") ], ( string_literal | identifier ), [ ".", block ];
+plan_block =
+    during_plan_block |
+    trigger_block |
+    event_block;
 
-start_period_statement = 
-    "start ", identifier, ".";
+during_plan_block = "during plan:", newline, indent, { statement }, dedent;
 
-(* Conditionals *)
-conditional_statement = 
-    "assess ", assessment_target, ":", newline,
-        indent, { assessment_case },
+trigger_block = event_trigger, ":", newline, indent, { statement }, dedent;
+
+event_block = identifier, " with ", event_trigger, ":", newline, indent, { statement }, dedent;
+```
+
+### 3.6. Statements, Assessments, and Ranges
+
+```ebnf
+statement =
+    timeframe_block |
+    documentation_prop |
+    context_block |
+    conditional |
+    assignment |
+    meaning_assignment |
+    constraint |
+    action |
+    newline;
+
+assignment = identifier, " = ", expression, ".";
+meaning_assignment = "meaning of value = ", expression, [ "." ];
+
+conditional =
+    "assess ", ( confidence_target | expression ), ":", newline, indent,
+    { assessment_case },
     dedent;
 
-*Constraint: The union of all `assessment_case` conditions MUST cover the entire valid range of the `assessment_target`. implicit default cases are not allowed.*
+confidence_target = "confidence of ", identifier;
 
-assessment_target = identifier | "confidence of ", identifier;
+assessment_case = selector_list, ":", newline, indent, block, dedent;
+selector_list = range_selector, { ";", range_selector };
 
-assessment_case = range_selector, ":", newline, indent, block, dedent;
+range_selector =
+    "Not enough data" |
+    "between ", expression, " ... ", expression |
+    expression, " ... ", expression |
+    expression;
 
-(* Ranges *)
-range_selector = 
-    "between ", expression, " ... ", expression, |
-    expression | (* Equality check *)
-    "Not enough data";
+constraint = expression, constraint_operator, range_selector, [ "!" | "?" | "." ];
+constraint_operator = "is" | "during" | "after";
 
+block = { statement };
+
+context_block = "context", [ " for analysis" ], ":", newline, indent, { context_item | statement }, dedent;
+
+timeframe_block =
+    "timeframe", [ " for analysis" ], [ constraint_operator, range_selector ], ":", newline,
+    indent, { statement }, dedent;
 ```
 
-### 3.5. Events and Timing
+### 3.7. Actions and Questions
 
 ```ebnf
-event_listener = "catch ", event_trigger, ":", newline, indent, block, dedent;
+action =
+    show_message |
+    ask_question |
+    listen_for |
+    send_info |
+    question_modifier |
+    message_expiration |
+    start_period |
+    simple_command;
 
-event_trigger = 
+show_message =
+    "show message", [ " to ", ( "patient" | "physician" | identifier ) ],
+    flexible_message_content, [ flexible_block ], [ "." ];
+
+flexible_message_content = expression, { newline, expression };
+
+ask_question =
+    "ask", [ " for" | " patient" | " physician" ], ( string_literal | identifier ),
+    [ flexible_block ], [ "." ];
+
+flexible_block = ":", newline, indent, { statement }, dedent;
+
+listen_for = "listen for ", identifier, ":", newline, indent, { statement }, dedent;
+
+send_info = "send information ", string_literal, { expression | newline }, [ "." ];
+
+start_period = "start ", identifier, [ "." ];
+
+simple_command = identifier, [ "." ];
+
+message_expiration = "message expires after ", range_selector, [ "." ];
+
+question_modifier =
+    "question expires after ", period_expr, [ flexible_block ] |
+    validate_modifier |
+    "type of question is ", string_literal, [ "." ] |
+    "style of question is ", identifier, [ "." ] |
+    "question style is visual analogue scale:", newline, indent, vas_block, dedent;
+
+validate_modifier =
+    "validate answer ", validation_mode, [ " within ", quantity ], [ "." ], [ flexible_block ];
+validation_mode = "once" | "twice";
+
+vas_block = { best_value_def | best_label_def | worst_value_def | worst_label_def };
+
+best_value_def = "best value is ", ( quantity | number ), [ "." ], newline;
+best_label_def = "text for best value is ", string_literal, [ "." ], newline;
+worst_value_def = "worst value is ", ( quantity | number ), [ "." ], newline;
+worst_label_def = "text for worst value is ", string_literal, [ "." ], newline;
+```
+
+If a question expires without an answer, the engine does not block subsequent loop triggers. The question is treated as unanswered, and the next loop execution may re-ask or continue according to the script. An optional block on `question expires after` runs at expiration time and can send a reminder or log a message.
+
+### 3.8. Events and Timing
+
+```ebnf
+event_trigger =
     "change of ", identifier |
-    "every ", period_of_time |
-    "at ", time_of_day;
+    "begin of ", identifier |
+    "every ", quantity, [ identifier ], [ " for ", quantity ] |
+    "every ", ( identifier | weekday ), [ " after ", identifier ], [ " for ", quantity ];
+
+period_expr = quantity | "until ", event_trigger;
 ```
 
-### 3.6. Communication & Actors
-
-Hippocrates manages communication through `addressees`.
+### 3.9. Communication & Actors
 
 ```ebnf
-addressee_chapter = 
-    identifier, " is an addressee:", newline,
-        indent, { addressee_property }, dedent |
-    identifier, " is an addressee group:", newline,
-        indent, { addressee_group_property }, dedent;
+addressee_definition =
+    identifier, (" is an addressee" | " is an addressee group"), ":", newline, indent,
+    { contact_info_prop | grouped_addressees_prop | contact_logic_prop | after_consent_prop },
+    dedent;
 
-addressee_property = 
-    "contact information:", newline, indent, { contact_detail }, dedent |
-    "after consent has been rejected:", newline, indent, block, dedent;
+contact_info_prop = "contact information:", newline, indent, { contact_detail }, dedent;
+contact_detail = contact_type, " is ", string_literal;
+contact_type = "email" | "phone" | "hippocrates id";
 
-contact_detail = 
-    "email is ", string_literal |
-    "phone is ", string_literal |
-    "hippocrates id is ", string_literal;
+after_consent_prop = "after consent has been rejected:", newline, indent, block, dedent;
 
-addressee_group_property = 
-    "grouped addressees are ", identifier, { "; ", identifier } |
-    "order of contacting:", newline, indent, contact_logic, dedent;
+grouped_addressees_prop = "grouped addressees are ", identifier, { ";", identifier };
 
-contact_logic = 
+contact_logic_prop = "order of contacting:", newline, indent, contact_logic, dedent;
+contact_logic =
     "contact all addressees in parallel" |
-    "sequence of contacting is ", identifier, { "; ", identifier };
+    "sequence of contacting is ", identifier, { ";", identifier };
 ```
 
-#### Messaging Actions
-
-The `action_statement` is expanded to support rich messaging.
+### 3.10. Medication
 
 ```ebnf
-action_statement = 
-    ("show" | "send"), " message to ", identifier, " ", string_literal, [ ":", newline, indent, message_options, dedent ];
-
-message_options = 
-    "message expires after ", period_of_time |
-    "after delivery has failed:", newline, indent, block, dedent |
-    "after delivery has succeeded:", newline, indent, block, dedent;
-```
-
-### 3.7. Medication
-
-Drugs are a first-class entity in Hippocrates.
-
-```ebnf
-drug_definition = 
-    identifier, " is a drug:", newline,
-        indent, 
-        [ ingredients_block ],
-        [ dosage_safety_block ],
-        [ administration_block ],
-        [ interactions_block ],
-        dedent;
+drug_definition =
+    identifier, " is a drug:", newline, indent,
+    { ingredients_block | dosage_block | admin_block | interaction_block },
+    dedent;
 
 ingredients_block = "ingredients:", newline, indent, { ingredient }, dedent;
-ingredient = identifier, " ", float, " ", weight_unit;
+ingredient = identifier, number, unit;
 
-dosage_safety_block = "dosage safety:", newline, indent, { dosage_rule }, dedent;
-dosage_rule = 
+dosage_block = "dosage safety:", newline, indent, { dosage_rule }, dedent;
+dosage_rule =
     "maximum single dose = ", expression |
     "maximum daily dose = ", expression |
-    "minimum time between doses = ", period_of_time;
+    "minimum time between doses = ", expression;
 
-administration_block = "administration:", newline, indent, { admin_rule }, dedent;
-admin_rule = 
-    "form of administration is ", identifier |
-    identifier, " ", period_of_time, " after ", identifier; (* Schedule *)
+admin_block = "administration:", newline, indent, { admin_rule }, dedent;
+admin_rule =
+    "form of administration is ", ( identifier | string_literal ) |
+    identifier, quantity, " after ", identifier;
 
-interactions_block = "interactions:", newline, indent, { interaction_rule }, dedent;
+interaction_block = "interactions:", newline, indent, { interaction_rule }, dedent;
 interaction_rule = "assess interaction with ", identifier, ":", newline, indent, block, dedent;
 ```
 
-#### Example (Medication)
-
-```hippocrates
-<Paracetamol> is a drug:
-    ingredients:
-        acetaminophen 500 mg
-    dosage safety:
-        maximum single dose = 1000 mg
-        maximum daily dose = 4000 mg
-        minimum time between doses = 4 hours
-    administration:
-        form of administration is tablet
-```
-
-### 3.8. Data Contexts
-
-Contexts are used to filter data for analysis or decision making in `diagnosis`.
+### 3.11. Data Contexts
 
 ```ebnf
-context_definition = 
-    "context:", newline, indent, { context_item }, dedent;
+context_definition = "context:", newline, indent, { context_item }, dedent;
 
-context_item = 
-    "timeframe: ", range_selector |
-    "data: ", identifier |
-    "value filter: ", assessment_case;
+context_item =
+    "timeframe:", range_selector |
+    "data:", identifier |
+    "value filter:", assessment_case;
 ```
 
-#### Example (Data Contexts)
-
-```hippocrates
-diagnosis:
-    context:
-        timeframe: 2 weeks ago ... now
-        data: blood pressure
-    assess using context:
-        ...
-```
-
-### 3.10. Statistical Analysis
-
-Statistical functions are first-class citizens in `diagnosis` blocks.
+### 3.12. Expressions and Statistical Analysis
 
 ```ebnf
-statistical_function = 
-    "count of ", identifier, [ " is ", expression ] |
-    "average of ", identifier, [ " over ", period_of_time ] |
-    "min of ", identifier |
-    "max of ", identifier |
-    "trend of ", identifier;
+expression = term, { infix_op, term };
 
-```
+term =
+    quantity, relative_time_modifier |
+    statistical_func |
+    quantity |
+    time_indication |
+    number |
+    string_literal |
+    identifier |
+    "(", expression, ")";
 
-### 3.11. Event Listening
+statistical_func =
+    ("count of" | "min of" | "max of" | "trend of"), identifier, [ " is ", term ] |
+    "average of", identifier, (" over " | " for "), quantity;
 
-Background listening for value changes (e.g., from devices).
-
-```ebnf
-listen_statement = 
-    "listen for ", identifier, ":", newline,
-        indent, block, dedent;
+infix_op = "+" | "-" | "*" | "/";
+relative_time_modifier = "ago" | "from now";
 ```
 
 ## 4. Semantics and Type System
 
 ### 4.1. Core Unit Groups and Conversion
 
-The runtime natively understands and automatically converts between units within the following groups. No user definition is required.
+The runtime recognizes the standard units listed in the grammar. Automatic conversions are supported within the following groups:
 
 * **Mass**: mg, g, kg, lb, oz
 * **Length**: m, cm, mm, km, inch, foot, mile
 * **Volume**: ml, l, fl oz, gal
-* **Time**: sec, min, hour, day, week, month, year
+* **Time**: second, minute, hour, day, week, month, year (including plural forms)
 * **Temperature**: °C, °F
 
-The runtime MUST ensure that values compared or assigned have compatible units (belong to the same group). Conversions (e.g., `lb` to `kg`) are performed automatically.
+Additional standard units are recognized as distinct groups:
+
+* **Percent**: %
+* **Pressure**: mmHg
+* **Clinical**: bpm, mg/dL, mmol/L (mg/dL and mmol/L are convertible)
+
+The runtime ensures that values compared or assigned have compatible units (belong to the same group).
 
 #### Unit Normalization
 
-For custom units (e.g., `points`, `tablets`), the runtime **no longer** automatically normalizes plural forms. You MUST explicitly define the relationship:
+For custom units (e.g., `points`, `tablets`), pluralization and abbreviations must be defined explicitly. Without a definition, `10 <point>` and `10 <points>` are treated as different units.
 
 ```hippocrates
-point is a unit:
-    plural is "points".
+<point> is a unit:
+    plural is <points>
+    abbreviation is "pts"
 ```
 
-* Without this definition, `10 points` and `10 point` are considered effectively different units (though the runtime logic might treat them as distinct unit strings).
-* With the definition, `10 points` is canonicalized to `10 point` (using the definition name as canonical).
+### 4.2. Required Properties
 
-### 4.2. Confidence and History
+* **Numbers and Enumerations**: `valid values` must be defined.
+* **Numbers**: A unit must be defined (via `unit is ...` or by using quantities in `valid values`).
+* **Asking**: `ask` is only valid when a value has a `question` property.
 
-Every value in Hippocrates has meta-properties managed by the runtime:
+### 4.3. Data Flow and Validity
 
-* `value.timestamp`: When was this value last updated.
-* `value.confidence`: A percentage (0-100%) indicating certainty.
-  * Calculated values inherit the *lowest* confidence of their inputs.
-  * Values are considered "valid" for reuse only if their age is within the defined `reuse` period.
-  * **Rule**: When an action requires a value (e.g. `ask`), the system checks if a valid historical value exists.
-    * If `age < reuse_period`: The question is skipped, and the historical value is used.
-    * If `age >= reuse_period` (or value missing): The system prompts the user for a new value.
+* A value cannot be used before it has valid content.
+* Values gain valid content by being assigned, asked, or provided by `listen for` or `context data:`.
+* Calculation properties describe how a value is derived but do not implicitly seed it; plans must assign or ask before use.
+* Statistical functions read history and do not require local initialization of the referenced value.
 
-### 4.3. Context Resolution
+### 4.4. Assessment Coverage
 
-Variables (Values) are resolved in the following order:
+* `assess` blocks, `meaning` cases, and assessments over statistical results must fully cover the valid range of the target/output.
+* For enumerations, all valid values must be covered.
+* For `trend of <value>`, all cases (`"increase"`, `"decrease"`, `"stable"`) must be covered.
 
-1. **Local Scope**: Variables defined within the current block (e.g., iterator variables).
-2. **Global Scope**: Values defined in the `value definition` chapters.
-3. **Library Scope**: Values imported from linked libraries.
+### 4.5. Range Compliance (Pre-Run Validation)
 
-### 4.4. Data Sufficiency
+Before execution, the runtime validates that calculated and assigned values remain within their declared ranges. If the computed range can exceed the valid values, validation fails.
 
-Calculations involving timeframes (e.g., `count of ... in past 5 days`) enforce strict data sufficiency rules.
+### 4.6. Data Sufficiency
 
-* If the system has been running for less time than the requested timeframe (e.g., running for 2 days, requested 5 days), the result is `Not Enough Data`.
-* This ensures that calculations do not return partial or misleading results (e.g., returning 0 incidents simply because history is empty).
-* Plans can explicitly handle this state:
+Calculations involving history use `Not enough data` when the available history is shorter than the requested timeframe. This is handled explicitly in assessments.
 
-```hippocrates
-assess <incident count>:
-    Not enough data:
-        show message "Collecting more data...".
-    > 5:
-        show message "High incidents".
-```
-
-## 5. Standard Library Proposal
-
-Implicit definitions available in every plan.
-
-### 5.1. System Values
-
-* `now`: Current timestamp.
-* `patient`: Reference to the primary subject.
-* `plan_start_date`: Timestamp when the plan was activated.
-
-### 5.2. Built-in Functions
-
-* `count_of(value)`: Number of historical entries for a value.
-* `average_of(value, period)`: Average of value over the last `period`.
-* `trend_of(value)`: Enum (rising, falling, stable).
-
-## 6. Execution Model
+## 5. Execution Model
 
 The Hippocrates Runtime functions as a **State Machine**.
 
 1. **Load**: Parse script, build internal dependencies graph (DAG).
 2. **Init**: Initialize all values to `unknown` or default; restore state from persistence.
 3. **Loop**:
-    * Check **Timers**: Are there any temporal events (`every day`, `at 10:00`)? -> Trigger Event.
+    * Check **Timers**: Are there any temporal events (`every 1 day`, `every Monday`)? -> Trigger Event.
     * Check **Inputs**: Did an external API update a value? -> Trigger `change of` Event.
-    * evaluate **Rules**: If an Event triggered, execute the associated `block`.
-    * **Side Effects**: Execute `show`, `ask`, or `send` commands via API callbacks.
+    * Evaluate **Rules**: If an Event triggered, execute the associated `block`.
+    * **Side Effects**: Execute `show`, `ask`, or `send information` commands via API callbacks.
 
-### 6.1 Validation Logic
+### 5.1 Validation Logic
 
 Before execution, the runtime validates that:
 
-1. All `assess` blocks cover the complete valid range of the target value.
-2. No ambiguous or overlapping conditions exist.
+1. All `assess` blocks and `meaning` cases cover the complete valid range of the target value.
+2. No values are used before they are initialized or asked.
 3. All referenced variables and units are compatible.
 
-## 7. Examples by Feature
+## 6. Examples by Feature
 
-### 7.1. Visual Analogue Scale (VAS)
+### 6.1. Visual Analogue Scale (VAS)
 
 ```hippocrates
+<point> is a unit:
+    plural is <points>
+
 <pain level> is a number:
-    valid values: 0 ... 10
+    valid values:
+        0 <points> ... 10 <points>
     question:
         ask "How severe is your pain?":
             question style is visual analogue scale:
-                best value is 0:
-                    text for best value is "No pain".
-                worst value is 10:
-                    text for worst value is "Worst pain imaginable".
+                best value is 0 <points>.
+                text for best value is "No pain".
+                worst value is 10 <points>.
+                text for worst value is "Worst pain imaginable".
 ```
 
-### 7.2. Filtered Calculations with Timeframes
+### 6.2. Filtered Calculations with Timeframes
 
 ```hippocrates
+<dose> is a unit:
+    plural is <doses>
+
 <inhaler used in past 5 days> is a number:
+    valid values:
+        0 <doses> ... 1000 <doses>
     calculation:
         timeframe for analysis is between 5 days ago ... now:
-            value = count of inhaler used is yes.
+            <inhaler used in past 5 days> = count of <inhaler used> is "Yes".
 ```
 
-### 7.3. Handling Insufficient Data
+### 6.3. Handling Insufficient Data
 
 ```hippocrates
+<point> is a unit:
+    plural is <points>
+
 <weekly average> is a number:
+    valid values:
+        0 <points> ... 10 <points>
     calculation:
         timeframe for analysis is 7 days ago ... now:
-            value = average of <daily pain> over 7 days.
+            <weekly average> = average of <daily pain> over 7 days.
 
 during plan:
     assess <weekly average>:
         Not enough data:
             show message "Please continue tracking pain for a full week.".
-        > 5:
+        0 <points> ... 5 <points>:
+            show message "Your pain levels are within range this week.".
+        6 <points> ... 10 <points>:
             show message "Your pain levels are high this week.".
 ```
 
-### 7.3. Message Expiration
+### 6.4. Message Expiration
 
 ```hippocrates
-show message to patient "Take your medication now":
+show message to <patient> "Take your medication now":
     message expires after 15 minutes.
+```
 
-### 7.4. Validity Timeframe (Reuse)
+### 6.5. Question Expiration and Reminders
 
 ```hippocrates
-<Body Temperature> is a number:
+<point> is a unit:
+    plural is <points>
+
+<pain score> is a number:
+    valid values:
+        0 <points> ... 10 <points>
+    question:
+        ask "How severe is your pain?":
+            question expires after 1 day:
+                show message "We still need your answer for today's pain score.".
+```
+
+### 6.6. Validity Timeframe (Reuse)
+
+```hippocrates
+<body temperature> is a number:
+    valid values:
+        35.0 °C ... 42.0 °C
     reuse:
         reuse period of value is 1 hour.
 
 during plan:
-    ask <Body Temperature>.
-    // If run again within 1 hour, this question is skipped.
-```
-
+    ask <body temperature>.
 ```

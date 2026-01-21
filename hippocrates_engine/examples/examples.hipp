@@ -1,0 +1,104 @@
+<point> is a unit:
+    plural is <points>
+
+<daily wellness check> is a plan:
+    during plan:
+        show message "Welcome to your wellness check.".
+
+    every 1 day:
+        show message "Remember to drink water!".
+
+<pain level> is a number:
+    valid values:
+        0 <points> ... 10 <points>
+    question:
+        ask "How severe is your pain now?":
+            question style is visual analogue scale:
+                best value is 0 <points>
+                text for best value is "No pain".
+                worst value is 10 <points>
+                text for worst value is "Worst pain imaginable".
+
+<pain tracker> is a plan:
+    every 1 day:
+        ask for <pain level>.
+        
+        assess <pain level>:
+            0 <points>:
+                 show message "Great to hear you are pain free!".
+            1 <point> ... 3 <points>:
+                 show message "Mild pain noted.".
+            4 <points> ... 7 <points>:
+                 show message "Moderate pain. Please monitor.".
+            8 <points> ... 10 <points>:
+                 show message "Severe pain! Please contact your physician.".
+
+<physician> is an addressee:
+    contact information:
+        email is "dr_smith@hospital.com"
+
+<body temperature> is a number:
+    valid values:
+        35.0 °C ... 42.0 °C
+    unit: °C
+
+<average temperature> is a number:
+    valid values:
+        35.0 °C ... 42.0 °C
+    unit: °C
+    calculation:
+        value = average of <body temperature> over 1 day.
+
+<fever monitor> is a plan:
+    every 4 hours:
+        ask for <body temperature>.
+    
+    every 1 day:
+        assess <average temperature>:
+            Not enough data:
+                 show message "Collecting temperature data...".
+            35.0 °C ... 37.5 °C:
+                show message "Temperature is normal.".
+            37.6 °C ... 42.0 °C:
+                show message "You have a fever!".
+    
+    <fever alert> with change of <body temperature>:
+        assess <body temperature>:
+            41.1 °C ... 42.0 °C:
+                 show message "CRITICAL FEVER! Contacting physician immediately.".
+                 show message to <physician> "URGENT: Patient temperature above 41.0°C".
+
+<symptom severity> is a number:
+    valid values:
+        0 <points> ... 10 <points>
+
+<weekly symptom average> is a number:
+    valid values:
+        0 <points> ... 10 <points>
+    calculation:
+        timeframe for analysis is 7 days ago ... now:
+            <weekly symptom average> = average of <symptom severity> over 7 days.
+
+<monitoring plan> is a plan:
+    during plan:
+        assess <weekly symptom average>:
+            Not enough data:
+                show message "We need a full week of data before analyzing your symptoms.".
+            0 <points> ... 3 <points>:
+                show message "Your symptoms are under control.".
+            4 <points> ... 10 <points>:
+                show message "Your symptoms have been severe this week.".
+
+<body weight> is a number:
+    valid values:
+        0 kg ... 200 kg
+    unit: kg
+
+<patient age> is a number:
+    valid values:
+        0 years ... 130 years
+
+<treatment> is a plan:
+    during plan:
+        <body weight> = 75 kg.
+        show message "Patient weight recorded".

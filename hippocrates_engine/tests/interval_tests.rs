@@ -18,14 +18,6 @@ fn test_interval_force_positive() {
 
 #[test]
 fn test_addition() {
-    let empty: HashMap<String, Interval> = HashMap::new();
-    // 5 + [10, 20] = [15, 25]
-    let expr = Expression::Binary(
-        Box::new(Expression::Literal(Literal::Number(5.0, None))),
-        "+".to_string(),
-        Box::new(Expression::Literal(Literal::Number(10.0, None))) // Mocking range with logic below, but let's test calculate_interval
-    );
-
     // To test calculate_interval properly with ranges, we need Variables.
     // Let's create a map with "b" -> [10, 20]
     let mut ranges = HashMap::new();

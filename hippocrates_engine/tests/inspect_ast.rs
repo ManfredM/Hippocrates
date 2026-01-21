@@ -1,12 +1,14 @@
+mod fixture_loader;
+
 #[cfg(test)]
 mod tests {
+    use crate::fixture_loader::{load_scenario, ScenarioKind};
     use hippocrates_engine::ast::Definition;
     use hippocrates_engine::parser;
-    use std::fs;
 
     #[test]
     fn inspect_copd_period_ast() {
-        let content = fs::read_to_string("plans/treating_copd.hipp").expect("Failed to read plan");
+        let content = load_scenario("tests/fixtures/runtime_plans.hipp", "copd_plan", ScenarioKind::Pass);
         let plan = parser::parse_plan(&content).expect("Failed to parse");
 
         for def in plan.definitions {

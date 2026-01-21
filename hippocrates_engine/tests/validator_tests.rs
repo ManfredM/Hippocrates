@@ -1,4 +1,6 @@
 
+mod fixture_loader;
+
 use hippocrates_engine::parser;
 use hippocrates_engine::runtime::validator;
 
@@ -14,6 +16,8 @@ fn test_validator_fails_missing_not_enough_data() {
 
 <plan> is a plan:
     during plan:
+        timeframe for analysis is between 2 days ago ... now:
+            <value> = count of <something>.
         assess <value>:
             0 points ... 10 points:
                 show message "covered".
@@ -36,6 +40,8 @@ fn test_validator_passes_with_not_enough_data() {
     
 <plan> is a plan:
     during plan:
+        timeframe for analysis is between 2 days ago ... now:
+            <value> = count of <something>.
         assess <value>:
             Not enough data:
                 show message "waiting".
@@ -51,7 +57,9 @@ fn test_validator_passes_with_not_enough_data() {
 
 #[test]
 fn test_validate_copd_plan() {
-    let input = std::fs::read_to_string("plans/treating_copd.hipp").expect("Failed to read file");
+    use fixture_loader::{load_scenario, ScenarioKind};
+
+    let input = load_scenario("tests/fixtures/runtime_plans.hipp", "copd_plan", ScenarioKind::Pass);
     let plan = parser::parse_plan(&input).expect("Failed to parse");
     let result = validator::validate_file(&plan);
     assert!(result.is_ok(), "Validation failed for COPD plan: {:?}", result.err());
@@ -65,6 +73,7 @@ fn test_validator_integer_gap_message() {
 
 <plan> is a plan:
     during plan:
+        <val> = 0 <points>.
         assess <val>:
             0 <points> ... 5 <points>:
                 show message "Lower half".
@@ -89,6 +98,7 @@ fn test_validator_float_gap() {
 
 <plan> is a plan:
     during plan:
+        <val> = 0.0 mg.
         assess <val>:
             0.0 mg ... 5.5 mg:
                 show message "Lower part".
@@ -115,6 +125,7 @@ fn test_precision_gaps() {
 
 <plan> is a plan:
     during plan:
+        <val> = 0.0 mm.
         assess <val>:
             0.0 mm ... 5.5 mm:
                 show message "Lower part".
@@ -136,6 +147,7 @@ fn test_precision_gaps() {
 
 <plan> is a plan:
     during plan:
+        <val> = 0 <points>.
         assess <val>:
             0 <points> ... 5 <points>:
                 show message "Lower part".
@@ -161,6 +173,7 @@ fn test_range_overlap() {
 
 <plan> is a plan:
     during plan:
+        <Temp> = 35.0 °C.
         assess <Temp>:
             38.0 °C ... 42.0 °C:
                 show message "Fever".
@@ -173,12 +186,8 @@ fn test_range_overlap() {
     let errors = result.unwrap_err();
     let msg = &errors[0].message;
     println!("Overlap Error: {}", msg);
-    // 38.0 is used twice. 
-    // Logic: 35.0...38.0. Current=38.0. Step=0.1.
-    // Next: 38.0...42.0. i.start=38.0.
-    // 38.0 < 38.0 + 0.1 - eps (38.09999). True.
-    // Error: "Value 38.0 is covered multiple times".
-    assert!(msg.contains("Next range should start at 38.1"));
+    assert!(msg.contains("Constraint Violation"));
+    assert!(msg.contains("covered multiple times"));
 }
 
 #[test]
@@ -323,6 +332,7 @@ fn test_unitless_assess_fails() {
 
 <plan> is a plan:
     during plan:
+        <val> = 0 kg.
         assess <val>:
             0 ... 100:
                 show message "Done".

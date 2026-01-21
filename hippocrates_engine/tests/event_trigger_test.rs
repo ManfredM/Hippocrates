@@ -1,12 +1,12 @@
+mod fixture_loader;
 
 #[test]
 fn test_event_trigger_parsing() {
+    use fixture_loader::{load_scenario, ScenarioKind};
     use hippocrates_engine::parser;
     use hippocrates_engine::ast::{Definition, PlanBlock, Trigger};
-    use std::fs;
 
-    let input = fs::read_to_string("tests/plans/event_trigger_coverage.hipp")
-        .expect("Failed to read plan file");
+    let input = load_scenario("tests/fixtures/specs.hipp", "event_trigger", ScenarioKind::Pass);
     
     let plan = parser::parse_plan(&input).expect("Failed to parse plan");
     

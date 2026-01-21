@@ -9,6 +9,7 @@ pub fn check_coverage(
     valid_interval: &Interval,
     cases: &[AssessmentCase],
     line: usize,
+    decimals: Option<usize>,
     errors: &mut Vec<EngineError>,
 ) {
     // 1. Determine Universe from Valid Interval
@@ -26,6 +27,21 @@ pub fn check_coverage(
         ranges.extend(extract_ranges(&case.condition));
     }
 
+    if let Some(decimals) = decimals {
+        let step = 10_f64.powi(-(decimals as i32));
+        check_discrete_coverage(
+            name,
+            universe_min,
+            universe_max,
+            &ranges,
+            line,
+            step,
+            decimals,
+            errors,
+        );
+        return;
+    }
+
     // 3. Clamp Intervals to Universe
     let mut clamped: Vec<Range> = Vec::new();
     for r in ranges {
@@ -41,18 +57,23 @@ pub fn check_coverage(
 
     let mut current = universe_min;
     let mut is_first = true;
-    let epsilon = 0.0001; 
+    let epsilon = 0.0001;
 
-    // Helper to format
-    let format_val = |v: f64| -> String {
-        format!("{:.1}", v)
-    };
+    let format_val = |v: f64| -> String { format!("{:.1}", v) };
 
     for r in clamped {
         // Overlap Check (optional)
         if !is_first {
              if r.start < current - epsilon {
-                 // overlap logic
+                 errors.push(EngineError {
+                     message: format!(
+                         "Constraint Violation: Assessment for '{}' has overlapping ranges; value {} is covered multiple times.",
+                         name,
+                         format_val(r.start)
+                     ),
+                     line,
+                     column: 0,
+                 });
              }
         }
 
@@ -87,6 +108,85 @@ pub fn check_coverage(
     }
 }
 
+fn check_discrete_coverage(
+    name: &str,
+    universe_min: f64,
+    universe_max: f64,
+    ranges: &[Range],
+    line: usize,
+    step: f64,
+    decimals: usize,
+    errors: &mut Vec<EngineError>,
+) {
+    let mut clamped: Vec<Range> = Vec::new();
+    for r in ranges {
+        let start = r.start.max(universe_min);
+        let end = r.end.min(universe_max);
+        if start <= end {
+            clamped.push(Range { start, end });
+        }
+    }
+
+    clamped.sort_by(|a, b| a.start.partial_cmp(&b.start).unwrap_or(std::cmp::Ordering::Equal));
+
+    let mut current = universe_min;
+    let epsilon = step / 10.0;
+    let format_val = |v: f64| -> String { format!("{:.*}", decimals, v) };
+
+    for r in clamped {
+        if r.start < current - epsilon {
+            errors.push(EngineError {
+                message: format!(
+                    "Constraint Violation: Assessment for '{}' has overlapping ranges; value {} is covered multiple times.",
+                    name,
+                    format_val(r.start)
+                ),
+                line,
+                column: 0,
+            });
+        }
+
+        if r.start > current + epsilon {
+            let gap_end = r.start - step;
+            if gap_end + epsilon >= current {
+                errors.push(EngineError {
+                    message: format!(
+                        "Coverage Error: Assessment for '{}' is incomplete. Uncovered gap detected: {} ... {}. Valid range is {}...{}.",
+                        name,
+                        format_val(current),
+                        format_val(gap_end),
+                        format_val(universe_min),
+                        format_val(universe_max)
+                    ),
+                    line,
+                    column: 0,
+                });
+            }
+            current = r.start;
+        }
+
+        let next = r.end + step;
+        if next > current {
+            current = next;
+        }
+    }
+
+    if current <= universe_max + epsilon {
+        errors.push(EngineError {
+            message: format!(
+                "Coverage Error: Assessment for '{}' is incomplete. Uncovered gap at the end: {} ... {}. Valid range is {}...{}.",
+                name,
+                format_val(current),
+                format_val(universe_max),
+                format_val(universe_min),
+                format_val(universe_max)
+            ),
+            line,
+            column: 0,
+        });
+    }
+}
+
 fn extract_ranges(sel: &RangeSelector) -> Vec<Range> {
     let mut res = Vec::new();
     
@@ -104,17 +204,6 @@ fn extract_ranges(sel: &RangeSelector) -> Vec<Range> {
         RangeSelector::Range(min, max) | RangeSelector::Between(min, max) => {
              if let (Some(vn), Some(vx)) = (extract_val(min), extract_val(max)) {
                  res.push(Range { start: vn, end: vx });
-             }
-        },
-        RangeSelector::Condition(op, expr) => {
-             if let Some(v) = extract_val(expr) {
-                 match op {
-                     crate::ast::ConditionOperator::GreaterThan => res.push(Range { start: v, end: f64::INFINITY }), 
-                     crate::ast::ConditionOperator::GreaterThanOrEquals => res.push(Range { start: v, end: f64::INFINITY }),
-                     crate::ast::ConditionOperator::LessThan => res.push(Range { start: f64::NEG_INFINITY, end: v }),
-                     crate::ast::ConditionOperator::LessThanOrEquals => res.push(Range { start: f64::NEG_INFINITY, end: v }),
-                     _ => {}
-                 }
              }
         },
         RangeSelector::Equals(expr) => {

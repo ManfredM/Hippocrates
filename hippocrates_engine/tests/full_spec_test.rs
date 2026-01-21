@@ -1,15 +1,17 @@
-use hippocrates_engine::ast::{ConditionalTarget, Definition, Property, Statement, StatementKind};
+mod fixture_loader;
+
+use fixture_loader::{load_scenario, ScenarioKind};
+use hippocrates_engine::ast::{Definition, Property, StatementKind};
 use hippocrates_engine::parser;
-use std::fs;
 
 #[test]
 fn test_full_spec_features() {
-    let input = fs::read_to_string("tests/full_spec_test.hipp").expect("Failed to read test file");
+    let input = load_scenario("tests/fixtures/specs.hipp", "full_spec", ScenarioKind::Pass);
 
     let plan = parser::parse_plan(&input).expect("Failed to parse plan");
 
     // Verify Definitions
-    assert_eq!(plan.definitions.len(), 12); 
+    assert_eq!(plan.definitions.len(), 13); 
 
     // Check Drug
     if let Some(Definition::Drug(drug)) = plan

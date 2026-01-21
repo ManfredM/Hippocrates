@@ -48,7 +48,16 @@ pub fn check_addressees(defs: &HashMap<String, Definition>, errors: &mut Vec<Eng
 
 pub fn check_value_definitions(defs: &HashMap<String, Definition>, errors: &mut Vec<EngineError>) {
      for def in defs.values() {
-         if let crate::ast::Definition::Value(vd) = def {
+        if let crate::ast::Definition::Value(vd) = def {
+             let mut line_hint = 0;
+             for prop in &vd.properties {
+                 if let Property::ValidValues(stmts) = prop {
+                     if let Some(stmt) = stmts.first() {
+                         line_hint = stmt.line;
+                     }
+                 }
+             }
+
              // 1. Check for missing Valid Values
              let needs_values = matches!(vd.value_type, crate::domain::ValueType::Number | crate::domain::ValueType::Enumeration);
              if needs_values {
@@ -87,15 +96,15 @@ pub fn check_value_definitions(defs: &HashMap<String, Definition>, errors: &mut 
 
                  if !has_explicit_unit && !has_implied_unit {
                       errors.push(EngineError {
-                          message: format!("Definition of '{}' is invalid: Number defined without a Unit (e.g. 'unit is mg' or usage of '0 mg ... 100 mg').", vd.name),
-                          line: 0,
+                          message: format!("Numeric values must have a unit. Definition of '{}' is invalid: Number defined without a Unit (e.g. 'unit is mg' or usage of '0 mg ... 100 mg').", vd.name),
+                          line: line_hint,
                           column: 0,
                       });
-                 } else if has_unitless_range && !has_explicit_unit {
+                 } else if has_unitless_range {
                       // Mixed or Unitless ranges
                       errors.push(EngineError {
-                          message: format!("Definition of '{}' is invalid: Range contains unitless numbers (must use quantities like '10 mg').", vd.name),
-                          line: 0,
+                          message: format!("Numeric values must have a unit. Definition of '{}' is invalid: Range contains unitless numbers (must use quantities like '10 mg').", vd.name),
+                          line: line_hint,
                           column: 0,
                       });
                  }
@@ -117,17 +126,17 @@ fn check_selector_units(sel: &crate::ast::RangeSelector, has_unit: &mut bool, ha
 
     match sel {
         RangeSelector::Range(min, max) | RangeSelector::Between(min, max) => {
-             check_expr(min, has_unit, has_unitless);
-             check_expr(max, has_unit, has_unitless);
+            check_expr(min, has_unit, has_unitless);
+            check_expr(max, has_unit, has_unitless);
         }
-        RangeSelector::Equals(e) | RangeSelector::GreaterThan(e) => {
-             check_expr(e, has_unit, has_unitless);
+        RangeSelector::Equals(e) => {
+            check_expr(e, has_unit, has_unitless);
         }
-         RangeSelector::List(items) => {
-             for item in items {
-                 check_expr(item, has_unit, has_unitless);
-             }
-         }
+        RangeSelector::List(items) => {
+            for item in items {
+                check_expr(item, has_unit, has_unitless);
+            }
+        }
         _ => {}
     }
 }

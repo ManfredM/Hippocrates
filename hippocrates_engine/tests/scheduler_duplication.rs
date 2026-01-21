@@ -1,6 +1,6 @@
 #[test]
 fn test_scheduler_duplication() {
-    use hippocrates_engine::ast::{Definition, PeriodDef};
+    use hippocrates_engine::ast::Definition;
     use hippocrates_engine::runtime::scheduler::Scheduler;
     use chrono::{TimeZone, Utc, Datelike, Timelike};
 

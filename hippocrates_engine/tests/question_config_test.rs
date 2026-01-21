@@ -1,13 +1,12 @@
+mod fixture_loader;
 
 #[test]
 fn test_question_config_parsing_and_validation() {
+    use fixture_loader::{load_scenario, ScenarioKind};
     use hippocrates_engine::parser;
     use hippocrates_engine::runtime::validator;
     use hippocrates_engine::ast::{StatementKind, PlanBlock, Action, QuestionConfig};
-    use std::fs;
-
-    let input = fs::read_to_string("tests/plans/question_config_coverage.hipp")
-        .expect("Failed to read plan file");
+    let input = load_scenario("tests/fixtures/specs.hipp", "question_config", ScenarioKind::Fail);
 
     let plan = parser::parse_plan(&input).expect("Failed to parse plan");
 

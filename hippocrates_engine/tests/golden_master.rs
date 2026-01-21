@@ -1,15 +1,16 @@
-use hippocrates_engine::runtime::{Environment, Executor, ExecutionMode};
+mod fixture_loader;
+
+use fixture_loader::{load_scenario, ScenarioKind};
+use hippocrates_engine::runtime::{Environment, Executor};
 use hippocrates_engine::parser;
 use hippocrates_engine::domain::EventType;
 use chrono::{Utc, TimeZone};
 use std::sync::{Arc, Mutex};
-use std::fs;
 
 #[test]
 fn test_golden_master() {
     // 1. Load Golden Plan
-    let path = "tests/golden.hipp";
-    let input = fs::read_to_string(path).expect("Failed to read golden.hipp");
+    let input = load_scenario("tests/fixtures/specs.hipp", "golden_master", ScenarioKind::Pass);
     
     let plan = parser::parse_plan(&input).expect("Failed to parse golden.hipp");
     

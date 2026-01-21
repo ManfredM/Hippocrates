@@ -1,8 +1,0 @@
-
-<MyUnit> is a unit:
-    plural is <MyUnits>
-
-<MyDrug> is a drug:
-    ingredients:
-        <Aspirin> 500 <mg>
-        <Caffeine> 50 <BadUnit>

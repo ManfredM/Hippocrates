@@ -1,3 +1,5 @@
+mod fixture_loader;
+
 use hippocrates_engine::domain::{RuntimeValue, Unit};
 use hippocrates_engine::parser;
 use hippocrates_engine::runtime::{Engine, Environment, Executor, ExecutionMode};
@@ -38,8 +40,10 @@ fn test_runtime_execution_flow() {
 
 #[test]
 fn test_copd_runtime_setup() {
+    use fixture_loader::{load_scenario, ScenarioKind};
+
     // Load the real file to ensure runtime can handle the structure (even if logic is mocked)
-    let input = std::fs::read_to_string("plans/treating_copd.hipp").expect("Could not read file");
+    let input = load_scenario("tests/fixtures/runtime_plans.hipp", "copd_plan", ScenarioKind::Pass);
     let plan = parser::parse_plan(&input).expect("Failed to parse COPD plan");
 
     let mut engine = Engine::new();
@@ -68,9 +72,10 @@ fn test_copd_runtime_setup() {
 
 #[test]
 fn test_99_bottles_execution() {
+    use fixture_loader::{load_scenario, ScenarioKind};
+
     let mut env = Environment::new();
-    let input =
-        std::fs::read_to_string("plans/99_bottles.hipp").expect("Failed to read 99_bottles.hipp");
+    let input = load_scenario("tests/fixtures/runtime_plans.hipp", "bottles_plan", ScenarioKind::Pass);
     let plan = parser::parse_plan(&input).expect("Failed to parse");
     env.load_plan(plan);
 

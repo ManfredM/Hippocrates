@@ -1,12 +1,13 @@
 
+mod fixture_loader;
+
 #[test]
 fn test_drug_definition_validation() {
+    use fixture_loader::{load_scenario, ScenarioKind};
     use hippocrates_engine::parser;
     use hippocrates_engine::runtime::validator;
-    use std::fs;
 
-    let input = fs::read_to_string("tests/plans/drug_definition_coverage.hipp")
-        .expect("Failed to read plan file");
+    let input = load_scenario("tests/fixtures/specs.hipp", "drug_definition", ScenarioKind::Fail);
 
     let plan = parser::parse_plan(&input).expect("Failed to parse plan");
     let result = validator::validate_file(&plan);

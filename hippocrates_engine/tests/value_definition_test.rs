@@ -1,13 +1,13 @@
+mod fixture_loader;
 
 #[test]
 fn test_value_definition_parsing() {
+    use fixture_loader::{load_scenario, ScenarioKind};
     use hippocrates_engine::parser;
     use hippocrates_engine::ast::Definition;
     use hippocrates_engine::domain::ValueType;
-    use std::fs;
 
-    let input = fs::read_to_string("tests/plans/value_definition_coverage.hipp")
-        .expect("Failed to read plan file");
+    let input = load_scenario("tests/fixtures/specs.hipp", "value_definition", ScenarioKind::Pass);
 
     let plan = parser::parse_plan(&input).expect("Failed to parse plan");
 

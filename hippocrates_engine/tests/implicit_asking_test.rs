@@ -1,14 +1,14 @@
-use hippocrates_engine::ast::{Definition, PlanBlock};
+mod fixture_loader;
+
 use hippocrates_engine::runtime::{Environment, Executor};
 use hippocrates_engine::domain::{RuntimeValue, Unit, AskRequest, InputMessage};
-use std::sync::{Arc, Mutex, atomic::AtomicBool};
-use std::thread;
-use std::time::Duration;
+use std::sync::{Arc, Mutex};
 
 #[test]
 fn test_implicit_asking_scenario() {
-    let source = std::fs::read_to_string("plans/implicit_ask_scenario.hipp")
-        .expect("Failed to read plan file");
+    use fixture_loader::{load_scenario, ScenarioKind};
+
+    let source = load_scenario("tests/fixtures/runtime_plans.hipp", "implicit_ask", ScenarioKind::Pass);
 
     let mut env = Environment::new();
     let plan = hippocrates_engine::parser::parse_plan(&source).expect("Failed to parse plan");

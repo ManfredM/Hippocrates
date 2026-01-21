@@ -2,9 +2,13 @@ use hippocrates_engine::parser;
 use hippocrates_engine::runtime::{Engine, ExecutionMode};
 use hippocrates_engine::domain::RuntimeValue;
 
+mod fixture_loader;
+
 #[test]
 fn test_reproduce_copd_execution() {
-    let input = std::fs::read_to_string("plans/treating_copd.hipp").expect("Failed to read plan");
+    use fixture_loader::{load_scenario, ScenarioKind};
+
+    let input = load_scenario("tests/fixtures/runtime_plans.hipp", "copd_plan", ScenarioKind::Pass);
     let plan = parser::parse_plan(&input).expect("Failed to parse plan");
 
     let mut engine = Engine::new();

@@ -34,7 +34,7 @@ pub fn analyze_statement(
     defs: &HashMap<String, Definition>,
     errors: &mut Vec<EngineError>
 ) {
-       match &stmt.kind {
+    match &stmt.kind {
         StatementKind::Assignment(assign) => {
             // Check RHS uses
             check_expression(&assign.expression, state, stmt.line, errors);
@@ -103,6 +103,12 @@ pub fn analyze_statement(
              }
              // Then analyze statements
              for s in &cb.statements {
+                 analyze_statement(s, state, defs, errors);
+             }
+        }
+        StatementKind::Timeframe(tb) => {
+             // Analyze statements inside timeframe blocks like regular flow.
+             for s in &tb.block {
                  analyze_statement(s, state, defs, errors);
              }
         }

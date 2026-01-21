@@ -1,0 +1,265 @@
+(* --- PASS: copd_plan --- *)
+<best inhalation period> is a period:
+    timeframe:
+        between Monday ... Friday; 07:40 ... 07:50
+        between Saturday ... Sunday; 09:00 ... 09:10
+    customization:
+        begin of <best inhalation period> can be customized together for all occurrences.
+
+<fill in evening report> is a period:
+    timeframe:
+        between Monday ... Friday; 18:30 ... 18:45
+        between Saturday ... Sunday; 19:45 ... 20:00
+    customization:
+        begin of <fill in evening report> can be customized together for all occurrences.
+
+<point> is a unit:
+    plural is <points>
+    abbreviation is "pts"
+
+<severity of breathlessness> is a number:
+    valid values:
+        0 <points> ... 5 <points>
+    meaning:
+        0 <points>:
+            meaning of value = "None".
+        1 <point>:
+            meaning of value = "Not at all".
+            <best value>.
+        2 <points>:
+            meaning of value = "Mild".
+        3 <points>:
+            meaning of value = "Moderate".
+        4 <points>:
+            meaning of value = "Severe".
+        5 <points>:
+            meaning of value = "Worst possible".
+            <worst value>.
+    question:
+        ask "How severe was your breathlessness over the past 24 hours":
+            validate answer once.
+            question expires after 1 hour.
+            style of question is <Likert scale>.
+
+<use> is a unit:
+    plural is <uses>
+
+<use of rescue medication> is a number:
+    valid values:
+        0 <uses> ... 10 <uses>
+    question:
+        ask "How often did you use your rescue medication?":
+            validate answer once.
+            question style is visual analogue scale:
+                best value is 0 <uses>
+                text for best value is "No breathlessness within last 24 hours".
+                worst value is 10 <uses>
+                text for worst value is "Continuous and severe breathlessness within last 24 hours".
+
+<inhaler used> is an enumeration:
+    documentation:
+        english: "This value records if the inhaler was used.".
+    valid values:
+        "Yes"; "No"
+    question:
+        ask "Did you use your inhaler today?":
+            validate answer once.
+            question expires after 1 hour.
+            style of question is <Yes/No>.
+
+<dose> is a unit:
+    plural is <doses>
+
+<inhaler used in past 5 days> is a number:
+    valid values:
+        0 <doses> ... 1000 <doses>
+    meaning:
+        0 <doses>:
+            meaning of value = "all doses missed".
+        1 <dose>:
+            meaning of value = "most doses missed".
+        2 <doses>:
+            meaning of value = "many doses missed".
+        3 <doses>:
+            meaning of value = "some doses missed".
+        4 <doses>:
+            meaning of value = "most doses taken".
+        5 <doses>:
+            meaning of value = "all doses taken".
+        6 <doses> ... 1000 <doses>:
+            meaning of value = "too many doses taken".
+    calculation:
+        timeframe for analysis is between 5 days ago ... now:
+            <value> = count of <inhaler used> is "Yes".
+    (* reuse:
+        reuse period of value is 1 day.
+    *)
+
+<inhaler used in past 5 days on time> is a number:
+    valid values:
+        0 <doses> ... 1000 <doses>
+    meaning:
+        0 <doses>:
+            meaning of value = "all doses missed".
+        1 <dose>:
+            meaning of value = "most doses missed".
+        2 <doses>:
+            meaning of value = "many doses missed".
+        3 <doses>:
+            meaning of value = "some doses missed".
+        4 <doses>:
+            meaning of value = "most doses taken".
+        5 <doses>:
+            meaning of value = "all doses taken".
+        6 <doses> ... 1000 <doses>:
+            meaning of value = "too many doses taken".
+    calculation:
+        timeframe for analysis is between 5 days ago ... now:
+            <value> = count of <inhaler used> is "Yes".
+    (* reuse:
+        reuse period of value is 1 day.
+    *)
+
+<COPD telehealth> is a plan:
+    during plan:
+        <log> = "Plan started".
+
+    <inhalation> with begin of <best inhalation period>:
+        documentation:
+            english: "At the beginning of the inhalation period we show a reminder...".
+        
+        show message to <patient> "It's the best time of the day to take your daily shot now":
+            message expires after <best inhalation period>.
+
+    <reporting> with begin of <fill in evening report>:
+        documentation:
+            english: "Ask for the daily reporting...".
+        
+        ask for <severity of breathlessness>.
+        ask for <inhaler used>.
+        ask for <use of rescue medication>.
+
+        context for analysis:
+            timeframe: 5 days ago ... now
+            assess trend of <use of rescue medication>:
+                "increase":
+                    show message to <physician> "Alert: usage of rescue meds is increasing!".
+                "stable"; "decrease":
+                    <log> = "Rescue medication usage is stable or decreasing.".
+
+        timeframe for analysis is between 5 days ago ... now:
+            <inhaler used in past 5 days> = count of <inhaler used> is "Yes".
+            <inhaler used in past 5 days on time> = count of <inhaler used> is "Yes".
+
+        assess <inhaler used in past 5 days on time>:
+            Not enough data:
+                show message to <patient> "We are still collecting data for compliance check.".
+            4 <doses>; 5 <doses>:
+                show message to <patient> "You are doing a great job in using the inhaler right on time".
+            
+            0 <doses> ... 3 <doses>; 6 <doses> ... 1000 <doses>:
+                assess <inhaler used in past 5 days>:
+                    Not enough data:
+                        show message to <patient> "We are still collecting the first 5 days of data.".
+                    0 <doses>:
+                        show message to <patient> "Not using a medication does not lead to improvement!".
+                    1 <dose> ... 2 <doses>:
+                        show message to <patient> "You must use the inhaler more regular".
+                    3 <doses> ... 5 <doses>:
+                        show message to <patient> "You are using the inhaler frequently enough, but you should also use at the same time every day.".
+                    6 <doses> ... 10 <doses>:
+                        show message to <patient> "You took between 6 and 10 doses in past 5 days. Please do not use more than one dose per day".
+                    11 <doses> ... 1000 <doses>:
+                        show message to <patient> "We have recorded more than 10 uses of the inhaler. Please contact us to investigate the reason for that.".
+
+(* --- PASS: bottles_plan --- *)
+<bottle state> is an enumeration:
+    valid values:
+        "empty"; "full"
+
+<bottle> is a unit:
+    plural is <bottles>
+
+<empty bottles> is a number:
+    valid values:
+        0 <bottles> ... 100 <bottles>
+
+<99 bottles of beer> is a plan:
+    every 1 hour for 100 hours:
+
+        assess <empty bottles>:
+            0 <bottles> ... 97 <bottles>:
+                show message to patient (99 - <empty bottles>) + " bottles of beer on the wall.".
+                <bottle state> = "empty".
+                <empty bottles> = <empty bottles> + 1 <bottle>.
+            
+            98 <bottles>:
+                show message to patient "1 bottle of beer on the wall...".
+                <bottle state> = "empty".
+                <empty bottles> = <empty bottles> + 1 <bottle>.
+            
+            99 <bottles>:
+                show message to patient "No more bottles of beer on the wall.".
+                <empty bottles> = 0 <bottles>.
+
+            100 <bottles>:
+                 show message to patient "Go to the store and buy some more.".
+                 <empty bottles> = 0 <bottles>.
+
+(* --- PASS: sing_plan --- *)
+<bottle> is a unit:
+    plural is <bottles>
+
+<bottle count> is a number:
+    valid values:
+        0 <bottles> ... 100 <bottles>
+
+<Sing> is a plan:
+    begin of <Sing>:
+        <bottle count> = 99 <bottles>.
+    every 1 second for 101 seconds:
+        assess <bottle count>:
+            0 <bottles>:
+                show message "No more bottles of beer on the wall, no more bottles of beer.".
+                show message "Go to the store and buy some more, 99 bottles of beer on the wall.".
+                <bottle count> = 99 <bottles>.
+            1 <bottle>:
+                show message "1 bottle of beer on the wall, 1 bottle of beer.".
+                show message "Take one down and pass it around, no more bottles of beer on the wall.".
+                <bottle count> = 0 <bottles>.
+            2 <bottles>:
+                show message "2 bottles of beer on the wall, 2 bottles of beer.".
+                <bottle count> = 1 <bottle>.
+                show message "Take one down and pass it around, 1 bottle of beer on the wall.".
+            3 <bottles> ... 100 <bottles>:
+                show message <bottle count> + "s of beer on the wall, " + <bottle count> + "s of beer.".
+                <bottle count> = <bottle count> - 1 <bottle>.
+                show message "Take one down and pass it around, " + <bottle count> + "s of beer on the wall.".
+
+(* --- PASS: implicit_ask --- *)
+<user age> is a number:
+  valid values:
+    1 year ... 130 years
+  question:
+    ask "What is your age"
+
+<Age assessment> is a plan:
+  during plan:
+    assess <user age>:
+      1 year ... 18 years:
+        show message "Quite young"
+      19 years ... 80 years:
+        show message "Best age"
+      81 years ... 130 years:
+        show message "Quite old"
+
+(* --- FAIL: invalid_plan --- *)
+<unitless value> is a number:
+    valid values:
+        0 ... 10
+
+<Bad Plan> is a plan:
+    during plan:
+        assess <unitless value>:
+            0 ... 5:
+                show message "Partial coverage".
