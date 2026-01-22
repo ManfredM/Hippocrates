@@ -8,17 +8,25 @@ fn test_analysis_context_execution() {
     // Simplified test without context_for_analysis nesting
     let source = "\
 <testunit> is a unit:
-    plural is <testunits>
+    plural is <testunits>.
+
+<status> is an enumeration:
+    valid values:
+        \"low\"; \"high\".
 
 <test var> is a number:
     valid values:
-        0 <testunits> ... 100 <testunits>
+        0 <testunits> ... 100 <testunits>.
+
+<period> is a period:
+    timeframe:
+        between Monday ... Sunday; 00:00 ... 23:59.
 
 <test plan> is a plan:
     begin of <period>:
         assess <test var>:
-            Not enough data:
-                <status> = \"not enough\".
+            0 <testunits> ... 10 <testunits>:
+                <status> = \"low\".
             11 <testunits> ... 100 <testunits>:
                 <status> = \"high\".
 ";
@@ -34,18 +42,32 @@ fn test_analysis_context_execution() {
     // 2. ShowMessage Test - simplified without context
     let source_stat = "\
 <valunit> is a unit:
-    plural is <valunits>
+    plural is <valunits>.
+
+<status> is an enumeration:
+    valid values:
+        \"zero\".
+
+<flag> is an enumeration:
+    valid values:
+        \"Yes\"; \"No\".
 
 <val> is a number:
     valid values:
-        0 <valunits> ... 100 <valunits>
+        0 <valunits> ... 100 <valunits>.
+
+<p> is a period:
+    timeframe:
+        between Monday ... Sunday; 00:00 ... 23:59.
 
 <stat plan> is a plan:
     begin of <p>:
+        timeframe for analysis is between 5 days ago ... now:
+            <val> = count of <flag> is \"Yes\".
         assess <val>:
             Not enough data:
                 show message \"We do not have enough data\".
-            0 <valunits>:
+            0 <valunits> ... 100 <valunits>:
                 <status> = \"zero\".
 ";
     

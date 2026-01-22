@@ -153,7 +153,19 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
         }
     }
 
-    let timeframe_values = collect_timeframe_values(plan);
+    let statistical_values = collect_statistical_values(plan);
+
+    for def in &plan.definitions {
+        if let Definition::Value(vd) = def {
+            for prop in &vd.properties {
+                if let Property::Calculation(stmts) = prop {
+                    for stmt in stmts {
+                        check_statistical_functions_require_timeframe(stmt, false, &mut errors);
+                    }
+                }
+            }
+        }
+    }
 
     // 2. Validate Assignments and Expressions using Intervals AND Data Flow
     for def in &plan.definitions {
@@ -192,7 +204,8 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
                       for stmt in statements {
                           // Run semantic checks (undefined vars, etc)
                           semantics::check_statement_semantics(stmt, &enum_vars, &defs_map, &mut errors);
-                          check_timeframe_not_enough_data(stmt, &timeframe_values, &mut errors);
+                          check_statistical_not_enough_data(stmt, &statistical_values, &mut errors);
+                          check_statistical_functions_require_timeframe(stmt, false, &mut errors);
 
                           match &stmt.kind {
                               crate::ast::StatementKind::Assignment(assign) => {
@@ -304,22 +317,35 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
     }
 }
 
-fn collect_timeframe_values(plan: &Plan) -> HashSet<String> {
+fn collect_statistical_values(plan: &Plan) -> HashSet<String> {
     let mut values = HashSet::new();
     for def in &plan.definitions {
-        if let Definition::Value(vd) = def {
-            if value_depends_on_timeframe(vd) {
-                values.insert(vd.name.clone());
+        match def {
+            Definition::Value(vd) => {
+                if value_depends_on_statistical(vd) {
+                    values.insert(vd.name.clone());
+                }
             }
+            Definition::Plan(pd) => {
+                for block in &pd.blocks {
+                    let statements = match block {
+                        crate::ast::PlanBlock::DuringPlan(s) => s,
+                        crate::ast::PlanBlock::Event(e) => &e.statements,
+                        crate::ast::PlanBlock::Trigger(t) => &t.statements,
+                    };
+                    collect_statistical_assignments(statements, &mut values);
+                }
+            }
+            _ => {}
         }
     }
     values
 }
 
-fn value_depends_on_timeframe(vd: &crate::ast::ValueDef) -> bool {
+fn value_depends_on_statistical(vd: &crate::ast::ValueDef) -> bool {
     for prop in &vd.properties {
         if let Property::Calculation(stmts) = prop {
-            if statements_contain_timeframe(stmts) {
+            if calculation_contains_statistical(stmts) {
                 return true;
             }
         }
@@ -327,20 +353,29 @@ fn value_depends_on_timeframe(vd: &crate::ast::ValueDef) -> bool {
     false
 }
 
-fn statements_contain_timeframe(stmts: &[Statement]) -> bool {
+fn calculation_contains_statistical(stmts: &[Statement]) -> bool {
     for stmt in stmts {
         match &stmt.kind {
-            StatementKind::Timeframe(_) => return true,
-            StatementKind::Conditional(cond) => {
-                for case in &cond.cases {
-                    if statements_contain_timeframe(&case.block) {
-                        return true;
-                    }
+            StatementKind::Assignment(assign) => {
+                if expression_contains_statistical(&assign.expression) {
+                    return true;
+                }
+            }
+            StatementKind::Timeframe(tb) => {
+                if calculation_contains_statistical(&tb.block) {
+                    return true;
                 }
             }
             StatementKind::ContextBlock(cb) => {
-                if statements_contain_timeframe(&cb.statements) {
+                if calculation_contains_statistical(&cb.statements) {
                     return true;
+                }
+            }
+            StatementKind::Conditional(cond) => {
+                for case in &cond.cases {
+                    if calculation_contains_statistical(&case.block) {
+                        return true;
+                    }
                 }
             }
             _ => {}
@@ -349,46 +384,229 @@ fn statements_contain_timeframe(stmts: &[Statement]) -> bool {
     false
 }
 
-fn check_timeframe_not_enough_data(
+fn collect_statistical_assignments(stmts: &[Statement], values: &mut HashSet<String>) {
+    for stmt in stmts {
+        match &stmt.kind {
+            StatementKind::Assignment(assign) => {
+                if expression_contains_statistical(&assign.expression) {
+                    values.insert(assign.target.clone());
+                }
+            }
+            StatementKind::Timeframe(tb) => collect_statistical_assignments(&tb.block, values),
+            StatementKind::ContextBlock(cb) => collect_statistical_assignments(&cb.statements, values),
+            StatementKind::Conditional(cond) => {
+                for case in &cond.cases {
+                    collect_statistical_assignments(&case.block, values);
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn check_statistical_not_enough_data(
     stmt: &Statement,
-    timeframe_values: &HashSet<String>,
+    statistical_values: &HashSet<String>,
     errors: &mut Vec<EngineError>,
 ) {
     match &stmt.kind {
         StatementKind::Conditional(cond) => {
-            if let ConditionalTarget::Expression(Expression::Variable(name)) = &cond.condition {
-                if timeframe_values.contains(name) {
-                    let has_not_enough = cond
-                        .cases
-                        .iter()
-                        .any(|case| matches!(case.condition, RangeSelector::NotEnoughData));
-                    if !has_not_enough {
-                        errors.push(EngineError {
-                            message: format!(
-                                "Assessment of '{}' depends on a timeframe calculation but does not handle 'Not enough data'.",
-                                name
-                            ),
-                            line: stmt.line,
-                            column: 0,
-                        });
+            let mut is_statistical_target = false;
+            if let ConditionalTarget::Expression(expr) = &cond.condition {
+                if let Expression::Variable(name) = expr {
+                    if statistical_values.contains(name) {
+                        is_statistical_target = true;
                     }
                 }
+                if expression_contains_statistical(expr) {
+                    is_statistical_target = true;
+                }
+            }
+
+            let has_not_enough = cond
+                .cases
+                .iter()
+                .any(|case| matches!(case.condition, RangeSelector::NotEnoughData));
+
+            if is_statistical_target && !has_not_enough {
+                errors.push(EngineError {
+                    message: "Assessment of statistical results must handle 'Not enough data'."
+                        .to_string(),
+                    line: stmt.line,
+                    column: 0,
+                });
+            }
+
+            if !is_statistical_target && has_not_enough {
+                errors.push(EngineError {
+                    message:
+                        "Not enough data is only allowed when assessing statistical results."
+                            .to_string(),
+                    line: stmt.line,
+                    column: 0,
+                });
             }
 
             for case in &cond.cases {
                 for nested in &case.block {
-                    check_timeframe_not_enough_data(nested, timeframe_values, errors);
+                    check_statistical_not_enough_data(nested, statistical_values, errors);
                 }
             }
         }
         StatementKind::Timeframe(tb) => {
             for nested in &tb.block {
-                check_timeframe_not_enough_data(nested, timeframe_values, errors);
+                check_statistical_not_enough_data(nested, statistical_values, errors);
             }
         }
         StatementKind::ContextBlock(cb) => {
             for nested in &cb.statements {
-                check_timeframe_not_enough_data(nested, timeframe_values, errors);
+                check_statistical_not_enough_data(nested, statistical_values, errors);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn expression_contains_statistical(expr: &Expression) -> bool {
+    match expr {
+        Expression::Statistical(_) => true,
+        Expression::Binary(left, _op, right) => {
+            expression_contains_statistical(left) || expression_contains_statistical(right)
+        }
+        Expression::FunctionCall(_, args) => args.iter().any(expression_contains_statistical),
+        Expression::InterpolatedString(parts) => parts.iter().any(expression_contains_statistical),
+        _ => false,
+    }
+}
+
+fn selector_contains_statistical(sel: &RangeSelector) -> bool {
+    match sel {
+        RangeSelector::Range(min, max) | RangeSelector::Between(min, max) => {
+            expression_contains_statistical(min) || expression_contains_statistical(max)
+        }
+        RangeSelector::Equals(expr) => expression_contains_statistical(expr),
+        RangeSelector::Comparison(left, _op, right) => {
+            expression_contains_statistical(left) || expression_contains_statistical(right)
+        }
+        RangeSelector::Condition(_op, expr) => expression_contains_statistical(expr),
+        RangeSelector::List(items) => items.iter().any(expression_contains_statistical),
+        _ => false,
+    }
+}
+
+fn check_statistical_functions_require_timeframe(
+    stmt: &Statement,
+    has_timeframe_context: bool,
+    errors: &mut Vec<EngineError>,
+) {
+    match &stmt.kind {
+        StatementKind::Timeframe(block) => {
+            let next_context = has_timeframe_context || block.for_analysis;
+            for nested in &block.block {
+                check_statistical_functions_require_timeframe(nested, next_context, errors);
+            }
+        }
+        StatementKind::ContextBlock(cb) => {
+            let has_timeframe_item = cb
+                .items
+                .iter()
+                .any(|item| matches!(item, crate::ast::ContextItem::Timeframe(_)));
+            let next_context = has_timeframe_context || has_timeframe_item;
+            for nested in &cb.statements {
+                check_statistical_functions_require_timeframe(nested, next_context, errors);
+            }
+        }
+        StatementKind::Assignment(assign) => {
+            if expression_contains_statistical(&assign.expression) && !has_timeframe_context {
+                errors.push(EngineError {
+                    message:
+                        "Statistical functions require an analysis timeframe context.".to_string(),
+                    line: stmt.line,
+                    column: 0,
+                });
+            }
+        }
+        StatementKind::Conditional(cond) => {
+            if let ConditionalTarget::Expression(expr) = &cond.condition {
+                if expression_contains_statistical(expr) && !has_timeframe_context {
+                    errors.push(EngineError {
+                        message:
+                            "Statistical functions require an analysis timeframe context."
+                                .to_string(),
+                        line: stmt.line,
+                        column: 0,
+                    });
+                }
+            }
+            for case in &cond.cases {
+                if selector_contains_statistical(&case.condition) && !has_timeframe_context {
+                    errors.push(EngineError {
+                        message:
+                            "Statistical functions require an analysis timeframe context."
+                                .to_string(),
+                        line: stmt.line,
+                        column: 0,
+                    });
+                }
+                for nested in &case.block {
+                    check_statistical_functions_require_timeframe(
+                        nested,
+                        has_timeframe_context,
+                        errors,
+                    );
+                }
+            }
+        }
+        StatementKind::Action(action) => {
+            match action {
+                crate::ast::Action::ShowMessage(exprs, _) => {
+                    if exprs.iter().any(expression_contains_statistical) && !has_timeframe_context
+                    {
+                        errors.push(EngineError {
+                            message:
+                                "Statistical functions require an analysis timeframe context."
+                                    .to_string(),
+                            line: stmt.line,
+                            column: 0,
+                        });
+                    }
+                }
+                crate::ast::Action::SendInfo(_, exprs) => {
+                    if exprs.iter().any(expression_contains_statistical) && !has_timeframe_context
+                    {
+                        errors.push(EngineError {
+                            message:
+                                "Statistical functions require an analysis timeframe context."
+                                    .to_string(),
+                            line: stmt.line,
+                            column: 0,
+                        });
+                    }
+                }
+                crate::ast::Action::MessageExpiration(sel) => {
+                    if selector_contains_statistical(sel) && !has_timeframe_context {
+                        errors.push(EngineError {
+                            message:
+                                "Statistical functions require an analysis timeframe context."
+                                    .to_string(),
+                            line: stmt.line,
+                            column: 0,
+                        });
+                    }
+                }
+                _ => {}
+            }
+        }
+        StatementKind::Constraint(expr, _op, sel) => {
+            if (expression_contains_statistical(expr) || selector_contains_statistical(sel))
+                && !has_timeframe_context
+            {
+                errors.push(EngineError {
+                    message:
+                        "Statistical functions require an analysis timeframe context.".to_string(),
+                    line: stmt.line,
+                    column: 0,
+                });
             }
         }
         _ => {}

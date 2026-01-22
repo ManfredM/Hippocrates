@@ -75,6 +75,7 @@
 - REQ-3.12-02 — `tests/spec/execution.rs::spec_timeframe_filtering` — timeframe filtering applies to statistical evaluations.
 - REQ-3.12-03 — `tests/spec/execution.rs::spec_timeframe_variants` — timeframe variants resolve counts over different windows.
 - REQ-3.12-04 — `tests/spec/execution.rs::spec_trend_analysis_evaluates` — trend analysis evaluates statistical trends over timeframes.
+- REQ-3.12-05 — `tests/spec/validation.rs::spec_statistical_functions_require_timeframe_context` — statistical functions require an analysis timeframe context.
 
 ## §4.1 Core Unit Groups and Conversion
 - REQ-4.1-01 — `tests/spec/units.rs::spec_builtin_units_cannot_be_redefined` — built-in units cannot be redefined.
@@ -115,6 +116,7 @@
 - REQ-4.6-01 — `tests/spec/validation.rs::spec_validator_requires_not_enough_data_case` — timeframe calculations require Not enough data handling.
 - REQ-4.6-02 — `tests/spec/validation.rs::spec_validator_passes_with_not_enough_data` — Not enough data handling satisfies sufficiency.
 - REQ-4.6-03 — `tests/spec/execution.rs::spec_not_enough_data_evaluation` — runtime evaluation returns NotEnoughData when history is insufficient.
+- REQ-4.6-04 — `tests/spec/validation.rs::spec_not_enough_data_requires_statistical_target` — Not enough data is only allowed for statistical assessments.
 
 ## §5 Execution Model
 - REQ-5-01 — `tests/spec/execution.rs::spec_runtime_execution_flow` — runtime executes assignments and actions in order.

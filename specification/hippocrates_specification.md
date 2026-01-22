@@ -499,6 +499,8 @@ Requirements:
 - REQ-3.12-02: timeframe filtering applies to statistical evaluations.
 - REQ-3.12-03: timeframe variants resolve counts over different windows.
 - REQ-3.12-04: trend analysis evaluates statistical trends over timeframes.
+- REQ-3.12-05: statistical functions require an analysis timeframe context.
+- REQ-3.12-05: statistical functions require an analysis timeframe context.
 
 
 
@@ -522,6 +524,8 @@ statistical_func =
 infix_op = "+" | "-" | "*" | "/";
 relative_time_modifier = "ago" | "from now";
 ```
+
+Informative: Statistical functions are evaluated within an analysis timeframe. Use a `timeframe for analysis` block or a `context for analysis` block that provides a `timeframe:` item. (See REQ-3.12-05.)
 
 ## 4. Semantics and Type System
 
@@ -632,11 +636,14 @@ Requirements:
 - REQ-4.6-01: timeframe calculations require Not enough data handling.
 - REQ-4.6-02: Not enough data handling satisfies sufficiency.
 - REQ-4.6-03: runtime evaluation returns NotEnoughData when history is insufficient.
+- REQ-4.6-04: Not enough data is only allowed for statistical assessments.
+- REQ-4.6-04: Not enough data is only allowed for statistical assessments.
 
 
 
 
 Informative: Calculations involving history use `Not enough data` when the available history is shorter than the requested timeframe. This is handled explicitly in assessments. (See REQ-4.6-01, REQ-4.6-02, REQ-4.6-03.)
+Informative: `Not enough data` assessments are only used when the assessed target is derived from statistical functions. (See REQ-4.6-04.)
 
 ## 5. Execution Model
 

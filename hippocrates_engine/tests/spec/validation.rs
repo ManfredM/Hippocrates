@@ -157,7 +157,80 @@ fn spec_validator_requires_not_enough_data_case() {
     let result = validator::validate_file(&plan);
     assert!(result.is_err(), "Validation should fail without a Not enough data case");
     let errors = result.err().unwrap();
-    assert!(errors.iter().any(|e| e.message.contains("depends on a timeframe calculation but does not handle 'Not enough data'")), "{:?}", errors);
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.message.contains("must handle 'Not enough data'")),
+        "{:?}",
+        errors
+    );
+}
+
+// REQ-3.12-05: statistical functions require an analysis timeframe context.
+#[test]
+fn spec_statistical_functions_require_timeframe_context() {
+    let input = r#"<point> is a unit:
+    plural is <points>.
+
+<flag> is an enumeration:
+    valid values:
+        "Yes"; "No".
+
+<count> is a number:
+    valid values:
+        0 <points> ... 10 <points>.
+
+<plan> is a plan:
+    during plan:
+        <count> = count of <flag> is "Yes".
+"#;
+
+    let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
+    let result = validator::validate_file(&plan);
+    assert!(result.is_err());
+
+    let errors = result.unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.message.contains("Statistical functions require an analysis timeframe context")),
+        "{:?}",
+        errors
+    );
+}
+
+// REQ-4.6-04: Not enough data is only allowed for statistical assessments.
+#[test]
+fn spec_not_enough_data_requires_statistical_target() {
+    let input = r#"<unit> is a unit:
+    plural is <units>.
+
+<value> is a number:
+    valid values:
+        0 <units> ... 1 <unit>.
+
+<plan> is a plan:
+    during plan:
+        <value> = 0 <units>.
+        assess <value>:
+            Not enough data:
+                show message "No data".
+            0 <units> ... 1 <unit>:
+                show message "OK".
+"#;
+
+    let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
+    let result = validator::validate_file(&plan);
+    assert!(result.is_err());
+
+    let errors = result.unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.message.contains("Not enough data is only allowed")),
+        "{:?}",
+        errors
+    );
 }
 
 // REQ-4.6-02: Not enough data handling satisfies sufficiency.
@@ -566,7 +639,8 @@ fn spec_statistical_functions_do_not_require_local_init() {
 
 <plan> is a plan:
     during plan:
-        show message count of <val> is "Yes".
+        timeframe for analysis is between 5 days ago ... now:
+            show message count of <val> is "Yes".
 "#;
 
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
@@ -628,9 +702,10 @@ fn spec_trend_requires_full_coverage() {
 
 <plan> is a plan:
     during plan:
-        assess trend of <val>:
-            "increase":
-                show message "Up".
+        timeframe for analysis is between 7 days ago ... now:
+            assess trend of <val>:
+                "increase":
+                    show message "Up".
 "#;
 
     let plan = parser::parse_plan(input).expect("Failed to parse");
