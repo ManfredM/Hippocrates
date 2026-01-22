@@ -3,7 +3,7 @@ use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_int};
 use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 use serde::Serialize;
-use chrono::DateTime;
+use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime};
 use crate::runtime::scheduler::Scheduler;
 use crate::runtime::normalize_identifier;
 
@@ -304,6 +304,19 @@ pub unsafe extern "C" fn hippocrates_engine_set_value(
                   }
              } else { None }
         },
+        Some(crate::domain::ValueType::DateTime) => {
+            if let Ok(s) = serde_json::from_str::<String>(json) {
+                if let Some(dt) = parse_date_time_literal(&s) {
+                    Some(crate::domain::RuntimeValue::Date(dt))
+                } else if parse_time_literal(&s).is_some() {
+                    Some(crate::domain::RuntimeValue::String(s))
+                } else {
+                    None
+                }
+            } else {
+                serde_json::from_str::<crate::domain::RuntimeValue>(json).ok()
+            }
+        }
         _ => match serde_json::from_str::<crate::domain::RuntimeValue>(json) {
             Ok(v) => Some(v),
             Err(_) => {
@@ -329,6 +342,28 @@ pub unsafe extern "C" fn hippocrates_engine_set_value(
     } else {
         1 
     }
+}
+
+fn parse_date_time_literal(value: &str) -> Option<NaiveDateTime> {
+    if let Ok(dt) = NaiveDateTime::parse_from_str(value, "%Y-%m-%d %H:%M") {
+        return Some(dt);
+    }
+    if let Ok(dt) = NaiveDateTime::parse_from_str(value, "%Y-%m-%d %-H:%M") {
+        return Some(dt);
+    }
+    if let Ok(date) = NaiveDate::parse_from_str(value, "%Y-%m-%d") {
+        return date.and_hms_opt(0, 0, 0);
+    }
+    None
+}
+
+fn parse_time_literal(value: &str) -> Option<()> {
+    if NaiveTime::parse_from_str(value, "%H:%M").is_ok()
+        || NaiveTime::parse_from_str(value, "%-H:%M").is_ok()
+    {
+        return Some(());
+    }
+    None
 }
 
 #[unsafe(no_mangle)]

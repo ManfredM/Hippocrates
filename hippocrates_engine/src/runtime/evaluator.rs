@@ -1,8 +1,9 @@
 use crate::ast::{Expression, Literal, RangeSelector, StatementKind, ContextItem, Definition, Property};
-use crate::domain::RuntimeValue;
+use crate::domain::{RuntimeValue, Unit};
 use crate::runtime::Environment;
 use crate::runtime::environment::EvaluationContext;
 use crate::runtime::scheduler::Scheduler;
+use chrono::{Datelike, NaiveDate, NaiveDateTime, NaiveTime};
 
 pub struct Evaluator;
 
@@ -25,7 +26,13 @@ impl Evaluator {
                     RuntimeValue::Quantity(*n, u)
                 },
                 Literal::TimeOfDay(s) => RuntimeValue::String(s.clone()),
-                Literal::Date(s) => RuntimeValue::String(s.clone()),
+                Literal::Date(s) => {
+                    if let Some(dt) = Self::parse_date_time_literal(s) {
+                        RuntimeValue::Date(dt)
+                    } else {
+                        RuntimeValue::String(s.clone())
+                    }
+                }
             },
             Expression::Variable(name) => {
                 if name == "now" {
@@ -195,21 +202,64 @@ impl Evaluator {
                 }
             }
             Expression::RelativeTime(val, unit, dir) => {
-                let duration = match unit {
-                    crate::domain::Unit::Second => chrono::Duration::seconds(*val as i64),
-                    crate::domain::Unit::Minute => chrono::Duration::minutes(*val as i64),
-                    crate::domain::Unit::Hour => chrono::Duration::hours(*val as i64),
-                    crate::domain::Unit::Day => chrono::Duration::days(*val as i64),
-                    crate::domain::Unit::Week => chrono::Duration::weeks(*val as i64),
-                    _ => chrono::Duration::seconds(0),
-                };
+                let date = match unit {
+                    crate::domain::Unit::Month | crate::domain::Unit::Year => {
+                        let months = if matches!(unit, crate::domain::Unit::Year) {
+                            (*val).trunc() as i32 * 12
+                        } else {
+                            (*val).trunc() as i32
+                        };
+                        match dir {
+                            crate::ast::RelativeDirection::Ago => {
+                                Self::shift_months(env.now, -months)
+                            }
+                            crate::ast::RelativeDirection::FromNow => {
+                                Self::shift_months(env.now, months)
+                            }
+                        }
+                    }
+                    _ => {
+                        let duration = match unit {
+                            crate::domain::Unit::Second => chrono::Duration::seconds(*val as i64),
+                            crate::domain::Unit::Minute => chrono::Duration::minutes(*val as i64),
+                            crate::domain::Unit::Hour => chrono::Duration::hours(*val as i64),
+                            crate::domain::Unit::Day => chrono::Duration::days(*val as i64),
+                            crate::domain::Unit::Week => chrono::Duration::weeks(*val as i64),
+                            _ => chrono::Duration::seconds(0),
+                        };
 
-                let date = match dir {
-                    crate::ast::RelativeDirection::Ago => env.now - duration,
-                    crate::ast::RelativeDirection::FromNow => env.now + duration,
+                        match dir {
+                            crate::ast::RelativeDirection::Ago => env.now - duration,
+                            crate::ast::RelativeDirection::FromNow => env.now + duration,
+                        }
+                    }
                 };
 
                 RuntimeValue::Date(date)
+            }
+            Expression::DateDiff(unit, start_expr, end_expr) => {
+                let start = Self::evaluate(env, start_expr);
+                let end = Self::evaluate(env, end_expr);
+                if let (Some(start_dt), Some(end_dt)) = (start.as_date(), end.as_date()) {
+                    let (from, to) = if start_dt <= end_dt {
+                        (start_dt, end_dt)
+                    } else {
+                        (end_dt, start_dt)
+                    };
+
+                    let seconds = (to - from).num_seconds().abs() as f64;
+                    let value = match unit {
+                        Unit::Minute => seconds / 60.0,
+                        Unit::Hour => seconds / 3600.0,
+                        Unit::Day => seconds / 86400.0,
+                        Unit::Month => Self::diff_in_months(from, to) as f64,
+                        Unit::Year => Self::diff_in_years(from, to) as f64,
+                        _ => seconds,
+                    };
+                    RuntimeValue::Quantity(value, unit.clone())
+                } else {
+                    RuntimeValue::Void
+                }
             }
             Expression::Statistical(func) => match func {
                 crate::ast::StatisticalFunc::CountOf(name, filter) => {
@@ -397,11 +447,38 @@ impl Evaluator {
         match selector {
             RangeSelector::Equals(expr) => {
                 let target = Self::evaluate(env, expr);
+                if let (Some(value_dt), Some(target_dt)) = (value.as_date(), target.as_date()) {
+                    return value_dt == target_dt;
+                }
+                if let (Some(value_time), Some(target_time)) =
+                    (Self::time_from_value(value), Self::time_from_value(&target))
+                {
+                    return value_time == target_time;
+                }
                 Self::fuzzy_equals(value, &target)
             }
             RangeSelector::Range(min, max) => {
-                let min_val = Self::evaluate(env, min).as_number();
-                let max_val = Self::evaluate(env, max).as_number();
+                let min_eval = Self::evaluate(env, min);
+                let max_eval = Self::evaluate(env, max);
+
+                if let (Some(min_date), Some(max_date), Some(actual_date)) = (
+                    min_eval.as_date(),
+                    max_eval.as_date(),
+                    value.as_date(),
+                ) {
+                    return actual_date >= min_date && actual_date <= max_date;
+                }
+
+                if let (Some(min_time), Some(max_time), Some(actual_time)) = (
+                    Self::time_from_value(&min_eval),
+                    Self::time_from_value(&max_eval),
+                    Self::time_from_value(value),
+                ) {
+                    return Self::time_in_range(actual_time, min_time, max_time);
+                }
+
+                let min_val = min_eval.as_number();
+                let max_val = max_eval.as_number();
                 let actual = value.as_number();
 
                 match (min_val, max_val, actual) {
@@ -411,8 +488,27 @@ impl Evaluator {
             }
             RangeSelector::Between(min, max) => {
                 // "between X ... Y" usually acts like Range
-                let min_val = Self::evaluate(env, min).as_number();
-                let max_val = Self::evaluate(env, max).as_number();
+                let min_eval = Self::evaluate(env, min);
+                let max_eval = Self::evaluate(env, max);
+
+                if let (Some(min_date), Some(max_date), Some(actual_date)) = (
+                    min_eval.as_date(),
+                    max_eval.as_date(),
+                    value.as_date(),
+                ) {
+                    return actual_date >= min_date && actual_date <= max_date;
+                }
+
+                if let (Some(min_time), Some(max_time), Some(actual_time)) = (
+                    Self::time_from_value(&min_eval),
+                    Self::time_from_value(&max_eval),
+                    Self::time_from_value(value),
+                ) {
+                    return Self::time_in_range(actual_time, min_time, max_time);
+                }
+
+                let min_val = min_eval.as_number();
+                let max_val = max_eval.as_number();
                 let actual = value.as_number();
 
                 match (min_val, max_val, actual) {
@@ -538,6 +634,11 @@ impl Evaluator {
                 if let (Some(min_date), Some(max_date)) = (min_val.as_date(), max_val.as_date()) {
                     // Use an exclusive lower bound to avoid off-by-one counts on day-sized windows.
                     timestamp > min_date && timestamp <= max_date
+                } else if let (Some(min_time), Some(max_time)) = (
+                    Self::time_from_value(&min_val),
+                    Self::time_from_value(&max_val),
+                ) {
+                    Self::time_in_range(timestamp.time(), min_time, max_time)
                 } else {
                     false // Invalid bounds
                 }
@@ -579,5 +680,77 @@ impl Evaluator {
             }
             _ => true, // Fallback for unsupported variants? Or false? 
         }
+    }
+
+    fn parse_date_time_literal(value: &str) -> Option<NaiveDateTime> {
+        if let Ok(dt) = NaiveDateTime::parse_from_str(value, "%Y-%m-%d %H:%M") {
+            return Some(dt);
+        }
+        if let Ok(dt) = NaiveDateTime::parse_from_str(value, "%Y-%m-%d %-H:%M") {
+            return Some(dt);
+        }
+        if let Ok(date) = NaiveDate::parse_from_str(value, "%Y-%m-%d") {
+            return date.and_hms_opt(0, 0, 0);
+        }
+        None
+    }
+
+    fn time_from_value(value: &RuntimeValue) -> Option<NaiveTime> {
+        match value {
+            RuntimeValue::Date(dt) => Some(dt.time()),
+            RuntimeValue::String(s) => NaiveTime::parse_from_str(s, "%H:%M")
+                .or_else(|_| NaiveTime::parse_from_str(s, "%-H:%M"))
+                .ok(),
+            _ => None,
+        }
+    }
+
+    fn time_in_range(actual: NaiveTime, start: NaiveTime, end: NaiveTime) -> bool {
+        if start <= end {
+            actual >= start && actual <= end
+        } else {
+            actual >= start || actual <= end
+        }
+    }
+
+    fn shift_months(base: NaiveDateTime, months: i32) -> NaiveDateTime {
+        let date = base.date();
+        let time = base.time();
+        let (year, month) = (date.year(), date.month() as i32);
+        let total = month - 1 + months;
+        let new_year = year + total.div_euclid(12);
+        let new_month = total.rem_euclid(12) + 1;
+        let last_day = Self::last_day_of_month(new_year, new_month as u32);
+        let day = date.day().min(last_day);
+        let new_date = NaiveDate::from_ymd_opt(new_year, new_month as u32, day)
+            .unwrap_or(date);
+        new_date.and_time(time)
+    }
+
+    fn last_day_of_month(year: i32, month: u32) -> u32 {
+        let next_month = if month == 12 { 1 } else { month + 1 };
+        let next_year = if month == 12 { year + 1 } else { year };
+        let first_next = NaiveDate::from_ymd_opt(next_year, next_month, 1)
+            .unwrap_or_else(|| NaiveDate::from_ymd_opt(year, month, 1).unwrap());
+        (first_next - chrono::Duration::days(1)).day()
+    }
+
+    fn diff_in_months(start: NaiveDateTime, end: NaiveDateTime) -> i64 {
+        let mut months = (end.year() - start.year()) as i64 * 12
+            + (end.month() as i64 - start.month() as i64);
+        if end.day() < start.day()
+            || (end.day() == start.day() && end.time() < start.time())
+        {
+            months -= 1;
+        }
+        months.max(0)
+    }
+
+    fn diff_in_years(start: NaiveDateTime, end: NaiveDateTime) -> i64 {
+        let mut years = (end.year() - start.year()) as i64;
+        if (end.month(), end.day(), end.time()) < (start.month(), start.day(), start.time()) {
+            years -= 1;
+        }
+        years.max(0)
     }
 }

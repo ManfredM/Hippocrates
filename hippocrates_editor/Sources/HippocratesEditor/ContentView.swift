@@ -99,11 +99,34 @@ struct ContentView: View {
                  if simulate {
                      // Auto-answer logic for simulation
                      let answerVal: String
-                     logToFile("Simulate: Auto-answering question for \(request.variable_name). Options: \(request.options), Range: \(String(describing: request.range))")
+                     logToFile("Simulate: Auto-answering question for \(request.variable_name). Options: \(request.options), Range: \(String(describing: request.range)), DateRange: \(String(describing: request.dateTimeRange)), TimeRange: \(String(describing: request.timeRange))")
+                     
+                     func formatDate(_ date: Date) -> String {
+                         let formatter = DateFormatter()
+                         formatter.locale = Locale(identifier: "en_US_POSIX")
+                         formatter.dateFormat = "yyyy-MM-dd"
+                         return formatter.string(from: date)
+                     }
+                     
+                     func formatDateTime(_ date: Date) -> String {
+                         let formatter = DateFormatter()
+                         formatter.locale = Locale(identifier: "en_US_POSIX")
+                         formatter.dateFormat = "yyyy-MM-dd HH:mm"
+                         return formatter.string(from: date)
+                     }
                      
                      if !request.options.isEmpty {
                          // Pick random option? Or first? Let's pick random to simulate variation.
                          answerVal = request.options.randomElement() ?? request.options[0]
+                     } else if let timeRange = request.timeRange, timeRange.count >= 2 {
+                         answerVal = timeRange[0]
+                     } else if let dateRange = request.dateTimeRange, dateRange.count >= 2 {
+                         let start = Date(timeIntervalSince1970: TimeInterval(dateRange[0]) / 1000.0)
+                         if request.dateOnly == true {
+                             answerVal = formatDate(start)
+                         } else {
+                             answerVal = formatDateTime(start)
+                         }
                      } else if let range = request.range {
                          // Pick random value in range
                          // Check style
@@ -126,7 +149,16 @@ struct ContentView: View {
                      } else {
                          // Fallback
                          logToFile("Simulate: No options or range found. Fallback to 10.")
-                         answerVal = "10"
+                         if request.style == .Date {
+                             let now = Date()
+                             if request.dateOnly == true {
+                                 answerVal = formatDate(now)
+                             } else {
+                                 answerVal = formatDateTime(now)
+                             }
+                         } else {
+                             answerVal = "10"
+                         }
                      }
                      
                      logToFile("Simulate: Selected answer: \(answerVal)")
@@ -309,6 +341,9 @@ struct QuestionSheetView: View {
     
     @State private var textInput: String = ""
     @State private var errorMessage: String?
+    @State private var selectedDateTime: Date = Date()
+    @State private var selectedTime: Date = Date()
+    @State private var didInitializeDateSelection: Bool = false
     
     // Double-entry validation state
     @State private var previousValue: String?
@@ -367,6 +402,48 @@ struct QuestionSheetView: View {
                     .frame(width: 120)
                     .onChange(of: textInput) { _, _ in errorMessage = nil }
                 
+            case .Date:
+                if let timeRange = question.timeRange, timeRange.count >= 2 {
+                    if let range = timeRangeBounds() {
+                        DatePicker(
+                            "Time",
+                            selection: $selectedTime,
+                            in: range,
+                            displayedComponents: [.hourAndMinute]
+                        )
+                        .datePickerStyle(.compact)
+                        .onChange(of: selectedTime) { _, _ in errorMessage = nil }
+                    } else {
+                        DatePicker(
+                            "Time",
+                            selection: $selectedTime,
+                            displayedComponents: [.hourAndMinute]
+                        )
+                        .datePickerStyle(.compact)
+                        .onChange(of: selectedTime) { _, _ in errorMessage = nil }
+                    }
+                } else {
+                    let components: DatePickerComponents = (question.dateOnly ?? false) ? [.date] : [.date, .hourAndMinute]
+                    if let range = dateRangeBounds() {
+                        DatePicker(
+                            "Date",
+                            selection: $selectedDateTime,
+                            in: range,
+                            displayedComponents: components
+                        )
+                        .datePickerStyle(.compact)
+                        .onChange(of: selectedDateTime) { _, _ in errorMessage = nil }
+                    } else {
+                        DatePicker(
+                            "Date",
+                            selection: $selectedDateTime,
+                            displayedComponents: components
+                        )
+                        .datePickerStyle(.compact)
+                        .onChange(of: selectedDateTime) { _, _ in errorMessage = nil }
+                    }
+                }
+                
             default:
                 Text("Unsupported question type")
             }
@@ -377,16 +454,22 @@ struct QuestionSheetView: View {
                     .font(.caption)
             }
             
-            if question.style == .Text || question.style == .Numeric {
+            if question.style == .Text || question.style == .Numeric || question.style == .Date {
                 Button(confirmationMode ? "Confirm" : "Submit") {
                     validateAndSubmit()
                 }
                 .keyboardShortcut(.defaultAction)
-                .disabled(textInput.isEmpty)
+                .disabled((question.style == .Text || question.style == .Numeric) && textInput.isEmpty)
             }
         }
         .padding()
         .frame(minWidth: 300, minHeight: 200)
+        .onAppear {
+            if !didInitializeDateSelection {
+                initializeDateSelection()
+                didInitializeDateSelection = true
+            }
+        }
     }
     
     func handleSelection(_ value: String) {
@@ -411,6 +494,8 @@ struct QuestionSheetView: View {
     }
     
     func validateAndSubmit() {
+        var valueToSubmit = textInput
+
         // 1. Basic Type/Range Validation
         if question.style == .Numeric {
             if let value = Double(textInput) {
@@ -426,29 +511,167 @@ struct QuestionSheetView: View {
                 errorMessage = "Please enter a valid number"
                 return
             }
+        } else if question.style == .Date {
+            if let dateValue = validatedDateValue() {
+                valueToSubmit = dateValue
+            } else {
+                return
+            }
         }
         
         // 2. Double Entry Logic
         if question.validation_mode == .Twice {
              if confirmationMode {
-                 if textInput == previousValue {
-                     onAnswer(textInput)
+                 if valueToSubmit == previousValue {
+                     onAnswer(valueToSubmit)
                  } else {
                      errorMessage = "Values do not match. Please start over."
                      confirmationMode = false
                      previousValue = nil
-                     textInput = ""
+                     if question.style == .Text || question.style == .Numeric {
+                         textInput = ""
+                     }
                  }
              } else {
-                 previousValue = textInput
+                 previousValue = valueToSubmit
                  confirmationMode = true
-                 textInput = ""
+                 if question.style == .Text || question.style == .Numeric {
+                     textInput = ""
+                 }
                  errorMessage = nil
                  // Maybe focus field again? Swift UI automatically keeps focus usually.
              }
         } else {
-            onAnswer(textInput)
+            onAnswer(valueToSubmit)
         }
     }
-}
 
+    func validatedDateValue() -> String? {
+        if let timeRange = question.timeRange, timeRange.count >= 2 {
+            guard let start = timeDate(from: timeRange[0]),
+                  let end = timeDate(from: timeRange[1]) else {
+                errorMessage = "Invalid time range configuration"
+                return nil
+            }
+            let minutes = minutesSinceMidnight(selectedTime)
+            let startMinutes = minutesSinceMidnight(start)
+            let endMinutes = minutesSinceMidnight(end)
+            if !timeInRange(value: minutes, start: startMinutes, end: endMinutes) {
+                errorMessage = "Time must be between \(timeRange[0]) and \(timeRange[1])"
+                return nil
+            }
+            return formatTime(selectedTime)
+        }
+
+        if let dateRange = question.dateTimeRange, dateRange.count >= 2 {
+            let start = Date(timeIntervalSince1970: TimeInterval(dateRange[0]) / 1000.0)
+            let end = Date(timeIntervalSince1970: TimeInterval(dateRange[1]) / 1000.0)
+
+            if question.dateOnly == true {
+                let day = Calendar.current.startOfDay(for: selectedDateTime)
+                let minDay = Calendar.current.startOfDay(for: start)
+                let maxDay = Calendar.current.startOfDay(for: end)
+                if day < minDay || day > maxDay {
+                    errorMessage = "Date must be between \(formatDate(minDay)) and \(formatDate(maxDay))"
+                    return nil
+                }
+                return formatDate(selectedDateTime)
+            } else {
+                if selectedDateTime < start || selectedDateTime > end {
+                    errorMessage = "Date/time must be within the allowed range"
+                    return nil
+                }
+                return formatDateTime(selectedDateTime)
+            }
+        }
+
+        if question.dateOnly == true {
+            return formatDate(selectedDateTime)
+        }
+        return formatDateTime(selectedDateTime)
+    }
+
+    func initializeDateSelection() {
+        if let timeRange = question.timeRange, timeRange.count >= 2 {
+            if let start = timeDate(from: timeRange[0]) {
+                selectedTime = start
+            }
+            return
+        }
+        if let dateRange = question.dateTimeRange, dateRange.count >= 2 {
+            let start = Date(timeIntervalSince1970: TimeInterval(dateRange[0]) / 1000.0)
+            selectedDateTime = start
+            return
+        }
+        selectedDateTime = Date()
+    }
+
+    func dateRangeBounds() -> ClosedRange<Date>? {
+        guard let dateRange = question.dateTimeRange, dateRange.count >= 2 else { return nil }
+        let start = Date(timeIntervalSince1970: TimeInterval(dateRange[0]) / 1000.0)
+        let end = Date(timeIntervalSince1970: TimeInterval(dateRange[1]) / 1000.0)
+        if question.dateOnly == true {
+            let minDay = Calendar.current.startOfDay(for: start)
+            let maxDay = Calendar.current.startOfDay(for: end)
+            return minDay...maxDay
+        }
+        return start...end
+    }
+
+    func timeRangeBounds() -> ClosedRange<Date>? {
+        guard let timeRange = question.timeRange, timeRange.count >= 2 else { return nil }
+        guard let start = timeDate(from: timeRange[0]),
+              let end = timeDate(from: timeRange[1]) else { return nil }
+
+        let startMinutes = minutesSinceMidnight(start)
+        let endMinutes = minutesSinceMidnight(end)
+        if startMinutes <= endMinutes {
+            return start...end
+        }
+        return nil
+    }
+
+    func timeDate(from value: String) -> Date? {
+        let parts = value.split(separator: ":")
+        if parts.count != 2 { return nil }
+        guard let hour = Int(parts[0]), let minute = Int(parts[1]) else { return nil }
+        var components = Calendar.current.dateComponents([.year, .month, .day], from: Date())
+        components.hour = hour
+        components.minute = minute
+        components.second = 0
+        return Calendar.current.date(from: components)
+    }
+
+    func minutesSinceMidnight(_ date: Date) -> Int {
+        let comps = Calendar.current.dateComponents([.hour, .minute], from: date)
+        return (comps.hour ?? 0) * 60 + (comps.minute ?? 0)
+    }
+
+    func timeInRange(value: Int, start: Int, end: Int) -> Bool {
+        if start <= end {
+            return value >= start && value <= end
+        }
+        return value >= start || value <= end
+    }
+
+    func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+
+    func formatDateTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        return formatter.string(from: date)
+    }
+
+    func formatTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+}

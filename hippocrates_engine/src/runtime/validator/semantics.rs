@@ -460,6 +460,10 @@ fn validate_expression(
              validate_expression(left, enum_vars, defined_values, line, errors);
              validate_expression(right, enum_vars, defined_values, line, errors);
         }
+        Expression::DateDiff(_, start, end) => {
+             validate_expression(start, enum_vars, defined_values, line, errors);
+             validate_expression(end, enum_vars, defined_values, line, errors);
+        }
         Expression::Statistical(func) => match func {
             crate::ast::StatisticalFunc::CountOf(name, filter) => {
                 if enum_vars.contains(name) && filter.is_none() {

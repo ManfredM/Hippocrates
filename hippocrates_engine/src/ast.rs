@@ -276,6 +276,7 @@ pub enum Expression {
     Binary(Box<Expression>, String, Box<Expression>),
     Statistical(StatisticalFunc),
     RelativeTime(f64, Unit, RelativeDirection),
+    DateDiff(Unit, Box<Expression>, Box<Expression>),
     FunctionCall(String, Vec<Expression>), // Just in case we need it
     InterpolatedString(Vec<Expression>),
 }

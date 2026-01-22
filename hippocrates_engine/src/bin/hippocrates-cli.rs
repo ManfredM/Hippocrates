@@ -6,7 +6,7 @@ use std::process;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, Utc};
 use hippocrates_engine::ast::Definition;
 use hippocrates_engine::domain::{InputMessage, RuntimeValue, Unit, ValueType};
 use hippocrates_engine::format_script;
@@ -522,6 +522,16 @@ fn parse_answer_value(
 ) -> Result<RuntimeValue, String> {
     match value_type {
         ValueType::Number => parse_quantity_value(value, unit_map),
+        ValueType::DateTime => {
+            let text = parse_string_value(value)?;
+            if let Some(dt) = parse_date_time_literal(&text) {
+                Ok(RuntimeValue::Date(dt))
+            } else if parse_time_literal(&text).is_some() {
+                Ok(RuntimeValue::String(text))
+            } else {
+                Err(format!("Invalid date/time literal '{}'", text))
+            }
+        }
         ValueType::Enumeration => {
             let text = parse_string_value(value)?;
             Ok(RuntimeValue::Enumeration(text))
@@ -537,6 +547,28 @@ fn parse_answer_value(
             Ok(RuntimeValue::String(text))
         }
     }
+}
+
+fn parse_date_time_literal(value: &str) -> Option<NaiveDateTime> {
+    if let Ok(dt) = NaiveDateTime::parse_from_str(value, "%Y-%m-%d %H:%M") {
+        return Some(dt);
+    }
+    if let Ok(dt) = NaiveDateTime::parse_from_str(value, "%Y-%m-%d %-H:%M") {
+        return Some(dt);
+    }
+    if let Ok(date) = NaiveDate::parse_from_str(value, "%Y-%m-%d") {
+        return date.and_hms_opt(0, 0, 0);
+    }
+    None
+}
+
+fn parse_time_literal(value: &str) -> Option<()> {
+    if NaiveTime::parse_from_str(value, "%H:%M").is_ok()
+        || NaiveTime::parse_from_str(value, "%-H:%M").is_ok()
+    {
+        return Some(());
+    }
+    None
 }
 
 fn parse_answer_entry(value: Value) -> Result<AnswerEntry, String> {

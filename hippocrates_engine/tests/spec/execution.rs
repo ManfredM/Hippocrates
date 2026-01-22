@@ -64,6 +64,57 @@ fn spec_not_enough_data_evaluation() {
     }
 }
 
+// REQ-4.7-01: date/time valid value ranges evaluate using date/time and time-of-day semantics.
+#[test]
+fn spec_date_time_range_evaluation() {
+    use hippocrates_engine::ast::{Expression, Literal, RangeSelector};
+    use hippocrates_engine::runtime::evaluator::Evaluator;
+    use chrono::NaiveDate;
+
+    let env = Environment::new();
+
+    let date_range = RangeSelector::Range(
+        Expression::Literal(Literal::Date("2026-01-01".to_string())),
+        Expression::Literal(Literal::Date("2026-01-10".to_string())),
+    );
+    let date_value = RuntimeValue::Date(
+        NaiveDate::from_ymd_opt(2026, 1, 5)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap(),
+    );
+    assert!(Evaluator::check_condition(&env, &date_range, &date_value));
+
+    let time_range = RangeSelector::Range(
+        Expression::Literal(Literal::TimeOfDay("10:00".to_string())),
+        Expression::Literal(Literal::TimeOfDay("20:00".to_string())),
+    );
+    let time_value = RuntimeValue::Date(
+        NaiveDate::from_ymd_opt(2026, 1, 5)
+            .unwrap()
+            .and_hms_opt(15, 0, 0)
+            .unwrap(),
+    );
+    assert!(Evaluator::check_condition(&env, &time_range, &time_value));
+}
+
+// REQ-4.7-02: date diff expressions evaluate to quantities in requested units.
+#[test]
+fn spec_date_diff_evaluation() {
+    use hippocrates_engine::ast::{Expression, Literal};
+    use hippocrates_engine::runtime::evaluator::Evaluator;
+
+    let env = Environment::new();
+    let expr = Expression::DateDiff(
+        Unit::Day,
+        Box::new(Expression::Literal(Literal::Date("2026-01-01".to_string()))),
+        Box::new(Expression::Literal(Literal::Date("2026-01-11".to_string()))),
+    );
+
+    let result = Evaluator::evaluate(&env, &expr);
+    assert_eq!(result, RuntimeValue::Quantity(10.0, Unit::Day));
+}
+
 // REQ-5-01: runtime executes assignments and actions in order.
 #[test]
 fn spec_runtime_execution_flow() {

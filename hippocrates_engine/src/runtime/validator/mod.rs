@@ -63,40 +63,42 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
                 enum_vars.insert(vd.name.clone());
             }
 
-            let mut ranges: Vec<Interval> = Vec::new();
-            let mut precision = PrecisionInfo::new();
+            if matches!(vd.value_type, crate::domain::ValueType::Number) {
+                let mut ranges: Vec<Interval> = Vec::new();
+                let mut precision = PrecisionInfo::new();
 
-            // Try to narrow down from Valid Values
-            for prop in &vd.properties {
-                if let Property::ValidValues(stmts) = prop {
-                    for stmt in stmts {
-                         if let crate::ast::StatementKind::Constraint(_, _, sel) = &stmt.kind {
-                             update_precision_from_selector(sel, &mut precision);
-                             ranges.extend(extract_selector_intervals(sel));
-                         } else if let crate::ast::StatementKind::EventProgression(_, cases) = &stmt.kind {
-                             // Also check progression cases
-                             for case in cases {
-                                 update_precision_from_selector(&case.condition, &mut precision);
-                                 ranges.extend(extract_selector_intervals(&case.condition));
+                // Try to narrow down from Valid Values
+                for prop in &vd.properties {
+                    if let Property::ValidValues(stmts) = prop {
+                        for stmt in stmts {
+                             if let crate::ast::StatementKind::Constraint(_, _, sel) = &stmt.kind {
+                                 update_precision_from_selector(sel, &mut precision);
+                                 ranges.extend(extract_selector_intervals(sel));
+                             } else if let crate::ast::StatementKind::EventProgression(_, cases) = &stmt.kind {
+                                 // Also check progression cases
+                                 for case in cases {
+                                     update_precision_from_selector(&case.condition, &mut precision);
+                                     ranges.extend(extract_selector_intervals(&case.condition));
+                                 }
                              }
-                         }
+                        }
                     }
                 }
+                let bounds = if ranges.is_empty() {
+                    Interval::unbounded()
+                } else {
+                    let mut min_all = f64::INFINITY;
+                    let mut max_all = f64::NEG_INFINITY;
+                    for r in &ranges {
+                        min_all = min_all.min(r.min);
+                        max_all = max_all.max(r.max);
+                    }
+                    Interval::new(min_all, max_all)
+                };
+                value_ranges.insert(vd.name.clone(), ranges);
+                value_bounds.insert(vd.name.clone(), bounds);
+                value_precision.insert(vd.name.clone(), precision);
             }
-            let bounds = if ranges.is_empty() {
-                Interval::unbounded()
-            } else {
-                let mut min_all = f64::INFINITY;
-                let mut max_all = f64::NEG_INFINITY;
-                for r in &ranges {
-                    min_all = min_all.min(r.min);
-                    max_all = max_all.max(r.max);
-                }
-                Interval::new(min_all, max_all)
-            };
-            value_ranges.insert(vd.name.clone(), ranges);
-            value_bounds.insert(vd.name.clone(), bounds);
-            value_precision.insert(vd.name.clone(), precision);
         }
     }
     
@@ -472,6 +474,9 @@ fn expression_contains_statistical(expr: &Expression) -> bool {
         Expression::Statistical(_) => true,
         Expression::Binary(left, _op, right) => {
             expression_contains_statistical(left) || expression_contains_statistical(right)
+        }
+        Expression::DateDiff(_, start, end) => {
+            expression_contains_statistical(start) || expression_contains_statistical(end)
         }
         Expression::FunctionCall(_, args) => args.iter().any(expression_contains_statistical),
         Expression::InterpolatedString(parts) => parts.iter().any(expression_contains_statistical),

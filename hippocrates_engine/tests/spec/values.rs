@@ -49,6 +49,7 @@ fn spec_value_type_variants_parse() {
     let input = r#"
 <free text> is a string.
 <when> is a time indication.
+<timestamp> is a date/time.
 <period ref> is a period.
 <plan ref> is a plan.
 <drug ref> is a drug.
@@ -65,6 +66,7 @@ fn spec_value_type_variants_parse() {
 
     assert!(matches!(seen.get("free text"), Some(ValueType::String)));
     assert!(matches!(seen.get("when"), Some(ValueType::TimeIndication)));
+    assert!(matches!(seen.get("timestamp"), Some(ValueType::DateTime)));
     assert!(matches!(seen.get("period ref"), Some(ValueType::Period)));
     assert!(matches!(seen.get("plan ref"), Some(ValueType::Plan)));
     assert!(matches!(seen.get("drug ref"), Some(ValueType::Drug)));

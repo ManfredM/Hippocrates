@@ -10,6 +10,7 @@
 - REQ-3.1-01 — `tests/spec/contexts_expressions.rs::spec_time_indications_parsing` — time indications parse for now, weekday, and time-of-day.
 - REQ-3.1-02 — `tests/spec/contexts_expressions.rs::spec_relative_time_from_now_parsing` — relative time expressions from now parse.
 - REQ-3.1-03 — `tests/spec/grammar.rs::spec_inline_colon_requires_block` — inline ':' forms are only allowed where explicitly shown.
+- REQ-3.1-04 — `tests/spec/contexts_expressions.rs::spec_date_time_literals_parsing` — date/time literals parse for date and date-time forms.
 
 ## §3.2 Units and Quantities
 - REQ-3.2-01 — `tests/spec/units.rs::spec_custom_unit_pluralization_is_canonical` — custom unit pluralization canonicalizes values.
@@ -29,6 +30,7 @@
 - REQ-3.4-05 — `tests/spec/values.rs::spec_inheritance_property_parsing` — inheritance properties parse with overrides.
 - REQ-3.4-06 — `tests/spec/values.rs::spec_documentation_property_parsing` — documentation properties parse in inline and block forms.
 - REQ-3.4-07 — `tests/spec/values.rs::spec_generic_property_parsing` — custom properties parse as generic properties.
+- REQ-3.4-08 — `tests/spec/values.rs::spec_value_type_variants_parse` — date/time value type parses.
 
 ## §3.5 Periods and Plans
 - REQ-3.5-01 — `tests/spec/periods_plans.rs::spec_period_definition_parsing` — period definitions parse by name.
@@ -76,6 +78,7 @@
 - REQ-3.12-03 — `tests/spec/execution.rs::spec_timeframe_variants` — timeframe variants resolve counts over different windows.
 - REQ-3.12-04 — `tests/spec/execution.rs::spec_trend_analysis_evaluates` — trend analysis evaluates statistical trends over timeframes.
 - REQ-3.12-05 — `tests/spec/validation.rs::spec_statistical_functions_require_timeframe_context` — statistical functions require an analysis timeframe context.
+- REQ-3.12-06 — `tests/spec/contexts_expressions.rs::spec_date_diff_parsing` — date diff expressions parse.
 
 ## §4.1 Core Unit Groups and Conversion
 - REQ-4.1-01 — `tests/spec/units.rs::spec_builtin_units_cannot_be_redefined` — built-in units cannot be redefined.
@@ -117,6 +120,10 @@
 - REQ-4.6-02 — `tests/spec/validation.rs::spec_validator_passes_with_not_enough_data` — Not enough data handling satisfies sufficiency.
 - REQ-4.6-03 — `tests/spec/execution.rs::spec_not_enough_data_evaluation` — runtime evaluation returns NotEnoughData when history is insufficient.
 - REQ-4.6-04 — `tests/spec/validation.rs::spec_not_enough_data_requires_statistical_target` — Not enough data is only allowed for statistical assessments.
+
+## §4.7 Date/Time Semantics
+- REQ-4.7-01 — `tests/spec/execution.rs::spec_date_time_range_evaluation` — date/time valid value ranges evaluate using date/time and time-of-day semantics.
+- REQ-4.7-02 — `tests/spec/execution.rs::spec_date_diff_evaluation` — date diff expressions evaluate to quantities in requested units.
 
 ## §5 Execution Model
 - REQ-5-01 — `tests/spec/execution.rs::spec_runtime_execution_flow` — runtime executes assignments and actions in order.

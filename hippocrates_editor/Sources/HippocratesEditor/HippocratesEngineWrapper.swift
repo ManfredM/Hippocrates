@@ -178,9 +178,26 @@ struct AskRequest: Decodable, Identifiable {
     let style: QuestionStyle
     let options: [String]
     let range: [Double]?
+    let dateTimeRange: [Int64]?
+    let timeRange: [String]?
+    let dateOnly: Bool?
     let validation_mode: ValidationMode?
     let validation_timeout: Int64?
     let timestamp: Int64
+
+    enum CodingKeys: String, CodingKey {
+        case variable_name
+        case question_text
+        case style
+        case options
+        case range
+        case dateTimeRange = "date_time_range"
+        case timeRange = "time_range"
+        case dateOnly = "date_only"
+        case validation_mode
+        case validation_timeout
+        case timestamp
+    }
 }
 
 class HippocratesEngine: Equatable {

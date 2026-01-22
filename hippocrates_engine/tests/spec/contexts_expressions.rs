@@ -170,6 +170,83 @@ fn spec_time_indications_parsing() {
     assert!(saw_time, "Expected time literal indication");
 }
 
+// REQ-3.1-04: date/time literals parse for date and date-time forms.
+#[test]
+fn spec_date_time_literals_parsing() {
+    let input = r#"
+<when> is a date/time.
+
+<plan> is a plan:
+    during plan:
+        <when> = 2026-01-18.
+        <when> = 2026-01-18 13:45.
+"#;
+
+    let plan = parser::parse_plan(input).expect("Failed to parse");
+    let plan_def = plan
+        .definitions
+        .iter()
+        .find_map(|d| if let Definition::Plan(p) = d { Some(p) } else { None })
+        .expect("Plan definition not found");
+
+    let during = match &plan_def.blocks[0] {
+        PlanBlock::DuringPlan(stmts) => stmts,
+        _ => panic!("Expected DuringPlan"),
+    };
+
+    let mut saw_date = false;
+    let mut saw_datetime = false;
+
+    for stmt in during {
+        if let StatementKind::Assignment(assign) = &stmt.kind {
+            match &assign.expression {
+                Expression::Literal(Literal::Date(s)) if s == "2026-01-18" => saw_date = true,
+                Expression::Literal(Literal::Date(s)) if s == "2026-01-18 13:45" => saw_datetime = true,
+                _ => {}
+            }
+        }
+    }
+
+    assert!(saw_date, "Expected date literal to parse");
+    assert!(saw_datetime, "Expected date-time literal to parse");
+}
+
+// REQ-3.12-06: date diff expressions parse.
+#[test]
+fn spec_date_diff_parsing() {
+    let input = r#"
+<delta> is a number:
+    valid values:
+        0 days ... 365 days.
+
+<plan> is a plan:
+    during plan:
+        <delta> = days between 2026-01-01 and 2026-01-11.
+"#;
+
+    let plan = parser::parse_plan(input).expect("Failed to parse");
+    let plan_def = plan
+        .definitions
+        .iter()
+        .find_map(|d| if let Definition::Plan(p) = d { Some(p) } else { None })
+        .expect("Plan definition not found");
+
+    let during = match &plan_def.blocks[0] {
+        PlanBlock::DuringPlan(stmts) => stmts,
+        _ => panic!("Expected DuringPlan"),
+    };
+
+    let assign = during
+        .iter()
+        .find_map(|s| if let StatementKind::Assignment(a) = &s.kind { Some(a) } else { None })
+        .expect("Assignment not found");
+
+    match &assign.expression {
+        Expression::DateDiff(unit, _, _) => assert!(matches!(unit, Unit::Day)),
+        _ => panic!("Expected DateDiff expression"),
+    }
+}
+
 // REQ-3.1-02: relative time expressions from now parse.
 #[test]
 fn spec_relative_time_from_now_parsing() {

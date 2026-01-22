@@ -1,6 +1,7 @@
 use crate::ast::{Action, Block, Statement, StatementKind};
 use crate::domain::Unit;
 use crate::runtime::{Environment, Evaluator, format_identifier, normalize_identifier, scheduler::Scheduler};
+use chrono::{NaiveDateTime, NaiveTime, Timelike};
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 use std::sync::{Arc, atomic::{AtomicBool, Ordering as AtomicOrdering}};
@@ -604,6 +605,9 @@ impl Executor {
         let mut style = crate::domain::QuestionStyle::Text;
         let mut options = Vec::new();
         let mut range = None;
+        let mut date_time_range = None;
+        let mut time_range = None;
+        let mut date_only = false;
         let mut question_text = q.to_string();
         let variable_name = format_identifier(q);
 
@@ -620,42 +624,57 @@ impl Executor {
         };
 
         if let Some(val_def) = &val_def_opt {
+            let is_date_time = matches!(val_def.value_type, crate::domain::ValueType::DateTime);
             // Determine style/options from definition
             for prop in &val_def.properties {
                 match prop {
                     crate::ast::Property::ValidValues(stmts) => {
-                        // Extract valid values as options
-                        for stmt in stmts {
-                            if let StatementKind::EventProgression(_, cases) = &stmt.kind {
-                                for case in cases {
-                                    match &case.condition {
-                                        crate::ast::RangeSelector::Equals(expr) => {
-                                            let v = Evaluator::evaluate(env, expr);
-                                            // If string or enum, add to options
-                                            if let crate::domain::RuntimeValue::String(s) = &v {
-                                                options.push(s.clone());
-                                            } else if let crate::domain::RuntimeValue::Enumeration(s) = &v {
-                                                options.push(s.clone());
-                                            } else {
-                                                options.push(v.to_string());
-                                            }
-                                        }
-                                        crate::ast::RangeSelector::Range(min, max) => {
-                                            let min_v = Evaluator::evaluate(env, min);
-                                            let max_v = Evaluator::evaluate(env, max);
-                                            if let (crate::domain::RuntimeValue::Number(mn), crate::domain::RuntimeValue::Number(mx)) =
-                                                (min_v.clone(), max_v.clone())
-                                            {
-                                                range = Some((mn, mx));
-                                            } else if let (crate::domain::RuntimeValue::Quantity(mn, u1), crate::domain::RuntimeValue::Quantity(mx, u2)) =
-                                                (min_v, max_v)
-                                            {
-                                                if u1 == u2 {
-                                                    range = Some((mn, mx));
+                        if is_date_time {
+                            let (date_bounds, time_bounds, date_only_flag) =
+                                Self::extract_date_time_bounds(env, stmts);
+                            if let Some(bounds) = date_bounds {
+                                date_time_range = Some(bounds);
+                                date_only = date_only_flag;
+                            }
+                            if let Some(bounds) = time_bounds {
+                                time_range = Some(bounds);
+                                date_only = false;
+                                date_time_range = None;
+                            }
+                        } else {
+                            // Extract valid values as options
+                            for stmt in stmts {
+                                if let StatementKind::EventProgression(_, cases) = &stmt.kind {
+                                    for case in cases {
+                                        match &case.condition {
+                                            crate::ast::RangeSelector::Equals(expr) => {
+                                                let v = Evaluator::evaluate(env, expr);
+                                                // If string or enum, add to options
+                                                if let crate::domain::RuntimeValue::String(s) = &v {
+                                                    options.push(s.clone());
+                                                } else if let crate::domain::RuntimeValue::Enumeration(s) = &v {
+                                                    options.push(s.clone());
+                                                } else {
+                                                    options.push(v.to_string());
                                                 }
                                             }
+                                            crate::ast::RangeSelector::Range(min, max) => {
+                                                let min_v = Evaluator::evaluate(env, min);
+                                                let max_v = Evaluator::evaluate(env, max);
+                                                if let (crate::domain::RuntimeValue::Number(mn), crate::domain::RuntimeValue::Number(mx)) =
+                                                    (min_v.clone(), max_v.clone())
+                                                {
+                                                    range = Some((mn, mx));
+                                                } else if let (crate::domain::RuntimeValue::Quantity(mn, u1), crate::domain::RuntimeValue::Quantity(mx, u2)) =
+                                                    (min_v, max_v)
+                                                {
+                                                    if u1 == u2 {
+                                                        range = Some((mn, mx));
+                                                    }
+                                                }
+                                            }
+                                            _ => {}
                                         }
-                                        _ => {}
                                     }
                                 }
                             }
@@ -712,7 +731,9 @@ impl Executor {
             }
 
             // Infer Style
-            if !options.is_empty() {
+            if is_date_time {
+                style = crate::domain::QuestionStyle::Date;
+            } else if !options.is_empty() {
                 style = crate::domain::QuestionStyle::Selection;
             } else if range.is_some() {
                 style = crate::domain::QuestionStyle::Numeric;
@@ -779,6 +800,16 @@ impl Executor {
                 style: style.clone(),
                 options: options.clone(),
                 range,
+                date_time_range: date_time_range.map(|(min, max)| {
+                    (min.and_utc().timestamp_millis(), max.and_utc().timestamp_millis())
+                }),
+                time_range: time_range.map(|(start, end)| {
+                    (
+                        format!("{:02}:{:02}", start.hour(), start.minute()),
+                        format!("{:02}:{:02}", end.hour(), end.minute()),
+                    )
+                }),
+                date_only,
                 validation_mode,
                 validation_timeout,
                 timestamp: env.now.and_utc().timestamp_millis(),
@@ -1111,6 +1142,124 @@ impl Executor {
         }
 
         answered
+    }
+
+    fn extract_date_time_bounds(
+        env: &Environment,
+        stmts: &[Statement],
+    ) -> (Option<(NaiveDateTime, NaiveDateTime)>, Option<(NaiveTime, NaiveTime)>, bool) {
+        let mut date_range: Option<(NaiveDateTime, NaiveDateTime)> = None;
+        let mut time_range: Option<(NaiveTime, NaiveTime)> = None;
+        let mut date_only = true;
+
+        for stmt in stmts {
+            if let StatementKind::EventProgression(_, cases) = &stmt.kind {
+                for case in cases {
+                    Self::update_date_time_bounds(
+                        env,
+                        &case.condition,
+                        &mut date_range,
+                        &mut time_range,
+                        &mut date_only,
+                    );
+                }
+            }
+        }
+
+        if date_range.is_none() {
+            date_only = false;
+        }
+        if time_range.is_some() {
+            date_only = false;
+        }
+
+        (date_range, time_range, date_only)
+    }
+
+    fn update_date_time_bounds(
+        env: &Environment,
+        selector: &crate::ast::RangeSelector,
+        date_range: &mut Option<(NaiveDateTime, NaiveDateTime)>,
+        time_range: &mut Option<(NaiveTime, NaiveTime)>,
+        date_only: &mut bool,
+    ) {
+        use crate::ast::RangeSelector;
+
+        let handle_range = |start: &crate::ast::Expression,
+                            end: &crate::ast::Expression,
+                            date_range: &mut Option<(NaiveDateTime, NaiveDateTime)>,
+                            time_range: &mut Option<(NaiveTime, NaiveTime)>,
+                            date_only: &mut bool| {
+            if let (Some(start_time), Some(end_time)) =
+                (Self::time_from_expr(start), Self::time_from_expr(end))
+            {
+                if time_range.is_none() {
+                    *time_range = Some((start_time, end_time));
+                }
+                *date_only = false;
+                return;
+            }
+
+            if let (Some(start_dt), Some(end_dt)) = (
+                Self::date_from_expr(env, start),
+                Self::date_from_expr(env, end),
+            ) {
+                let (min_dt, max_dt) = if start_dt <= end_dt {
+                    (start_dt, end_dt)
+                } else {
+                    (end_dt, start_dt)
+                };
+
+                if let Some((cur_min, cur_max)) = date_range {
+                    let new_min = if min_dt < *cur_min { min_dt } else { *cur_min };
+                    let new_max = if max_dt > *cur_max { max_dt } else { *cur_max };
+                    *date_range = Some((new_min, new_max));
+                } else {
+                    *date_range = Some((min_dt, max_dt));
+                }
+
+                *date_only &= Self::is_date_only_expr(start) && Self::is_date_only_expr(end);
+            }
+        };
+
+        match selector {
+            RangeSelector::Range(start, end) | RangeSelector::Between(start, end) => {
+                handle_range(start, end, date_range, time_range, date_only);
+            }
+            RangeSelector::Equals(expr) => {
+                handle_range(expr, expr, date_range, time_range, date_only);
+            }
+            RangeSelector::List(items) => {
+                for expr in items {
+                    handle_range(expr, expr, date_range, time_range, date_only);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    fn date_from_expr(env: &Environment, expr: &crate::ast::Expression) -> Option<NaiveDateTime> {
+        Evaluator::evaluate(env, expr).as_date()
+    }
+
+    fn time_from_expr(expr: &crate::ast::Expression) -> Option<NaiveTime> {
+        use crate::ast::{Expression, Literal};
+        match expr {
+            Expression::Literal(Literal::TimeOfDay(s)) => NaiveTime::parse_from_str(s, "%H:%M")
+                .or_else(|_| NaiveTime::parse_from_str(s, "%-H:%M"))
+                .ok(),
+            Expression::Literal(Literal::String(s)) => NaiveTime::parse_from_str(s, "%H:%M")
+                .or_else(|_| NaiveTime::parse_from_str(s, "%-H:%M"))
+                .ok(),
+            _ => None,
+        }
+    }
+
+    fn is_date_only_expr(expr: &crate::ast::Expression) -> bool {
+        match expr {
+            crate::ast::Expression::Literal(crate::ast::Literal::Date(s)) => !s.contains(' '),
+            _ => false,
+        }
     }
 }
 

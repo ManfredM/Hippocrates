@@ -9,6 +9,8 @@ integer = @{ "-"? ~ ASCII_DIGIT+ }
 float = @{ integer ~ "." ~ ASCII_DIGIT+ }
 number = @{ float | integer }
 time_literal = @{ ASCII_DIGIT{1,2} ~ ":" ~ ASCII_DIGIT{2} }
+date_literal = @{ ASCII_DIGIT{4} ~ "-" ~ ASCII_DIGIT{2} ~ "-" ~ ASCII_DIGIT{2} }
+datetime_literal = @{ date_literal ~ " " ~ time_literal }
 weekday = { "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday" }
 time_indication = { time_literal | weekday | "now" }
 
@@ -54,7 +56,7 @@ standard_unit = {
 
 custom_unit = { angled_identifier }
 
-value_type = { "a number" | "an enumeration" | "a string" | "a time indication" | "a period" | "a plan" | "a drug" | "an addressee" }
+value_type = { "a number" | "an enumeration" | "a string" | "a time indication" | "a date/time" | "a period" | "a plan" | "a drug" | "an addressee" }
 
 file = { SOI ~ NEWLINE* ~ definition* ~ EOI }
 // Reordered to prioritize specific definitions
@@ -321,14 +323,19 @@ confidence_target = { "confidence of" ~ identifier }
 
 expression = { term ~ (infix_op ~ term)* }
 term = { 
+    date_diff |
     (quantity ~ relative_time_modifier) |
     statistical_func |
     quantity | 
+    datetime_literal |
+    date_literal |
     time_indication |
     string_literal | 
     identifier |
     "(" ~ expression ~ ")"
 }
+date_diff_unit = { "years" | "months" | "days" | "hours" | "minutes" | "year" | "month" | "day" | "hour" | "minute" }
+date_diff = { date_diff_unit ~ "between" ~ expression ~ "and" ~ expression }
 statistical_func = { 
     ("count of" | "min of" | "max of" | "trend of") ~ identifier ~ ("is" ~ term)? |
     "average of" ~ identifier ~ ("over" | "for") ~ quantity 

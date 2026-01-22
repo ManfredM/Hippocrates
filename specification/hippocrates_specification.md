@@ -35,6 +35,7 @@ Requirements:
 - REQ-3.1-01: time indications parse for now, weekday, and time-of-day.
 - REQ-3.1-02: relative time expressions from now parse.
 - REQ-3.1-03: inline ':' forms are only allowed where explicitly shown.
+- REQ-3.1-04: date/time literals parse for date and date-time forms.
 
 
 
@@ -58,6 +59,8 @@ identifier = "<", { character - ">" }, ">";
 time_literal = digit, [ digit ], ":", digit, digit; (* H:MM or HH:MM *)
 weekday = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday";
 time_indication = time_literal | weekday | "now";
+date_literal = digit, digit, digit, digit, "-", digit, digit, "-", digit, digit;
+datetime_literal = date_literal, " ", time_literal;
 ```
 
 Informative: Identifiers are angle-bracketed. When a rule introduces an indented block (`:` followed by `indent`/`dedent`), a newline is used. Inline `:` forms appear only where explicitly shown (e.g., `documentation` strings). (See REQ-2-01, REQ-2-04, REQ-3.1-03.)
@@ -140,6 +143,7 @@ Requirements:
 - REQ-3.4-05: inheritance properties parse with overrides.
 - REQ-3.4-06: documentation properties parse in inline and block forms.
 - REQ-3.4-07: custom properties parse as generic properties.
+- REQ-3.4-08: date/time value types parse correctly.
 
 
 
@@ -151,7 +155,7 @@ value_definition =
     [ "." ];
 
 value_type =
-    "a number" | "an enumeration" | "a string" | "a time indication" |
+    "a number" | "an enumeration" | "a string" | "a time indication" | "a date/time" |
     "a period" | "a plan" | "a drug" | "an addressee";
 
 value_property =
@@ -500,7 +504,7 @@ Requirements:
 - REQ-3.12-03: timeframe variants resolve counts over different windows.
 - REQ-3.12-04: trend analysis evaluates statistical trends over timeframes.
 - REQ-3.12-05: statistical functions require an analysis timeframe context.
-- REQ-3.12-05: statistical functions require an analysis timeframe context.
+- REQ-3.12-06: date diff expressions parse.
 
 
 
@@ -509,9 +513,12 @@ Requirements:
 expression = term, { infix_op, term };
 
 term =
+    date_diff |
     quantity, relative_time_modifier |
     statistical_func |
     quantity |
+    datetime_literal |
+    date_literal |
     time_indication |
     string_literal |
     identifier |
@@ -523,6 +530,8 @@ statistical_func =
 
 infix_op = "+" | "-" | "*" | "/";
 relative_time_modifier = "ago" | "from now";
+date_diff_unit = "year" | "month" | "day" | "hour" | "minute" | "years" | "months" | "days" | "hours" | "minutes";
+date_diff = date_diff_unit, " between ", expression, " and ", expression;
 ```
 
 Informative: Statistical functions are evaluated within an analysis timeframe. Use a `timeframe for analysis` block or a `context for analysis` block that provides a `timeframe:` item. (See REQ-3.12-05.)
@@ -637,13 +646,23 @@ Requirements:
 - REQ-4.6-02: Not enough data handling satisfies sufficiency.
 - REQ-4.6-03: runtime evaluation returns NotEnoughData when history is insufficient.
 - REQ-4.6-04: Not enough data is only allowed for statistical assessments.
-- REQ-4.6-04: Not enough data is only allowed for statistical assessments.
 
 
 
 
 Informative: Calculations involving history use `Not enough data` when the available history is shorter than the requested timeframe. This is handled explicitly in assessments. (See REQ-4.6-01, REQ-4.6-02, REQ-4.6-03.)
 Informative: `Not enough data` assessments are only used when the assessed target is derived from statistical functions. (See REQ-4.6-04.)
+
+### 4.7 Date/Time Semantics
+
+Requirements:
+- REQ-4.7-01: date/time valid value ranges evaluate using date/time and time-of-day semantics.
+- REQ-4.7-02: date diff expressions evaluate to quantities in requested units.
+
+
+
+* Informative — date/time ranges compare full date-time values; time-only ranges compare time-of-day and may wrap over midnight. (See REQ-4.7-01.)
+* Informative — date diffs return whole calendar months/years and fractional day/hour/minute quantities based on elapsed time. (See REQ-4.7-02.)
 
 ## 5. Execution Model
 
@@ -790,6 +809,7 @@ during plan:
 - REQ-3.1-01: time indications parse for now, weekday, and time-of-day.
 - REQ-3.1-02: relative time expressions from now parse.
 - REQ-3.1-03: inline ':' forms are only allowed where explicitly shown.
+- REQ-3.1-04: date/time literals parse for date and date-time forms.
 - REQ-3.2-01: custom unit pluralization canonicalizes values.
 - REQ-3.2-02: standard units work in calculations.
 - REQ-3.2-03: custom unit abbreviations canonicalize values.
@@ -803,6 +823,7 @@ during plan:
 - REQ-3.4-05: inheritance properties parse with overrides.
 - REQ-3.4-06: documentation properties parse in inline and block forms.
 - REQ-3.4-07: custom properties parse as generic properties.
+- REQ-3.4-08: date/time value types parse correctly.
 - REQ-3.5-01: period definitions parse by name.
 - REQ-3.5-02: period timeframe lines parse with range selectors.
 - REQ-3.6-01: timeframe blocks parse with nested statements.
@@ -833,6 +854,8 @@ during plan:
 - REQ-3.12-02: timeframe filtering applies to statistical evaluations.
 - REQ-3.12-03: timeframe variants resolve counts over different windows.
 - REQ-3.12-04: trend analysis evaluates statistical trends over timeframes.
+- REQ-3.12-05: statistical functions require an analysis timeframe context.
+- REQ-3.12-06: date diff expressions parse.
 - REQ-4.1-01: built-in units cannot be redefined.
 - REQ-4.1-02: unit conversions are supported within compatible groups.
 - REQ-4.2-01: numeric valid values require units.
@@ -861,6 +884,9 @@ during plan:
 - REQ-4.6-01: timeframe calculations require Not enough data handling.
 - REQ-4.6-02: Not enough data handling satisfies sufficiency.
 - REQ-4.6-03: runtime evaluation returns NotEnoughData when history is insufficient.
+- REQ-4.6-04: Not enough data is only allowed for statistical assessments.
+- REQ-4.7-01: date/time valid value ranges evaluate using date/time and time-of-day semantics.
+- REQ-4.7-02: date diff expressions evaluate to quantities in requested units.
 - REQ-5-01: runtime executes assignments and actions in order.
 - REQ-5.1-01: full-plan validation passes for a complete plan.
 - REQ-5-02: reuse timeframes prevent re-asking within the validity window.

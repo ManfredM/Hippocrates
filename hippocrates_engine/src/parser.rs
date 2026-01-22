@@ -1,5 +1,6 @@
 use crate::ast::*;
 use crate::domain::*;
+use chrono::{NaiveDate, NaiveDateTime};
 use pest::Parser;
 use pest_derive::Parser;
 use thiserror::Error;
@@ -190,6 +191,7 @@ fn parse_value_def(pair: pest::iterators::Pair<Rule>) -> Result<ValueDef, ParseE
         "an enumeration" => ValueType::Enumeration,
         "a string" => ValueType::String,
         "a time indication" => ValueType::TimeIndication,
+        "a date/time" => ValueType::DateTime,
         "a period" => ValueType::Period,
         "a plan" => ValueType::Plan,
         "a drug" => ValueType::Drug,
@@ -1578,6 +1580,23 @@ fn parse_expression(pair: pest::iterators::Pair<Rule>) -> Result<Expression, Par
             Ok(Expression::Variable(s))
         }
         Rule::multi_word_identifier => Ok(Expression::Variable(parse_multi_word_identifier(pair))),
+        Rule::date_literal | Rule::datetime_literal => {
+            let value = pair.as_str().to_string();
+            validate_date_literal(&value)?;
+            Ok(Expression::Literal(Literal::Date(value)))
+        }
+        Rule::date_diff => {
+            let mut inner = pair.into_inner();
+            let unit_pair = inner.next().unwrap();
+            let unit = parse_date_diff_unit(unit_pair.as_str())?;
+            let start = parse_expression(inner.next().unwrap())?;
+            let end = parse_expression(inner.next().unwrap())?;
+            Ok(Expression::DateDiff(
+                unit,
+                Box::new(start),
+                Box::new(end),
+            ))
+        }
         Rule::time_literal => Ok(Expression::Literal(Literal::TimeOfDay(
             pair.as_str().to_string(),
         ))),
@@ -1593,6 +1612,35 @@ fn parse_expression(pair: pest::iterators::Pair<Rule>) -> Result<Expression, Par
             pair.as_str().to_string(),
         ))),
     }
+}
+
+fn parse_date_diff_unit(s: &str) -> Result<Unit, ParseError> {
+    match s {
+        "year" | "years" => Ok(Unit::Year),
+        "month" | "months" => Ok(Unit::Month),
+        "day" | "days" => Ok(Unit::Day),
+        "hour" | "hours" => Ok(Unit::Hour),
+        "minute" | "minutes" => Ok(Unit::Minute),
+        _ => Err(ParseError::ValidationError(format!(
+            "Invalid date diff unit '{}'",
+            s
+        ))),
+    }
+}
+
+fn validate_date_literal(value: &str) -> Result<(), ParseError> {
+    if NaiveDateTime::parse_from_str(value, "%Y-%m-%d %H:%M").is_ok()
+        || NaiveDateTime::parse_from_str(value, "%Y-%m-%d %-H:%M").is_ok()
+    {
+        return Ok(());
+    }
+    if NaiveDate::parse_from_str(value, "%Y-%m-%d").is_ok() {
+        return Ok(());
+    }
+    Err(ParseError::ValidationError(format!(
+        "Invalid date/time literal '{}'",
+        value
+    )))
 }
 
 
