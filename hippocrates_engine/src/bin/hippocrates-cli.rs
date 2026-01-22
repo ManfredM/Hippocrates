@@ -9,6 +9,7 @@ use std::sync::{Arc, Mutex};
 use chrono::{DateTime, Utc};
 use hippocrates_engine::ast::Definition;
 use hippocrates_engine::domain::{InputMessage, RuntimeValue, Unit, ValueType};
+use hippocrates_engine::format_script;
 use hippocrates_engine::parser::parse_plan;
 use hippocrates_engine::runtime::{Environment, ExecutionMode, Executor, format_identifier, normalize_identifier};
 use serde_json::Value;
@@ -20,10 +21,14 @@ fn main() {
         process::exit(1);
     }
 
-    if args[1] == "simulate" {
-        run_simulate(&args[2..]);
-    } else {
-        run_validate(&args[1]);
+    match args[1].as_str() {
+        "simulate" => run_simulate(&args[2..]),
+        "format" => run_format(&args[2..]),
+        "--help" | "-h" => {
+            print_usage();
+            process::exit(0);
+        }
+        _ => run_validate(&args[1]),
     }
 }
 
@@ -33,6 +38,7 @@ fn print_usage() {
     eprintln!(
         "  hippocrates-cli simulate <file_path> [--plan <plan_name>] [--answers <answers.json>] [--mode real-time|time-lapse] [--duration <duration>]"
     );
+    eprintln!("  hippocrates-cli format <file_path> [--write]");
 }
 
 fn print_simulate_usage() {
@@ -40,6 +46,11 @@ fn print_simulate_usage() {
     eprintln!(
         "  hippocrates-cli simulate <file_path> [--plan <plan_name>] [--answers <answers.json>] [--mode real-time|time-lapse] [--duration <duration>]"
     );
+}
+
+fn print_format_usage() {
+    eprintln!("Usage:");
+    eprintln!("  hippocrates-cli format <file_path> [--write]");
 }
 
 fn run_validate(file_path: &str) {
@@ -289,6 +300,66 @@ fn run_simulate(args: &[String]) {
             env.now.format("%Y-%m-%d %H:%M:%S")
         ),
     );
+}
+
+fn run_format(args: &[String]) {
+    if args.is_empty() {
+        print_format_usage();
+        process::exit(1);
+    }
+
+    let mut file_path: Option<String> = None;
+    let mut write_in_place = false;
+
+    let mut iter = args.iter();
+    while let Some(arg) = iter.next() {
+        match arg.as_str() {
+            "--write" => write_in_place = true,
+            "--help" | "-h" => {
+                print_format_usage();
+                process::exit(0);
+            }
+            _ => {
+                if file_path.is_none() {
+                    file_path = Some(arg.clone());
+                } else {
+                    eprintln!("Unexpected argument: {}", arg);
+                    print_format_usage();
+                    process::exit(1);
+                }
+            }
+        }
+    }
+
+    let file_path = match file_path {
+        Some(p) => p,
+        None => {
+            print_format_usage();
+            process::exit(1);
+        }
+    };
+
+    let content = read_file_or_exit(&file_path);
+    match format_script(&content) {
+        Ok(formatted) => {
+            if write_in_place {
+                if let Err(err) = fs::write(&file_path, formatted) {
+                    eprintln!("Error writing file: {}", err);
+                    process::exit(1);
+                }
+            } else {
+                print!("{}", formatted);
+            }
+            process::exit(0);
+        }
+        Err(err) => {
+            match serde_json::to_string_pretty(&err) {
+                Ok(json) => println!("{}", json),
+                Err(e) => eprintln!("Error serializing error: {}", e),
+            }
+            process::exit(1);
+        }
+    }
 }
 
 fn read_file_or_exit(file_path: &str) -> String {
