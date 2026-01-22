@@ -17,6 +17,8 @@ mod golden_master;
 mod implicit_asking;
 #[path = "integration/inspect_ast.rs"]
 mod inspect_ast;
+#[path = "integration/scenario_suite.rs"]
+mod scenario_suite;
 #[path = "integration/interactive.rs"]
 mod interactive;
 #[path = "integration/manual_parsing.rs"]

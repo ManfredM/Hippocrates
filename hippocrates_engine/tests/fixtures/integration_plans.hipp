@@ -1,0 +1,37 @@
+(* --- PASS: reminder_plan --- *)
+<dose> is a unit:
+    plural is <doses>.
+
+<taken> is a number:
+    valid values:
+        0 <doses> ... 1 <dose>.
+
+<Daily reminder> is a plan:
+    during plan:
+        <taken> = 1 <dose>.
+        assess <taken>:
+            0 <doses>:
+                show message "Missed".
+            1 <dose>:
+                show message "On track".
+
+(* --- PASS: morning_checkin --- *)
+<morning> is a period:
+    timeframe:
+        between Monday ... Friday; 08:00 ... 09:00.
+
+<Morning check-in> is a plan:
+    during plan:
+        show message "Plan started".
+
+    <check in> with begin of <morning>:
+        show message "Good morning".
+
+(* --- FAIL: missing_question_property --- *)
+<age> is a number:
+    valid values:
+        1 year ... 10 years.
+
+<Missing question> is a plan:
+    during plan:
+        ask for <age>.

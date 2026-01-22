@@ -189,13 +189,41 @@ fn spec_validator_passes_with_not_enough_data() {
 
 // REQ-5.1-01: full-plan validation passes for a complete plan.
 #[test]
-fn spec_validate_copd_plan_fixtures() {
-    use crate::fixture_loader::{load_scenario, ScenarioKind};
+fn spec_validate_plan_fixture_suite() {
+    use crate::fixture_loader::{list_scenarios, load_scenario, ScenarioKind};
 
-    let input = load_scenario("tests/fixtures/runtime_plans.hipp", "copd_plan", ScenarioKind::Pass);
-    let plan = parser::parse_plan(&input).expect("Failed to parse");
-    let result = validator::validate_file(&plan);
-    assert!(result.is_ok(), "Validation failed for COPD plan: {:?}", result.err());
+    let path = "tests/fixtures/validation_plans.hipp";
+
+    let pass_scenarios = list_scenarios(path, ScenarioKind::Pass);
+    assert!(!pass_scenarios.is_empty(), "No PASS scenarios in {}", path);
+
+    for name in pass_scenarios {
+        let input = load_scenario(path, &name, ScenarioKind::Pass);
+        let plan = parser::parse_plan(&input)
+            .unwrap_or_else(|err| panic!("Failed to parse PASS scenario {}: {:?}", name, err));
+        let result = validator::validate_file(&plan);
+        assert!(
+            result.is_ok(),
+            "Validation failed for PASS scenario {}: {:?}",
+            name,
+            result.err()
+        );
+    }
+
+    let fail_scenarios = list_scenarios(path, ScenarioKind::Fail);
+    assert!(!fail_scenarios.is_empty(), "No FAIL scenarios in {}", path);
+
+    for name in fail_scenarios {
+        let input = load_scenario(path, &name, ScenarioKind::Fail);
+        let plan = parser::parse_plan(&input)
+            .unwrap_or_else(|err| panic!("Failed to parse FAIL scenario {}: {:?}", name, err));
+        let result = validator::validate_file(&plan);
+        assert!(
+            result.is_err(),
+            "Validation unexpectedly passed for FAIL scenario {}",
+            name
+        );
+    }
 }
 
 // REQ-4.4-06: gap detection reports missing integer spans.

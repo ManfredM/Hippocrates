@@ -1,0 +1,47 @@
+(* --- PASS: basic_plan --- *)
+<dose> is a unit:
+    plural is <doses>.
+
+<adherence> is a number:
+    valid values:
+        0 <doses> ... 2 <doses>.
+
+<Basic plan> is a plan:
+    during plan:
+        <adherence> = 1 <dose>.
+        assess <adherence>:
+            0 <doses>:
+                show message "no doses".
+            1 <dose> ... 2 <doses>:
+                show message "within range".
+
+(* --- PASS: timed_plan --- *)
+<interval> is a unit:
+    plural is <intervals>.
+
+<check> is a number:
+    valid values:
+        0 <intervals> ... 3 <intervals>.
+
+<Timed plan> is a plan:
+    every 1 day for 3 days:
+        <check> = 1 <interval>.
+        assess <check>:
+            0 <intervals>:
+                show message "missing".
+            1 <interval> ... 3 <intervals>:
+                show message "ok".
+
+(* --- FAIL: incomplete_assessment --- *)
+<unit> is a unit:
+    plural is <units>.
+
+<value> is a number:
+    valid values:
+        0 <units> ... 10 <units>.
+
+<Invalid plan> is a plan:
+    during plan:
+        assess <value>:
+            0 <units> ... 5 <units>:
+                show message "partial".

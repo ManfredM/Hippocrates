@@ -121,7 +121,7 @@
 - REQ-5-02 — `tests/spec/execution.rs::spec_validity_reuse_timeframe` — reuse timeframes prevent re-asking within the validity window.
 
 ## §5.1 Validation Logic
-- REQ-5.1-01 — `tests/spec/validation.rs::spec_validate_copd_plan_fixtures` — full-plan validation passes for a complete plan.
+- REQ-5.1-01 — `tests/spec/validation.rs::spec_validate_plan_fixture_suite` — full-plan validation passes for a complete plan.
 
 ## Pending / Ignored
 None.
