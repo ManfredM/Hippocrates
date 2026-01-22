@@ -10,16 +10,20 @@ Requirements:
 - REQ-2-01: identifiers must use angle brackets.
 - REQ-2-02: string literals must not contain angle brackets.
 - REQ-2-03: comparison operators are not supported; use ranges.
+- REQ-2-04: block openings require a newline and indented block.
+
+
 
 
 * **Natural Language Syntax**: Statements mimic English sentences to ensure readability by medical professionals.
-* **Type Safety & Units**: All numeric literals must be quantities with units (built-in or custom), e.g., `10 mg` or `7 days`.
+* **Type Safety & Units**: Informative — numeric literals are expressed as quantities with units (built-in or custom), e.g., `10 mg` or `7 days`. (See REQ-3.2-05.)
 * **Contextual Execution**: Scripts execute within a specific context (Patient, Timeframe).
 * **Event-Driven**: The core runtime is an event loop reacting to time, value changes, and external triggers.
 * **Completeness**: A plan describes a self-contained logic for a single subject (the Patient).
-* **Angle-Bracket Identifiers**: All identifiers are written as `<...>`.
-* **Indented Blocks**: Any `:` that opens a block requires a newline followed by an indented block.
-* **No Comparison Operators**: Use ranges (`min ... max`) instead of `<`, `>`, `<=`, `>=`.
+* **Angle-Bracket Identifiers**: Informative — identifiers are written as `<...>`. (See REQ-2-01.)
+* **Indented Blocks**: Informative — any `:` that opens a block is followed by a newline and indented block. (See REQ-2-04.)
+* **Block Syntax**: Informative — a block is introduced with a trailing `:` and statements inside the block end with a `.`. (See REQ-3.6-04, REQ-3.6-05.)
+* **No Comparison Operators**: Informative — use ranges (`min ... max`) instead of `<`, `>`, `<=`, `>=`. (See REQ-2-03.)
 
 ## 3. Formal Grammar (EBNF)
 
@@ -30,6 +34,9 @@ The following grammar defines the syntax of Hippocrates. Indentation is signific
 Requirements:
 - REQ-3.1-01: time indications parse for now, weekday, and time-of-day.
 - REQ-3.1-02: relative time expressions from now parse.
+- REQ-3.1-03: inline ':' forms are only allowed where explicitly shown.
+
+
 
 
 ```ebnf
@@ -53,7 +60,8 @@ weekday = "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday
 time_indication = time_literal | weekday | "now";
 ```
 
-All identifiers are angle-bracketed. When a rule introduces an indented block (`:` followed by `indent`/`dedent`), a newline is required. Inline `:` forms are only allowed where explicitly shown (e.g., `documentation` strings).
+Informative: Identifiers are angle-bracketed. When a rule introduces an indented block (`:` followed by `indent`/`dedent`), a newline is used. Inline `:` forms appear only where explicitly shown (e.g., `documentation` strings). (See REQ-2-01, REQ-2-04, REQ-3.1-03.)
+Informative: A block is introduced with a trailing `:` and statements inside the block end with a `.`. (See REQ-3.6-04, REQ-3.6-05.)
 
 ### 3.2. Units and Quantities
 
@@ -62,6 +70,9 @@ Requirements:
 - REQ-3.2-02: standard units work in calculations.
 - REQ-3.2-03: custom unit abbreviations canonicalize values.
 - REQ-3.2-04: custom unit quantities parse with definitions.
+- REQ-3.2-05: numeric literals must include units.
+
+
 
 
 ```ebnf
@@ -93,15 +104,17 @@ unit = standard_unit | custom_unit;
 quantity = number, [ " " ], unit;
 ```
 
-All numeric literals in user scripts must be expressed as quantities with units; unitless numbers are invalid.
-Built-in units are reserved and cannot be redefined or aliased in unit definitions.
+Informative: Numeric literals in user scripts are expressed as quantities with units; unitless numbers are invalid. (See REQ-3.2-05.)
+Informative: Built-in units are reserved and cannot be redefined or aliased in unit definitions. (See REQ-4.1-01.)
 
-Precision rule: integer ranges (e.g., `0 <points> ... 10 <points>`) use step size 1; decimal ranges (e.g., `0.0 mg ... 10.0 mg`) use the smallest declared decimal precision (step size `10^-precision`).
+Informative: Integer ranges (e.g., `0 <points> ... 10 <points>`) use step size 1; decimal ranges (e.g., `0.0 mg ... 10.0 mg`) use the smallest declared decimal precision (step size `10^-precision`). (See REQ-4.4-08.)
 
 ### 3.3. Program Structure
 
 Requirements:
 - REQ-3.3-01: multi-definition fixtures parse core definitions.
+
+
 
 
 ```ebnf
@@ -127,6 +140,8 @@ Requirements:
 - REQ-3.4-05: inheritance properties parse with overrides.
 - REQ-3.4-06: documentation properties parse in inline and block forms.
 - REQ-3.4-07: custom properties parse as generic properties.
+
+
 
 
 ```ebnf
@@ -194,6 +209,8 @@ Requirements:
 - REQ-3.5-02: period timeframe lines parse with range selectors.
 
 
+
+
 ```ebnf
 period_definition =
     identifier, " is a period:", newline, indent, { period_property }, dedent;
@@ -221,6 +238,12 @@ event_block = identifier, " with ", event_trigger, ":", newline, indent, { state
 
 Requirements:
 - REQ-3.6-01: timeframe blocks parse with nested statements.
+- REQ-3.6-02: timeframe selectors require a start and end.
+- REQ-3.6-03: timeframe selector identifiers must refer to defined periods.
+- REQ-3.6-04: statements inside blocks must terminate with a period.
+- REQ-3.6-05: blocks must be introduced with a colon.
+
+
 
 
 ```ebnf
@@ -259,7 +282,7 @@ timeframe_selector =
     expression, " ... ", expression |
     identifier;
 
-Timeframe selectors always require a start and an end; single time indications (e.g., `now`) are not valid timeframes. When a timeframe selector uses an identifier, it must refer to a period definition that provides the underlying start/end bounds.
+Informative: Timeframe selectors include a start and an end; single time indications (e.g., `now`) are not valid timeframes. When a timeframe selector uses an identifier, it refers to a period definition that provides the underlying start/end bounds. (See REQ-3.6-02, REQ-3.6-03.)
 
 constraint = expression, constraint_operator, range_selector, ".";
 constraint_operator = "is" | "during" | "after";
@@ -268,7 +291,7 @@ block = { statement };
 
 context_block = "context", [ " for analysis" ], ":", newline, indent, { context_item | statement }, dedent;
 
-All statements inside indented blocks must terminate with a period (`.`). Blocks themselves are always introduced with a colon (`:`).
+Informative: Statements inside indented blocks terminate with a period (`.`). Blocks are introduced with a colon (`:`). (See REQ-3.6-04, REQ-3.6-05.)
 
 timeframe_block =
     "timeframe", [ " for analysis" ],
@@ -286,6 +309,8 @@ Requirements:
 - REQ-3.7-05: listen/send/start/simple command actions parse.
 - REQ-3.7-06: question expiration blocks parse with reminder statements.
 - REQ-3.7-07: question expiration supports until event triggers.
+
+
 
 
 ```ebnf
@@ -370,6 +395,8 @@ Requirements:
 - REQ-3.8-04: periodic triggers parse duration and offsets.
 
 
+
+
 ```ebnf
 event_trigger =
     "change of ", identifier |
@@ -386,6 +413,8 @@ period_expr = quantity | "until ", event_trigger;
 Requirements:
 - REQ-3.9-01: addressee groups and contact logic parse.
 - REQ-3.9-02: contact details and sequence ordering parse.
+
+
 
 
 ```ebnf
@@ -415,6 +444,8 @@ Requirements:
 - REQ-3.10-01: drug definition validation rejects undefined units.
 - REQ-3.10-02: drug interaction properties parse.
 - REQ-3.10-03: dosage safety and administration rules parse.
+
+
 
 
 ```ebnf
@@ -450,6 +481,8 @@ Requirements:
 - REQ-3.11-03: context for analysis executes with scoped timeframe.
 
 
+
+
 ```ebnf
 context_definition = "context:", newline, indent, { context_item }, dedent;
 
@@ -466,6 +499,8 @@ Requirements:
 - REQ-3.12-02: timeframe filtering applies to statistical evaluations.
 - REQ-3.12-03: timeframe variants resolve counts over different windows.
 - REQ-3.12-04: trend analysis evaluates statistical trends over timeframes.
+
+
 
 
 ```ebnf
@@ -497,6 +532,8 @@ Requirements:
 - REQ-4.1-02: unit conversions are supported within compatible groups.
 
 
+
+
 The runtime recognizes the standard units listed in the grammar. Automatic conversions are supported within the following groups:
 
 * **Mass**: mg, g, kg, lb, oz
@@ -511,11 +548,11 @@ Additional standard units are recognized as distinct groups:
 * **Pressure**: mmHg
 * **Clinical**: bpm, mg/dL, mmol/L (mg/dL and mmol/L are convertible)
 
-The runtime ensures that values compared or assigned have compatible units (belong to the same group).
+Informative: The runtime checks that values compared or assigned have compatible units (belong to the same group). (See REQ-4.1-02.)
 
 #### Unit Normalization
 
-For custom units (e.g., `points`, `tablets`), pluralization and abbreviations must be defined explicitly. Without a definition, `10 <point>` and `10 <points>` are treated as different units.
+Informative: For custom units (e.g., `points`, `tablets`), pluralization and abbreviations are defined explicitly. Without a definition, `10 <point>` and `10 <points>` are treated as different units. (See REQ-3.2-01, REQ-3.2-03.)
 
 ```hippocrates
 <point> is a unit:
@@ -531,22 +568,30 @@ Requirements:
 - REQ-4.2-03: numeric definitions require units.
 - REQ-4.2-04: ask requires a question property on the value.
 - REQ-4.2-05: unit requirement errors report line numbers.
+- REQ-4.2-06: numbers and enumerations must define valid values.
 
 
-* **Numbers and Enumerations**: `valid values` must be defined.
-* **Numbers**: A unit must be defined (via `unit is ...` or by using quantities in `valid values`).
-* **Asking**: `ask` is only valid when a value has a `question` property.
+
+
+* **Numbers and Enumerations**: Informative — `valid values` are defined. (See REQ-4.2-06.)
+* **Numbers**: Informative — a unit is defined (via `unit is ...` or by using quantities in `valid values`). (See REQ-4.2-01, REQ-4.2-03.)
+* **Asking**: Informative — `ask` is only valid when a value has a `question` property. (See REQ-4.2-04.)
 
 ### 4.3. Data Flow and Validity
 
 Requirements:
 - REQ-4.3-01: values cannot be used before assignment.
+- REQ-4.3-02: calculation properties do not seed values.
+- REQ-4.3-03: statistical functions do not require local initialization.
+- REQ-4.3-04: listen for and context data initialize values.
 
 
-* A value cannot be used before it has valid content.
-* Values gain valid content by being assigned, asked, or provided by `listen for` or `context data:`.
-* Calculation properties describe how a value is derived but do not implicitly seed it; plans must assign or ask before use.
-* Statistical functions read history and do not require local initialization of the referenced value.
+
+
+* Informative — a value is not used before it has valid content. (See REQ-4.3-01.)
+* Informative — values gain valid content by being assigned, asked, or provided by `listen for` or `context data:`. (See REQ-4.3-04.)
+* Informative — calculation properties describe how a value is derived but do not implicitly seed it; plans assign or ask before use. (See REQ-4.3-02.)
+* Informative — statistical functions read history and do not require local initialization of the referenced value. (See REQ-4.3-03.)
 
 ### 4.4. Assessment Coverage
 
@@ -564,9 +609,11 @@ Requirements:
 - REQ-4.4-11: trend assessments require full coverage.
 
 
-* `assess` blocks, `meaning` cases, and assessments over statistical results must fully cover the valid range of the target/output.
-* For enumerations, all valid values must be covered.
-* For `trend of <value>`, all cases (`"increase"`, `"decrease"`, `"stable"`) must be covered.
+
+
+* Informative — `assess` blocks, `meaning` cases, and assessments over statistical results fully cover the valid range of the target/output. (See REQ-4.4-01, REQ-4.4-02, REQ-4.4-03.)
+* Informative — for enumerations, all valid values are covered. (See REQ-4.4-05.)
+* Informative — for `trend of <value>`, all cases (`"increase"`, `"decrease"`, `"stable"`) are covered. (See REQ-4.4-11.)
 
 ### 4.5. Range Compliance (Pre-Run Validation)
 
@@ -575,7 +622,9 @@ Requirements:
 - REQ-4.5-02: assignment range compliance fails when out of bounds.
 
 
-Before execution, the runtime validates that calculated and assigned values remain within their declared ranges. If the computed range can exceed the valid values, validation fails.
+
+
+Informative: Before execution, the runtime validates that calculated and assigned values remain within their declared ranges. If the computed range can exceed the valid values, validation fails. (See REQ-4.5-01, REQ-4.5-02.)
 
 ### 4.6. Data Sufficiency
 
@@ -585,13 +634,17 @@ Requirements:
 - REQ-4.6-03: runtime evaluation returns NotEnoughData when history is insufficient.
 
 
-Calculations involving history use `Not enough data` when the available history is shorter than the requested timeframe. This is handled explicitly in assessments.
+
+
+Informative: Calculations involving history use `Not enough data` when the available history is shorter than the requested timeframe. This is handled explicitly in assessments. (See REQ-4.6-01, REQ-4.6-02, REQ-4.6-03.)
 
 ## 5. Execution Model
 
 Requirements:
 - REQ-5-01: runtime executes assignments and actions in order.
 - REQ-5-02: reuse timeframes prevent re-asking within the validity window.
+
+
 
 
 The Hippocrates Runtime functions as a **State Machine**.
@@ -608,6 +661,8 @@ The Hippocrates Runtime functions as a **State Machine**.
 
 Requirements:
 - REQ-5.1-01: full-plan validation passes for a complete plan.
+
+
 
 
 Before execution, the runtime validates that:
@@ -724,12 +779,15 @@ during plan:
 - REQ-2-01: identifiers must use angle brackets.
 - REQ-2-02: string literals must not contain angle brackets.
 - REQ-2-03: comparison operators are not supported; use ranges.
+- REQ-2-04: block openings require a newline and indented block.
 - REQ-3.1-01: time indications parse for now, weekday, and time-of-day.
 - REQ-3.1-02: relative time expressions from now parse.
+- REQ-3.1-03: inline ':' forms are only allowed where explicitly shown.
 - REQ-3.2-01: custom unit pluralization canonicalizes values.
 - REQ-3.2-02: standard units work in calculations.
 - REQ-3.2-03: custom unit abbreviations canonicalize values.
 - REQ-3.2-04: custom unit quantities parse with definitions.
+- REQ-3.2-05: numeric literals must include units.
 - REQ-3.3-01: multi-definition fixtures parse core definitions.
 - REQ-3.4-01: value definitions parse from fixtures.
 - REQ-3.4-02: value type variants parse correctly.
@@ -741,6 +799,10 @@ during plan:
 - REQ-3.5-01: period definitions parse by name.
 - REQ-3.5-02: period timeframe lines parse with range selectors.
 - REQ-3.6-01: timeframe blocks parse with nested statements.
+- REQ-3.6-02: timeframe selectors require a start and end.
+- REQ-3.6-03: timeframe selector identifiers must refer to defined periods.
+- REQ-3.6-04: statements inside blocks must terminate with a period.
+- REQ-3.6-05: blocks must be introduced with a colon.
 - REQ-3.7-01: question configuration parses and validates references.
 - REQ-3.7-02: message expiration attaches to show message.
 - REQ-3.7-03: question modifiers parse (validate/type/style/expire).
@@ -771,7 +833,11 @@ during plan:
 - REQ-4.2-03: numeric definitions require units.
 - REQ-4.2-04: ask requires a question property on the value.
 - REQ-4.2-05: unit requirement errors report line numbers.
+- REQ-4.2-06: numbers and enumerations must define valid values.
 - REQ-4.3-01: values cannot be used before assignment.
+- REQ-4.3-02: calculation properties do not seed values.
+- REQ-4.3-03: statistical functions do not require local initialization.
+- REQ-4.3-04: listen for and context data initialize values.
 - REQ-4.4-01: meaning ranges must cover valid values (integer gaps).
 - REQ-4.4-02: meaning ranges must cover valid values (float gaps).
 - REQ-4.4-03: disjoint valid ranges are allowed when fully covered.
@@ -789,5 +855,5 @@ during plan:
 - REQ-4.6-02: Not enough data handling satisfies sufficiency.
 - REQ-4.6-03: runtime evaluation returns NotEnoughData when history is insufficient.
 - REQ-5-01: runtime executes assignments and actions in order.
-- REQ-5-02: reuse timeframes prevent re-asking within the validity window.
 - REQ-5.1-01: full-plan validation passes for a complete plan.
+- REQ-5-02: reuse timeframes prevent re-asking within the validity window.

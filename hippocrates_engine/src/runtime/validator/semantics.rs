@@ -1,4 +1,4 @@
-use crate::ast::{Definition, Property, Statement, StatementKind, Expression, ConditionalTarget};
+use crate::ast::{Definition, Property, Statement, StatementKind, Expression, ConditionalTarget, RangeSelector, ContextItem, PlanBlock};
 use crate::domain::EngineError;
 use std::collections::{HashSet, HashMap};
 
@@ -172,6 +172,107 @@ fn check_selector_units(sel: &crate::ast::RangeSelector, has_unit: &mut bool, ha
     }
 }
 
+pub fn check_timeframe_period_references(defs: &HashMap<String, Definition>, errors: &mut Vec<EngineError>) {
+    let period_names: HashSet<String> = defs
+        .values()
+        .filter_map(|def| if let Definition::Period(p) = def { Some(p.name.clone()) } else { None })
+        .collect();
+
+    for def in defs.values() {
+        match def {
+            Definition::Period(p) => {
+                for line in &p.timeframes {
+                    for sel in line {
+                        check_timeframe_selector(sel, &period_names, 0, errors);
+                    }
+                }
+            }
+            Definition::Value(v) => {
+                for prop in &v.properties {
+                    if let Property::Timeframe(lines) = prop {
+                        for line in lines {
+                            for sel in line {
+                                check_timeframe_selector(sel, &period_names, 0, errors);
+                            }
+                        }
+                    }
+                }
+            }
+            Definition::Context(c) => {
+                for item in &c.items {
+                    if let ContextItem::Timeframe(sel) = item {
+                        check_timeframe_selector(sel, &period_names, 0, errors);
+                    }
+                }
+            }
+            Definition::Plan(p) => {
+                for block in &p.blocks {
+                    match block {
+                        PlanBlock::DuringPlan(stmts) => {
+                            for stmt in stmts {
+                                check_statement_timeframes(stmt, &period_names, errors);
+                            }
+                        }
+                        PlanBlock::Trigger(t) => {
+                            for stmt in &t.statements {
+                                check_statement_timeframes(stmt, &period_names, errors);
+                            }
+                        }
+                        PlanBlock::Event(e) => {
+                            for stmt in &e.statements {
+                                check_statement_timeframes(stmt, &period_names, errors);
+                            }
+                        }
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+fn check_timeframe_selector(sel: &RangeSelector, period_names: &HashSet<String>, line: usize, errors: &mut Vec<EngineError>) {
+    if let RangeSelector::Equals(Expression::Variable(name)) = sel {
+        if !period_names.contains(name) {
+            errors.push(EngineError {
+                message: format!("Timeframe selector references undefined period '{}'.", name),
+                line,
+                column: 0,
+            });
+        }
+    }
+}
+
+fn check_statement_timeframes(stmt: &Statement, period_names: &HashSet<String>, errors: &mut Vec<EngineError>) {
+    match &stmt.kind {
+        StatementKind::Timeframe(tb) => {
+            for (_, sel) in &tb.constraints {
+                check_timeframe_selector(sel, period_names, stmt.line, errors);
+            }
+            for nested in &tb.block {
+                check_statement_timeframes(nested, period_names, errors);
+            }
+        }
+        StatementKind::ContextBlock(cb) => {
+            for item in &cb.items {
+                if let ContextItem::Timeframe(sel) = item {
+                    check_timeframe_selector(sel, period_names, stmt.line, errors);
+                }
+            }
+            for nested in &cb.statements {
+                check_statement_timeframes(nested, period_names, errors);
+            }
+        }
+        StatementKind::Conditional(cond) => {
+            for case in &cond.cases {
+                for nested in &case.block {
+                    check_statement_timeframes(nested, period_names, errors);
+                }
+            }
+        }
+        _ => {}
+    }
+}
 pub fn check_statement_semantics(
     stmt: &Statement,
     enum_vars: &HashSet<String>,

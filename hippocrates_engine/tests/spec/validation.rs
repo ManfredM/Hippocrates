@@ -350,6 +350,55 @@ fn spec_validation_error_line_number() {
     assert!(err.line > 0, "Error line number should be > 0, got {}", err.line);
 }
 
+// REQ-4.2-06: numbers and enumerations must define valid values.
+#[test]
+fn spec_missing_valid_values_fails() {
+    let input = r#"
+<num> is a number:
+    unit is kg.
+
+<plan> is a plan:
+    during plan:
+        show message "Hi".
+"#;
+    let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
+    let result = validator::validate_file(&plan);
+    assert!(result.is_err(), "Expected validation error for missing valid values");
+    let errors = result.unwrap_err();
+    assert!(errors.iter().any(|e| e.message.contains("Missing 'valid values'")));
+
+    let input2 = r#"
+<state> is an enumeration:
+    documentation:
+        english: "State".
+
+<plan> is a plan:
+    during plan:
+        show message "Hi".
+"#;
+    let plan2 = parser::parse_plan(input2.trim()).expect("Failed to parse");
+    let result2 = validator::validate_file(&plan2);
+    assert!(result2.is_err(), "Expected validation error for missing valid values on enum");
+    let errors2 = result2.unwrap_err();
+    assert!(errors2.iter().any(|e| e.message.contains("Missing 'valid values'")));
+}
+
+// REQ-3.6-03: timeframe selector identifiers must refer to defined periods.
+#[test]
+fn spec_timeframe_selector_requires_period_definition() {
+    let input = r#"
+<plan> is a plan:
+    during plan:
+        timeframe for analysis is <MissingPeriod>:
+            show message "Hi".
+"#;
+    let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
+    let result = validator::validate_file(&plan);
+    assert!(result.is_err(), "Expected validation error for unknown period reference");
+    let errors = result.unwrap_err();
+    assert!(errors.iter().any(|e| e.message.contains("MissingPeriod")));
+}
+
 // REQ-4.4-10: missing coverage yields a validation error.
 #[test]
 fn spec_reproduce_missing_error() {
@@ -455,6 +504,69 @@ fn spec_data_flow_use_before_assignment_fails() {
 
     let errors = result.err().unwrap();
     assert!(errors.iter().any(|e| e.message.contains("used before being assigned")));
+}
+
+// REQ-4.3-02: calculation properties do not seed values; plans must assign or ask before use.
+#[test]
+fn spec_calculation_does_not_initialize_value() {
+    let input = r#"
+<val> is a number:
+    valid values:
+        0 kg ... 10 kg.
+    calculation:
+        <val> = 5 kg.
+
+<plan> is a plan:
+    during plan:
+        show message "Value is " + <val>.
+"#;
+
+    let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
+    let result = validator::validate_file(&plan);
+    assert!(result.is_err(), "Expected data flow error for calculated value not assigned in plan");
+    let errors = result.unwrap_err();
+    assert!(errors.iter().any(|e| e.message.contains("used before being assigned")));
+}
+
+// REQ-4.3-03: statistical functions read history and do not require local initialization.
+#[test]
+fn spec_statistical_functions_do_not_require_local_init() {
+    let input = r#"
+<val> is an enumeration:
+    valid values:
+        "Yes"; "No".
+
+<plan> is a plan:
+    during plan:
+        show message count of <val> is "Yes".
+"#;
+
+    let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
+    let result = validator::validate_file(&plan);
+    assert!(result.is_ok(), "Expected statistical functions to bypass local init checks");
+}
+
+// REQ-4.3-04: listen for and context data initialize values for data flow.
+#[test]
+fn spec_listen_and_context_initialize_values() {
+    let input = r#"
+<signal> is an enumeration:
+    valid values:
+        "Yes"; "No".
+
+<plan> is a plan:
+    during plan:
+        listen for <signal>:
+            show message "Heard".
+        show message "Value is " + <signal>.
+        context for analysis:
+            data: <signal>.
+            show message "Ctx " + <signal>.
+"#;
+
+    let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
+    let result = validator::validate_file(&plan);
+    assert!(result.is_ok(), "Expected listen/context data to initialize values");
 }
 
 // REQ-4.2-04: ask requires a question property on the value.

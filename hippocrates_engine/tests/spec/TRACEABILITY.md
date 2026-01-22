@@ -4,16 +4,19 @@
 - REQ-2-01 — `tests/spec/grammar.rs::spec_identifiers_require_angle_brackets` — identifiers must use angle brackets.
 - REQ-2-02 — `tests/spec/grammar.rs::spec_string_literal_rejects_angle_brackets` — string literals must not contain angle brackets.
 - REQ-2-03 — `tests/spec/grammar.rs::spec_no_comparison_operators` — comparison operators are not supported; use ranges.
+- REQ-2-04 — `tests/spec/grammar.rs::spec_block_requires_newline_after_colon` — block openings require a newline and indented block.
 
 ## §3.1 Basic Elements
 - REQ-3.1-01 — `tests/spec/contexts_expressions.rs::spec_time_indications_parsing` — time indications parse for now, weekday, and time-of-day.
 - REQ-3.1-02 — `tests/spec/contexts_expressions.rs::spec_relative_time_from_now_parsing` — relative time expressions from now parse.
+- REQ-3.1-03 — `tests/spec/grammar.rs::spec_inline_colon_requires_block` — inline ':' forms are only allowed where explicitly shown.
 
 ## §3.2 Units and Quantities
 - REQ-3.2-01 — `tests/spec/units.rs::spec_custom_unit_pluralization_is_canonical` — custom unit pluralization canonicalizes values.
 - REQ-3.2-02 — `tests/spec/units.rs::spec_standard_units_still_work` — standard units work in calculations.
 - REQ-3.2-03 — `tests/spec/units.rs::spec_custom_unit_abbreviation_is_canonical` — custom unit abbreviations canonicalize values.
 - REQ-3.2-04 — `tests/spec/units.rs::spec_custom_unit_quantity_parsing` — custom unit quantities parse with definitions.
+- REQ-3.2-05 — `tests/spec/grammar.rs::spec_unitless_numeric_literal_fails` — numeric literals must include units.
 
 ## §3.3 Program Structure
 - REQ-3.3-01 — `tests/spec/fixtures.rs::spec_full_fixture_parses_core_definitions` — multi-definition fixtures parse core definitions.
@@ -33,6 +36,10 @@
 
 ## §3.6 Statements, Assessments, and Ranges
 - REQ-3.6-01 — `tests/spec/statements_actions.rs::spec_timeframe_block_parsing` — timeframe blocks parse with nested statements.
+- REQ-3.6-02 — `tests/spec/statements_actions.rs::spec_timeframe_requires_range_selector` — timeframe selectors require a start and end.
+- REQ-3.6-03 — `tests/spec/validation.rs::spec_timeframe_selector_requires_period_definition` — timeframe selector identifiers must refer to defined periods.
+- REQ-3.6-04 — `tests/spec/grammar.rs::spec_block_statements_require_period` — statements inside blocks must terminate with a period.
+- REQ-3.6-05 — `tests/spec/grammar.rs::spec_blocks_require_colon` — blocks must be introduced with a colon.
 
 ## §3.7 Actions and Questions
 - REQ-3.7-01 — `tests/spec/statements_actions.rs::spec_question_config_parsing_and_validation` — question configuration parses and validates references.
@@ -79,9 +86,13 @@
 - REQ-4.2-03 — `tests/spec/validation.rs::spec_unitless_definition_fails` — numeric definitions require units.
 - REQ-4.2-04 — `tests/spec/validation.rs::spec_ask_requires_question_property` — ask requires a question property on the value.
 - REQ-4.2-05 — `tests/spec/validation.rs::spec_validation_error_line_number` — unit requirement errors report line numbers.
+- REQ-4.2-06 — `tests/spec/validation.rs::spec_missing_valid_values_fails` — numbers and enumerations must define valid values.
 
 ## §4.3 Data Flow and Validity
 - REQ-4.3-01 — `tests/spec/validation.rs::spec_data_flow_use_before_assignment_fails` — values cannot be used before assignment.
+- REQ-4.3-02 — `tests/spec/validation.rs::spec_calculation_does_not_initialize_value` — calculation properties do not seed values.
+- REQ-4.3-03 — `tests/spec/validation.rs::spec_statistical_functions_do_not_require_local_init` — statistical functions do not require local initialization.
+- REQ-4.3-04 — `tests/spec/validation.rs::spec_listen_and_context_initialize_values` — listen for and context data initialize values.
 
 ## §4.4 Assessment Coverage
 - REQ-4.4-01 — `tests/spec/validation.rs::spec_meaning_coverage_gaps_integer` — meaning ranges must cover valid values (integer gaps).

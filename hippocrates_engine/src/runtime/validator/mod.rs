@@ -41,7 +41,7 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
             Definition::Unit(u) => { defs_map.insert(u.name.clone(), Definition::Unit(u.clone())); },
             Definition::Period(p) => { defs_map.insert(p.name.clone(), Definition::Period(p.clone())); },
             Definition::Context(c) => { defs_map.insert("context".to_string(), Definition::Context(c.clone())); }, // Single context?
-            _ => {}
+            Definition::Plan(p) => { defs_map.insert(p.name.clone(), Definition::Plan(p.clone())); },
         }
     }
 
@@ -105,6 +105,7 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
     semantics::check_drugs(&defs_map, &valid_units, &mut errors);
     semantics::check_addressees(&defs_map, &mut errors);
     semantics::check_value_definitions(&defs_map, &mut errors);
+    semantics::check_timeframe_period_references(&defs_map, &mut errors);
 
     // 1.5 Meaning coverage for value definitions
     for def in &plan.definitions {

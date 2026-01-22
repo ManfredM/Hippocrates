@@ -380,3 +380,16 @@ fn spec_listen_send_start_and_simple_command_parsing() {
     assert!(saw_start, "Expected start period action");
     assert!(saw_simple, "Expected simple command action");
 }
+
+// REQ-3.6-02: timeframe selectors require a start and end; single time indications are invalid.
+#[test]
+fn spec_timeframe_requires_range_selector() {
+    let input = r#"
+<plan> is a plan:
+    during plan:
+        timeframe for analysis is now:
+            show message "Hi".
+"#;
+    let result = parser::parse_plan(input);
+    assert!(result.is_err(), "Expected parser error for single time indication timeframe");
+}
