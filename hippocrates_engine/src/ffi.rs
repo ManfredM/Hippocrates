@@ -6,6 +6,7 @@ use serde::Serialize;
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime};
 use crate::runtime::scheduler::Scheduler;
 use crate::runtime::normalize_identifier;
+use crate::runtime::input_validation;
 
 // Parses a Hippocrates plan string and returns the AST as a JSON string.
 /// The returned string must be freed using `hippocrates_free_string`.
@@ -330,6 +331,11 @@ pub unsafe extern "C" fn hippocrates_engine_set_value(
     };
 
     if let Some(val) = runtime_val {
+        if input_validation::validate_input_value(&context.env.definitions, &normalized_name, &val)
+            .is_err()
+        {
+            return 1;
+        }
         let msg = crate::domain::InputMessage {
             variable: normalized_name,
             value: val,

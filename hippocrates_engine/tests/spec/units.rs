@@ -155,3 +155,45 @@ fn spec_unit_conversions_within_groups() {
     let mmol_to_mg = Unit::MmolPerL.convert(1.0, &Unit::MgPerDl).unwrap();
     assert!((mmol_to_mg - 18.0182).abs() < tol);
 }
+
+// REQ-4.1-03: calculations and assignments require matching units and precision.
+#[test]
+fn spec_assignment_requires_unit_and_precision_match() {
+    let precision_mismatch = r#"
+<dose> is a number:
+    valid values:
+        0.0 mg ... 10.0 mg.
+
+<plan> is a plan:
+    during plan:
+        <dose> = 5 mg.
+"#;
+    let plan = parser::parse_plan(precision_mismatch.trim()).expect("Failed to parse precision mismatch plan");
+    let result = validator::validate_file(&plan);
+    assert!(result.is_err(), "Expected precision validation error");
+    let errors = result.unwrap_err();
+    assert!(
+        errors.iter().any(|e| e.message.contains("precision")),
+        "Expected precision mismatch error, got {:?}",
+        errors
+    );
+
+    let unit_mismatch = r#"
+<dose> is a number:
+    valid values:
+        0 mg ... 10 mg.
+
+<plan> is a plan:
+    during plan:
+        <dose> = 5 g.
+"#;
+    let plan = parser::parse_plan(unit_mismatch.trim()).expect("Failed to parse unit mismatch plan");
+    let result = validator::validate_file(&plan);
+    assert!(result.is_err(), "Expected unit validation error");
+    let errors = result.unwrap_err();
+    assert!(
+        errors.iter().any(|e| e.message.contains("unit")),
+        "Expected unit mismatch error, got {:?}",
+        errors
+    );
+}

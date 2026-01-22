@@ -4,7 +4,9 @@ mod data_flow;
 mod coverage;
 
 use crate::ast::{Plan, Definition, Property, RangeSelector, Expression, Literal, Statement, StatementKind, ConditionalTarget};
-use crate::domain::EngineError;
+use crate::domain::{EngineError, Unit};
+use crate::runtime;
+use crate::runtime::input_validation;
 use std::collections::{HashMap, HashSet};
 
 pub use intervals::{Interval, calculate_interval};
@@ -27,6 +29,7 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
     let mut value_ranges = HashMap::new();
     let mut value_bounds = HashMap::new();
     let mut value_precision = HashMap::new();
+    let mut value_units = HashMap::new();
     let mut defined_values = HashSet::new();
     let mut valid_units = HashSet::new();
     let mut enum_vars = HashSet::new();
@@ -44,6 +47,8 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
             Definition::Plan(p) => { defs_map.insert(p.name.clone(), Definition::Plan(p.clone())); },
         }
     }
+
+    let unit_map = build_unit_map(&plan.definitions);
 
     // 0. Collect Units
     for def in &plan.definitions {
@@ -64,6 +69,27 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
             }
 
             if matches!(vd.value_type, crate::domain::ValueType::Number) {
+                if let Some(unit) = expected_unit_for_value_def(vd, &unit_map) {
+                    let normalized = runtime::normalize_identifier(&vd.name);
+                    value_units.insert(normalized, unit);
+                }
+
+                if let Err(msg) = input_validation::precision_for_value(vd) {
+                    let line = vd
+                        .properties
+                        .iter()
+                        .find_map(|prop| match prop {
+                            Property::ValidValues(stmts) => stmts.first().map(|stmt| stmt.line),
+                            _ => None,
+                        })
+                        .unwrap_or(0);
+                    errors.push(EngineError {
+                        message: format!("Precision mismatch for '{}': {}", vd.name, msg),
+                        line,
+                        column: 0,
+                    });
+                }
+
                 let mut ranges: Vec<Interval> = Vec::new();
                 let mut precision = PrecisionInfo::new();
 
@@ -109,7 +135,54 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
     semantics::check_value_definitions(&defs_map, &mut errors);
     semantics::check_timeframe_period_references(&defs_map, &mut errors);
 
-    // 1.5 Meaning coverage for value definitions
+    // 1.25 Calculation assignments must match unit + precision of the value definition.
+    for def in &plan.definitions {
+        if let Definition::Value(vd) = def {
+            for prop in &vd.properties {
+                if let Property::Calculation(stmts) = prop {
+                    check_assignment_units_precision_block(
+                        stmts,
+                        Some(&vd.name),
+                        &value_units,
+                        &value_precision,
+                        &unit_map,
+                        &mut errors,
+                    );
+                }
+            }
+        }
+    }
+
+    // 1.5 Valid value ranges must not overlap
+    for def in &plan.definitions {
+        if let Definition::Value(vd) = def {
+            let line = vd
+                .properties
+                .iter()
+                .find_map(|prop| match prop {
+                    Property::ValidValues(stmts) => stmts.first().map(|stmt| stmt.line),
+                    _ => None,
+                })
+                .unwrap_or(0);
+
+            match vd.value_type {
+                crate::domain::ValueType::Number => {
+                    let ranges = value_ranges.get(&vd.name).map(Vec::as_slice).unwrap_or(&[]);
+                    if ranges.len() < 2 {
+                        continue;
+                    }
+                    let decimals = value_precision.get(&vd.name).and_then(|info| info.decimals);
+                    check_valid_values_overlap(&vd.name, ranges, decimals, line, &mut errors);
+                }
+                crate::domain::ValueType::DateTime | crate::domain::ValueType::TimeIndication => {
+                    check_valid_values_datetime_overlap(vd, line, &mut errors);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    // 1.6 Meaning coverage for value definitions
     for def in &plan.definitions {
         if let Definition::Value(vd) = def {
             for prop in &vd.properties {
@@ -204,6 +277,15 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
                       }
                       
                       for stmt in statements {
+                          check_assignment_units_precision_stmt(
+                              stmt,
+                              None,
+                              &value_units,
+                              &value_precision,
+                              &unit_map,
+                              &mut errors,
+                          );
+
                           // Run semantic checks (undefined vars, etc)
                           semantics::check_statement_semantics(stmt, &enum_vars, &defs_map, &mut errors);
                           check_statistical_not_enough_data(stmt, &statistical_values, &mut errors);
@@ -649,6 +731,13 @@ fn extract_selector_intervals(sel: &RangeSelector) -> Vec<Interval> {
                 intervals.push(Interval::exact(v));
             }
         }
+        RangeSelector::List(items) => {
+            for item in items {
+                if let Some(v) = get_val(item) {
+                    intervals.push(Interval::exact(v));
+                }
+            }
+        }
         _ => {}
     }
 
@@ -759,6 +848,720 @@ fn expr_has_unitless_number(expr: &Expression) -> bool {
             expr_has_unitless_number(left) || expr_has_unitless_number(right)
         }
         _ => false,
+    }
+}
+
+fn check_valid_values_overlap(
+    name: &str,
+    ranges: &[Interval],
+    decimals: Option<usize>,
+    line: usize,
+    errors: &mut Vec<EngineError>,
+) {
+    if ranges.len() < 2 {
+        return;
+    }
+
+    let mut sorted = ranges.to_vec();
+    sorted.sort_by(|a, b| a.min.partial_cmp(&b.min).unwrap_or(std::cmp::Ordering::Equal));
+
+    let decimals = decimals.unwrap_or(0);
+    let step = 10_f64.powi(-(decimals as i32));
+    let epsilon = step / 10.0;
+    let format_val = |v: f64| -> String { format!("{:.*}", decimals, v) };
+
+    let mut current = sorted[0].clone();
+    for range in sorted.into_iter().skip(1) {
+        if range.min <= current.max + epsilon {
+            errors.push(EngineError {
+                message: format!(
+                    "Constraint Violation: Valid values for '{}' have overlapping ranges ({} ... {} overlaps {} ... {}).",
+                    name,
+                    format_val(current.min),
+                    format_val(current.max),
+                    format_val(range.min),
+                    format_val(range.max)
+                ),
+                line,
+                column: 0,
+            });
+            return;
+        }
+        if range.max > current.max {
+            current = range;
+        } else {
+            current = range;
+        }
+    }
+}
+
+fn check_valid_values_datetime_overlap(
+    vd: &crate::ast::ValueDef,
+    line: usize,
+    errors: &mut Vec<EngineError>,
+) {
+    let selectors = collect_valid_value_selectors(vd);
+    if selectors.is_empty() {
+        return;
+    }
+
+    let base = chrono::NaiveDate::from_ymd_opt(2000, 1, 1)
+        .unwrap()
+        .and_hms_opt(0, 0, 0)
+        .unwrap();
+
+    let mut date_ranges: Vec<(chrono::NaiveDateTime, chrono::NaiveDateTime)> = Vec::new();
+    let mut time_ranges: Vec<(chrono::NaiveTime, chrono::NaiveTime)> = Vec::new();
+
+    for selector in selectors {
+        extract_datetime_ranges(selector, base, &mut date_ranges, &mut time_ranges, line, errors);
+    }
+
+    if date_ranges.len() > 1 {
+        check_datetime_ranges_overlap(&vd.name, &date_ranges, line, errors);
+    }
+    if time_ranges.len() > 1 {
+        check_time_ranges_overlap(&vd.name, &time_ranges, line, errors);
+    }
+}
+
+fn collect_valid_value_selectors(vd: &crate::ast::ValueDef) -> Vec<&RangeSelector> {
+    let mut selectors = Vec::new();
+    for prop in &vd.properties {
+        if let Property::ValidValues(stmts) = prop {
+            for stmt in stmts {
+                match &stmt.kind {
+                    StatementKind::Constraint(_, _, sel) => selectors.push(sel),
+                    StatementKind::EventProgression(_, cases) => {
+                        for case in cases {
+                            selectors.push(&case.condition);
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    selectors
+}
+
+fn extract_datetime_ranges(
+    selector: &RangeSelector,
+    base: chrono::NaiveDateTime,
+    date_ranges: &mut Vec<(chrono::NaiveDateTime, chrono::NaiveDateTime)>,
+    time_ranges: &mut Vec<(chrono::NaiveTime, chrono::NaiveTime)>,
+    line: usize,
+    errors: &mut Vec<EngineError>,
+) {
+    match selector {
+        RangeSelector::Range(min, max) | RangeSelector::Between(min, max) => {
+            match (parse_time_of_day(min), parse_time_of_day(max)) {
+                (Some(start), Some(end)) => {
+                    time_ranges.push((start, end));
+                    return;
+                }
+                (None, None) => {}
+                _ => {
+                    errors.push(EngineError {
+                        message: "Valid value ranges must use consistent date/time or time-of-day bounds."
+                            .to_string(),
+                        line,
+                        column: 0,
+                    });
+                    return;
+                }
+            }
+
+            match (parse_datetime_expr(min, base), parse_datetime_expr(max, base)) {
+                (Some(start), Some(end)) => {
+                    if start > end {
+                        errors.push(EngineError {
+                            message: "Date/time ranges must have start before end.".to_string(),
+                            line,
+                            column: 0,
+                        });
+                    } else {
+                        date_ranges.push((start, end));
+                    }
+                }
+                _ => {
+                    errors.push(EngineError {
+                        message: "Valid value ranges must use date/time literals or relative times."
+                            .to_string(),
+                        line,
+                        column: 0,
+                    });
+                }
+            }
+        }
+        RangeSelector::Equals(expr) => {
+            if let Some(time) = parse_time_of_day(expr) {
+                time_ranges.push((time, time));
+                return;
+            }
+            if let Some(dt) = parse_datetime_expr(expr, base) {
+                date_ranges.push((dt, dt));
+                return;
+            }
+            errors.push(EngineError {
+                message: "Valid value ranges must use date/time literals or time-of-day values."
+                    .to_string(),
+                line,
+                column: 0,
+            });
+        }
+        RangeSelector::List(items) => {
+            for item in items {
+                extract_datetime_ranges(&RangeSelector::Equals(item.clone()), base, date_ranges, time_ranges, line, errors);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn parse_datetime_expr(
+    expr: &Expression,
+    base: chrono::NaiveDateTime,
+) -> Option<chrono::NaiveDateTime> {
+    match expr {
+        Expression::Literal(Literal::Date(value)) => parse_date_time_literal(value),
+        Expression::RelativeTime(val, unit, dir) => {
+            let amount = *val;
+            let sign = match dir {
+                crate::ast::RelativeDirection::Ago => -1.0,
+                crate::ast::RelativeDirection::FromNow => 1.0,
+            };
+            let value = amount * sign;
+            match unit {
+                Unit::Second => Some(base + chrono::Duration::seconds(value as i64)),
+                Unit::Minute => Some(base + chrono::Duration::minutes(value as i64)),
+                Unit::Hour => Some(base + chrono::Duration::hours(value as i64)),
+                Unit::Day => Some(base + chrono::Duration::days(value as i64)),
+                Unit::Week => Some(base + chrono::Duration::weeks(value as i64)),
+                Unit::Month | Unit::Year => {
+                    let months = if matches!(unit, Unit::Year) {
+                        (value.trunc() as i32) * 12
+                    } else {
+                        value.trunc() as i32
+                    };
+                    Some(shift_months(base, months))
+                }
+                _ => None,
+            }
+        }
+        Expression::Variable(name) if name == "now" => Some(base),
+        _ => None,
+    }
+}
+
+fn parse_date_time_literal(value: &str) -> Option<chrono::NaiveDateTime> {
+    if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(value, "%Y-%m-%d %H:%M") {
+        return Some(dt);
+    }
+    if let Ok(dt) = chrono::NaiveDateTime::parse_from_str(value, "%Y-%m-%d %-H:%M") {
+        return Some(dt);
+    }
+    if let Ok(date) = chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d") {
+        return date.and_hms_opt(0, 0, 0);
+    }
+    None
+}
+
+fn parse_time_of_day(expr: &Expression) -> Option<chrono::NaiveTime> {
+    match expr {
+        Expression::Literal(Literal::TimeOfDay(value)) => {
+            chrono::NaiveTime::parse_from_str(value, "%H:%M")
+                .or_else(|_| chrono::NaiveTime::parse_from_str(value, "%-H:%M"))
+                .ok()
+        }
+        Expression::Literal(Literal::String(value)) => chrono::NaiveTime::parse_from_str(value, "%H:%M")
+            .or_else(|_| chrono::NaiveTime::parse_from_str(value, "%-H:%M"))
+            .ok(),
+        _ => None,
+    }
+}
+
+fn check_datetime_ranges_overlap(
+    name: &str,
+    ranges: &[(chrono::NaiveDateTime, chrono::NaiveDateTime)],
+    line: usize,
+    errors: &mut Vec<EngineError>,
+) {
+    if ranges.len() < 2 {
+        return;
+    }
+    let mut sorted = ranges.to_vec();
+    sorted.sort_by(|a, b| a.0.cmp(&b.0));
+    let mut current = sorted[0];
+    for range in sorted.into_iter().skip(1) {
+        if range.0 <= current.1 {
+            errors.push(EngineError {
+                message: format!(
+                    "Constraint Violation: Valid values for '{}' have overlapping date/time ranges.",
+                    name
+                ),
+                line,
+                column: 0,
+            });
+            return;
+        }
+        if range.1 > current.1 {
+            current = range;
+        } else {
+            current = range;
+        }
+    }
+}
+
+fn check_time_ranges_overlap(
+    name: &str,
+    ranges: &[(chrono::NaiveTime, chrono::NaiveTime)],
+    line: usize,
+    errors: &mut Vec<EngineError>,
+) {
+    use chrono::Timelike;
+    if ranges.len() < 2 {
+        return;
+    }
+    let mut intervals: Vec<(i32, i32)> = Vec::new();
+    for (start, end) in ranges {
+        let start_min = (start.num_seconds_from_midnight() / 60) as i32;
+        let end_min = (end.num_seconds_from_midnight() / 60) as i32;
+        if start_min <= end_min {
+            intervals.push((start_min, end_min));
+        } else {
+            intervals.push((start_min, 24 * 60));
+            intervals.push((0, end_min));
+        }
+    }
+
+    intervals.sort_by(|a, b| a.0.cmp(&b.0));
+    let mut current = intervals[0];
+    for range in intervals.into_iter().skip(1) {
+        if range.0 <= current.1 {
+            errors.push(EngineError {
+                message: format!(
+                    "Constraint Violation: Valid values for '{}' have overlapping time-of-day ranges.",
+                    name
+                ),
+                line,
+                column: 0,
+            });
+            return;
+        }
+        if range.1 > current.1 {
+            current = range;
+        } else {
+            current = range;
+        }
+    }
+}
+
+fn shift_months(base: chrono::NaiveDateTime, months: i32) -> chrono::NaiveDateTime {
+    use chrono::Datelike;
+    let date = base.date();
+    let time = base.time();
+    let (year, month) = (date.year(), date.month() as i32);
+    let total = month - 1 + months;
+    let new_year = year + total.div_euclid(12);
+    let new_month = total.rem_euclid(12) + 1;
+    let last_day = last_day_of_month(new_year, new_month as u32);
+    let day = date.day().min(last_day);
+    let new_date = chrono::NaiveDate::from_ymd_opt(new_year, new_month as u32, day)
+        .unwrap_or(date);
+    new_date.and_time(time)
+}
+
+fn last_day_of_month(year: i32, month: u32) -> u32 {
+    use chrono::Datelike;
+    let (next_year, next_month) = if month == 12 {
+        (year + 1, 1)
+    } else {
+        (year, month + 1)
+    };
+    let first_next = chrono::NaiveDate::from_ymd_opt(next_year, next_month, 1).unwrap();
+    let last = first_next - chrono::Duration::days(1);
+    last.day()
+}
+
+fn build_unit_map(defs: &[Definition]) -> HashMap<String, Unit> {
+    let mut unit_map = HashMap::new();
+    for def in defs {
+        if let Definition::Unit(ud) = def {
+            let canonical = Unit::Custom(ud.name.clone());
+            unit_map.insert(ud.name.clone(), canonical.clone());
+            for name in &ud.singulars {
+                unit_map.insert(name.clone(), canonical.clone());
+            }
+            for name in &ud.plurals {
+                unit_map.insert(name.clone(), canonical.clone());
+            }
+            for name in &ud.abbreviations {
+                unit_map.insert(name.clone(), canonical.clone());
+            }
+        }
+    }
+    unit_map
+}
+
+fn canonicalize_unit(unit: &Unit, unit_map: &HashMap<String, Unit>) -> Unit {
+    match unit {
+        Unit::Custom(name) => unit_map.get(name).cloned().unwrap_or_else(|| unit.clone()),
+        _ => unit.clone(),
+    }
+}
+
+fn expected_unit_for_value_def(vd: &crate::ast::ValueDef, unit_map: &HashMap<String, Unit>) -> Option<Unit> {
+    if !matches!(vd.value_type, crate::domain::ValueType::Number) {
+        return None;
+    }
+
+    for prop in &vd.properties {
+        if let Property::Unit(unit) = prop {
+            return Some(canonicalize_unit(unit, unit_map));
+        }
+    }
+
+    for prop in &vd.properties {
+        match prop {
+            Property::ValidValues(stmts) => {
+                if let Some(unit) = unit_from_statements(stmts, unit_map) {
+                    return Some(unit);
+                }
+            }
+            Property::Meaning(cases) => {
+                if let Some(unit) = unit_from_cases(cases, unit_map) {
+                    return Some(unit);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    None
+}
+
+fn unit_from_statements(stmts: &[Statement], unit_map: &HashMap<String, Unit>) -> Option<Unit> {
+    for stmt in stmts {
+        let unit = match &stmt.kind {
+            StatementKind::Constraint(_, _, selector) => unit_from_selector(selector, unit_map),
+            StatementKind::EventProgression(_, cases) => unit_from_cases(cases, unit_map),
+            _ => None,
+        };
+        if unit.is_some() {
+            return unit;
+        }
+    }
+    None
+}
+
+fn unit_from_cases(cases: &[crate::ast::AssessmentCase], unit_map: &HashMap<String, Unit>) -> Option<Unit> {
+    for case in cases {
+        if let Some(unit) = unit_from_selector(&case.condition, unit_map) {
+            return Some(unit);
+        }
+    }
+    None
+}
+
+fn unit_from_selector(selector: &RangeSelector, unit_map: &HashMap<String, Unit>) -> Option<Unit> {
+    match selector {
+        RangeSelector::Range(min, max) | RangeSelector::Between(min, max) => {
+            unit_from_expression(min, unit_map).or_else(|| unit_from_expression(max, unit_map))
+        }
+        RangeSelector::Equals(expr) => unit_from_expression(expr, unit_map),
+        RangeSelector::List(items) => {
+            for item in items {
+                if let Some(unit) = unit_from_expression(item, unit_map) {
+                    return Some(unit);
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
+fn unit_from_expression(expr: &Expression, unit_map: &HashMap<String, Unit>) -> Option<Unit> {
+    match expr {
+        Expression::Literal(Literal::Quantity(_, unit, _)) => {
+            Some(canonicalize_unit(unit, unit_map))
+        }
+        _ => None,
+    }
+}
+
+fn check_assignment_units_precision_block(
+    stmts: &[Statement],
+    calculation_owner: Option<&str>,
+    value_units: &HashMap<String, Unit>,
+    value_precision: &HashMap<String, PrecisionInfo>,
+    unit_map: &HashMap<String, Unit>,
+    errors: &mut Vec<EngineError>,
+) {
+    for stmt in stmts {
+        check_assignment_units_precision_stmt(
+            stmt,
+            calculation_owner,
+            value_units,
+            value_precision,
+            unit_map,
+            errors,
+        );
+    }
+}
+
+fn check_assignment_units_precision_stmt(
+    stmt: &Statement,
+    calculation_owner: Option<&str>,
+    value_units: &HashMap<String, Unit>,
+    value_precision: &HashMap<String, PrecisionInfo>,
+    unit_map: &HashMap<String, Unit>,
+    errors: &mut Vec<EngineError>,
+) {
+    match &stmt.kind {
+        StatementKind::Assignment(assign) => {
+            let mut target = runtime::normalize_identifier(&assign.target);
+            if target == "value" {
+                if let Some(owner) = calculation_owner {
+                    target = runtime::normalize_identifier(owner);
+                }
+            }
+
+            let expected_unit = match value_units.get(&target) {
+                Some(unit) => unit.clone(),
+                None => return,
+            };
+
+            let expected_precision = match value_precision.get(&target).and_then(|info| info.decimals) {
+                Some(precision) => precision,
+                None => return,
+            };
+
+            check_expression_unit_precision(
+                &assign.expression,
+                &expected_unit,
+                expected_precision,
+                value_units,
+                value_precision,
+                unit_map,
+                &target,
+                stmt.line,
+                errors,
+            );
+        }
+        StatementKind::Timeframe(tb) => {
+            check_assignment_units_precision_block(
+                &tb.block,
+                calculation_owner,
+                value_units,
+                value_precision,
+                unit_map,
+                errors,
+            );
+        }
+        StatementKind::ContextBlock(cb) => {
+            check_assignment_units_precision_block(
+                &cb.statements,
+                calculation_owner,
+                value_units,
+                value_precision,
+                unit_map,
+                errors,
+            );
+        }
+        StatementKind::Conditional(cond) => {
+            for case in &cond.cases {
+                check_assignment_units_precision_block(
+                    &case.block,
+                    calculation_owner,
+                    value_units,
+                    value_precision,
+                    unit_map,
+                    errors,
+                );
+            }
+        }
+        _ => {}
+    }
+}
+
+fn check_expression_unit_precision(
+    expr: &Expression,
+    expected_unit: &Unit,
+    expected_precision: usize,
+    value_units: &HashMap<String, Unit>,
+    value_precision: &HashMap<String, PrecisionInfo>,
+    unit_map: &HashMap<String, Unit>,
+    target: &str,
+    line: usize,
+    errors: &mut Vec<EngineError>,
+) {
+    match expr {
+        Expression::Literal(Literal::Quantity(_, unit, decimals)) => {
+            let unit = canonicalize_unit(unit, unit_map);
+            if unit != *expected_unit {
+                errors.push(EngineError {
+                    message: format!(
+                        "Assignment to '{}' requires unit '{}', but found '{}'.",
+                        target, expected_unit, unit
+                    ),
+                    line,
+                    column: 0,
+                });
+            }
+            let precision = decimals.unwrap_or(0);
+            if precision != expected_precision {
+                errors.push(EngineError {
+                    message: format!(
+                        "Assignment to '{}' requires precision {}, but found {}.",
+                        target, expected_precision, precision
+                    ),
+                    line,
+                    column: 0,
+                });
+            }
+        }
+        Expression::Literal(Literal::Number(_, decimals)) => {
+            let precision = decimals.unwrap_or(0);
+            errors.push(EngineError {
+                message: format!(
+                    "Assignment to '{}' requires unit '{}' with precision {}, but found unitless number (precision {}).",
+                    target, expected_unit, expected_precision, precision
+                ),
+                line,
+                column: 0,
+            });
+        }
+        Expression::Variable(name) => {
+            let normalized = runtime::normalize_identifier(name);
+            if let Some(unit) = value_units.get(&normalized) {
+                if *unit != *expected_unit {
+                    errors.push(EngineError {
+                        message: format!(
+                            "Assignment to '{}' requires unit '{}', but '{}' uses unit '{}'.",
+                            target, expected_unit, normalized, unit
+                        ),
+                        line,
+                        column: 0,
+                    });
+                }
+                let precision = value_precision
+                    .get(&normalized)
+                    .and_then(|info| info.decimals)
+                    .unwrap_or(0);
+                if precision != expected_precision {
+                    errors.push(EngineError {
+                        message: format!(
+                            "Assignment to '{}' requires precision {}, but '{}' uses precision {}.",
+                            target, expected_precision, normalized, precision
+                        ),
+                        line,
+                        column: 0,
+                    });
+                }
+            } else {
+                errors.push(EngineError {
+                    message: format!(
+                        "Assignment to '{}' requires numeric values with unit '{}', but '{}' is not numeric.",
+                        target, expected_unit, normalized
+                    ),
+                    line,
+                    column: 0,
+                });
+            }
+        }
+        Expression::Binary(left, _op, right) => {
+            check_expression_unit_precision(
+                left,
+                expected_unit,
+                expected_precision,
+                value_units,
+                value_precision,
+                unit_map,
+                target,
+                line,
+                errors,
+            );
+            check_expression_unit_precision(
+                right,
+                expected_unit,
+                expected_precision,
+                value_units,
+                value_precision,
+                unit_map,
+                target,
+                line,
+                errors,
+            );
+        }
+        Expression::Statistical(func) => match func {
+            crate::ast::StatisticalFunc::CountOf(_, _) => {
+                if expected_precision != 0 {
+                    errors.push(EngineError {
+                        message: format!(
+                            "Assignment to '{}' requires precision {}, but 'count of' yields precision 0.",
+                            target, expected_precision
+                        ),
+                        line,
+                        column: 0,
+                    });
+                }
+            }
+            crate::ast::StatisticalFunc::AverageOf(name, _)
+            | crate::ast::StatisticalFunc::MinOf(name)
+            | crate::ast::StatisticalFunc::MaxOf(name) => {
+                check_expression_unit_precision(
+                    &Expression::Variable(name.clone()),
+                    expected_unit,
+                    expected_precision,
+                    value_units,
+                    value_precision,
+                    unit_map,
+                    target,
+                    line,
+                    errors,
+                );
+            }
+            crate::ast::StatisticalFunc::TrendOf(_) => {
+                errors.push(EngineError {
+                    message: format!(
+                        "Assignment to '{}' requires numeric values; 'trend of' is not numeric.",
+                        target
+                    ),
+                    line,
+                    column: 0,
+                });
+            }
+        },
+        Expression::DateDiff(unit, _, _) => {
+            let unit = canonicalize_unit(unit, unit_map);
+            if unit != *expected_unit {
+                errors.push(EngineError {
+                    message: format!(
+                        "Assignment to '{}' requires unit '{}', but date diff returns '{}'.",
+                        target, expected_unit, unit
+                    ),
+                    line,
+                    column: 0,
+                });
+            }
+        }
+        Expression::RelativeTime(_, _, _)
+        | Expression::InterpolatedString(_)
+        | Expression::FunctionCall(_, _)
+        | Expression::Literal(Literal::String(_))
+        | Expression::Literal(Literal::TimeOfDay(_))
+        | Expression::Literal(Literal::Date(_)) => {
+            errors.push(EngineError {
+                message: format!(
+                    "Assignment to '{}' requires numeric values with unit '{}' and precision {}.",
+                    target, expected_unit, expected_precision
+                ),
+                line,
+                column: 0,
+            });
+        }
     }
 }
 

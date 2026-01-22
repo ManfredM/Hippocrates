@@ -2,6 +2,7 @@ pub mod environment;
 pub mod evaluator;
 mod evaluator_tests;
 pub mod executor;
+pub mod input_validation;
 pub mod scheduler;
 pub mod session;
 pub mod validator;

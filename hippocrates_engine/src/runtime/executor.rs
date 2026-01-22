@@ -1,6 +1,6 @@
 use crate::ast::{Action, Block, Statement, StatementKind};
 use crate::domain::Unit;
-use crate::runtime::{Environment, Evaluator, format_identifier, normalize_identifier, scheduler::Scheduler};
+use crate::runtime::{input_validation, Environment, Evaluator, format_identifier, normalize_identifier, scheduler::Scheduler};
 use chrono::{NaiveDateTime, NaiveTime, Timelike};
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
@@ -822,6 +822,22 @@ impl Executor {
         self.wait_for_answer(env, q)
     }
 
+    fn apply_input(&mut self, env: &mut Environment, msg: &crate::domain::InputMessage) -> bool {
+        let validation =
+            input_validation::validate_input_value(&env.definitions, &msg.variable, &msg.value);
+        if let Err(reason) = validation {
+            self.emit_log(
+                format!("Rejected answer for '{}': {}", msg.variable, reason),
+                crate::domain::EventType::Log,
+                env.now,
+            );
+            return false;
+        }
+
+        env.set_value_at(&msg.variable, msg.value.clone(), msg.timestamp);
+        true
+    }
+
     fn wait_for_answer(&mut self, env: &mut Environment, target: &str) -> bool {
         let rx_opt = self.input_receiver.take();
         let mut answered = false;
@@ -864,26 +880,28 @@ impl Executor {
                             }
 
                             if normalized == target {
-                                env.set_value_at(&normalized, msg.value.clone(), msg.timestamp);
-                                self.emit_log(
-                                    format!("Received Answer: {:?}", msg.value),
-                                    crate::domain::EventType::Answer,
-                                    env.now,
-                                );
-                                env.log_audit(
-                                    crate::domain::EventType::Decision,
-                                    format!(
-                                        "Answered question for '{}' with value: {:?}",
-                                        msg.variable, msg.value
-                                    ),
-                                    Some("AnswerQuestion".to_string()),
-                                );
+                                if self.apply_input(env, &msg) {
+                                    self.emit_log(
+                                        format!("Received Answer: {:?}", msg.value),
+                                        crate::domain::EventType::Answer,
+                                        env.now,
+                                    );
+                                    env.log_audit(
+                                        crate::domain::EventType::Decision,
+                                        format!(
+                                            "Answered question for '{}' with value: {:?}",
+                                            msg.variable, msg.value
+                                        ),
+                                        Some("AnswerQuestion".to_string()),
+                                    );
 
-                                self.check_triggers(env, &normalized);
-                                answered = true;
+                                    self.check_triggers(env, &normalized);
+                                    answered = true;
+                                }
                             } else {
-                                env.set_value_at(&normalized, msg.value.clone(), msg.timestamp);
-                                self.check_triggers(env, &normalized);
+                                if self.apply_input(env, &msg) {
+                                    self.check_triggers(env, &normalized);
+                                }
                             }
 
                             if answered {
@@ -920,26 +938,28 @@ impl Executor {
                             }
 
                             if normalized == target {
-                                env.set_value_at(&normalized, msg.value.clone(), msg.timestamp);
-                                self.emit_log(
-                                    format!("Received Answer: {:?}", msg.value),
-                                    crate::domain::EventType::Answer,
-                                    env.now,
-                                );
-                                env.log_audit(
-                                    crate::domain::EventType::Decision,
-                                    format!(
-                                        "Answered question for '{}' with value: {:?}",
-                                        msg.variable, msg.value
-                                    ),
-                                    Some("AnswerQuestion".to_string()),
-                                );
+                                if self.apply_input(env, &msg) {
+                                    self.emit_log(
+                                        format!("Received Answer: {:?}", msg.value),
+                                        crate::domain::EventType::Answer,
+                                        env.now,
+                                    );
+                                    env.log_audit(
+                                        crate::domain::EventType::Decision,
+                                        format!(
+                                            "Answered question for '{}' with value: {:?}",
+                                            msg.variable, msg.value
+                                        ),
+                                        Some("AnswerQuestion".to_string()),
+                                    );
 
-                                self.check_triggers(env, &normalized);
-                                answered = true;
+                                    self.check_triggers(env, &normalized);
+                                    answered = true;
+                                }
                             } else {
-                                env.set_value_at(&normalized, msg.value.clone(), msg.timestamp);
-                                self.check_triggers(env, &normalized);
+                                if self.apply_input(env, &msg) {
+                                    self.check_triggers(env, &normalized);
+                                }
                             }
 
                             if answered {
@@ -1094,9 +1114,10 @@ impl Executor {
         self.pending_inputs = remaining;
 
         for msg in due {
-            env.set_value_at(&msg.variable, msg.value.clone(), msg.timestamp);
-            if with_triggers {
-                self.check_triggers(env, &msg.variable);
+            if self.apply_input(env, &msg) {
+                if with_triggers {
+                    self.check_triggers(env, &msg.variable);
+                }
             }
         }
     }
@@ -1119,25 +1140,27 @@ impl Executor {
 
         for msg in due {
             if msg.variable == target && !answered {
-                env.set_value_at(&msg.variable, msg.value.clone(), msg.timestamp);
-                self.emit_log(
-                    format!("Received Answer: {:?}", msg.value),
-                    crate::domain::EventType::Answer,
-                    env.now,
-                );
-                env.log_audit(
-                    crate::domain::EventType::Decision,
-                    format!(
-                        "Answered question for '{}' with value: {:?}",
-                        msg.variable, msg.value
-                    ),
-                    Some("AnswerQuestion".to_string()),
-                );
-                self.check_triggers(env, &msg.variable);
-                answered = true;
+                if self.apply_input(env, &msg) {
+                    self.emit_log(
+                        format!("Received Answer: {:?}", msg.value),
+                        crate::domain::EventType::Answer,
+                        env.now,
+                    );
+                    env.log_audit(
+                        crate::domain::EventType::Decision,
+                        format!(
+                            "Answered question for '{}' with value: {:?}",
+                            msg.variable, msg.value
+                        ),
+                        Some("AnswerQuestion".to_string()),
+                    );
+                    self.check_triggers(env, &msg.variable);
+                    answered = true;
+                }
             } else {
-                env.set_value_at(&msg.variable, msg.value.clone(), msg.timestamp);
-                self.check_triggers(env, &msg.variable);
+                if self.apply_input(env, &msg) {
+                    self.check_triggers(env, &msg.variable);
+                }
             }
         }
 

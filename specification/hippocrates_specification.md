@@ -110,7 +110,7 @@ quantity = number, [ " " ], unit;
 Informative: Numeric literals in user scripts are expressed as quantities with units; unitless numbers are invalid. (See REQ-3.2-05.)
 Informative: Built-in units are reserved and cannot be redefined or aliased in unit definitions. (See REQ-4.1-01.)
 
-Informative: Integer ranges (e.g., `0 <points> ... 10 <points>`) use step size 1; decimal ranges (e.g., `0.0 mg ... 10.0 mg`) use the smallest declared decimal precision (step size `10^-precision`). (See REQ-4.4-08.)
+Informative: Precision is defined by the number of digits after the decimal point (e.g., `0` → precision 0, `0.0` → precision 1, `0.00` → precision 2). Each numeric valid value range uses the same precision for both bounds, and all ranges in a `valid values` block share the same precision. Integer ranges (e.g., `0 <points> ... 10 <points>`) use step size 1; decimal ranges (e.g., `0.0 mg ... 10.0 mg`) use the declared precision (step size `10^-precision`). (See REQ-4.4-08, REQ-4.4-12.)
 
 ### 3.3. Program Structure
 
@@ -543,6 +543,7 @@ Informative: Statistical functions are evaluated within an analysis timeframe. U
 Requirements:
 - REQ-4.1-01: built-in units cannot be redefined.
 - REQ-4.1-02: unit conversions are supported within compatible groups.
+- REQ-4.1-03: calculations and assignments require matching units and precision.
 
 
 
@@ -561,7 +562,7 @@ Additional standard units are recognized as distinct groups:
 * **Pressure**: mmHg
 * **Clinical**: bpm, mg/dL, mmol/L (mg/dL and mmol/L are convertible)
 
-Informative: The runtime checks that values compared or assigned have compatible units (belong to the same group). (See REQ-4.1-02.)
+Informative: The runtime checks that values compared have compatible units (belong to the same group). Calculations and assignments require exact unit matches and the same numeric precision as the target value. (See REQ-4.1-02, REQ-4.1-03.)
 
 #### Unit Normalization
 
@@ -582,6 +583,7 @@ Requirements:
 - REQ-4.2-04: ask requires a question property on the value.
 - REQ-4.2-05: unit requirement errors report line numbers.
 - REQ-4.2-06: numbers and enumerations must define valid values.
+- REQ-4.2-07: valid value ranges must not overlap.
 
 
 
@@ -589,6 +591,7 @@ Requirements:
 * **Numbers and Enumerations**: Informative — `valid values` are defined. (See REQ-4.2-06.)
 * **Numbers**: Informative — a unit is defined (via `unit is ...` or by using quantities in `valid values`). (See REQ-4.2-01, REQ-4.2-03.)
 * **Asking**: Informative — `ask` is only valid when a value has a `question` property. (See REQ-4.2-04.)
+* **Valid Values**: Informative — valid value ranges are non-overlapping (including numeric, date/time, and time-of-day ranges); use disjoint ranges when multiple intervals are needed. (See REQ-4.2-07.)
 
 ### 4.3. Data Flow and Validity
 
@@ -620,6 +623,7 @@ Requirements:
 - REQ-4.4-09: overlapping ranges are rejected.
 - REQ-4.4-10: missing coverage yields a validation error.
 - REQ-4.4-11: trend assessments require full coverage.
+- REQ-4.4-12: numeric valid value ranges use consistent precision across bounds and intervals.
 
 
 
@@ -696,6 +700,15 @@ Before execution, the runtime validates that:
 1. All `assess` blocks and `meaning` cases cover the complete valid range of the target value.
 2. No values are used before they are initialized or asked.
 3. All referenced variables and units are compatible.
+
+### 5.2 Input Validation
+
+Requirements:
+- REQ-5.2-01: numeric answers must respect the decimal precision implied by valid values.
+
+
+
+Informative: Integer valid values (e.g., `0 hours ... 24 hours`) reject fractional inputs; decimal ranges allow their declared precision. (See REQ-5.2-01.)
 
 ## 6. Examples by Feature
 
@@ -800,6 +813,28 @@ during plan:
     ask <body temperature>.
 ```
 
+### 6.7. Date/Time Intake Questions
+
+```hippocrates
+<time of injury> is a date/time:
+    valid values:
+        10 days ago ... now.
+    question:
+        ask "When did the injury happen?".
+
+<hours since meal> is a number:
+    unit is hours.
+    valid values:
+        0 hours ... 24 hours.
+    question:
+        ask "How many hours ago did you eat?".
+
+<intake> is a plan:
+    during plan:
+        ask <time of injury>.
+        ask <hours since meal>.
+```
+
 ## 7. Requirements Index
 
 - REQ-2-01: identifiers must use angle brackets.
@@ -858,12 +893,14 @@ during plan:
 - REQ-3.12-06: date diff expressions parse.
 - REQ-4.1-01: built-in units cannot be redefined.
 - REQ-4.1-02: unit conversions are supported within compatible groups.
+- REQ-4.1-03: calculations and assignments require matching units and precision.
 - REQ-4.2-01: numeric valid values require units.
 - REQ-4.2-02: assessment ranges require units.
 - REQ-4.2-03: numeric definitions require units.
 - REQ-4.2-04: ask requires a question property on the value.
 - REQ-4.2-05: unit requirement errors report line numbers.
 - REQ-4.2-06: numbers and enumerations must define valid values.
+- REQ-4.2-07: valid value ranges must not overlap.
 - REQ-4.3-01: values cannot be used before assignment.
 - REQ-4.3-02: calculation properties do not seed values.
 - REQ-4.3-03: statistical functions do not require local initialization.
@@ -879,6 +916,7 @@ during plan:
 - REQ-4.4-09: overlapping ranges are rejected.
 - REQ-4.4-10: missing coverage yields a validation error.
 - REQ-4.4-11: trend assessments require full coverage.
+- REQ-4.4-12: numeric valid value ranges use consistent precision across bounds and intervals.
 - REQ-4.5-01: interval math supports range compliance checks.
 - REQ-4.5-02: assignment range compliance fails when out of bounds.
 - REQ-4.6-01: timeframe calculations require Not enough data handling.
@@ -888,5 +926,6 @@ during plan:
 - REQ-4.7-01: date/time valid value ranges evaluate using date/time and time-of-day semantics.
 - REQ-4.7-02: date diff expressions evaluate to quantities in requested units.
 - REQ-5-01: runtime executes assignments and actions in order.
-- REQ-5.1-01: full-plan validation passes for a complete plan.
 - REQ-5-02: reuse timeframes prevent re-asking within the validity window.
+- REQ-5.1-01: full-plan validation passes for a complete plan.
+- REQ-5.2-01: numeric answers must respect the decimal precision implied by valid values.

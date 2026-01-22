@@ -83,6 +83,7 @@
 ## §4.1 Core Unit Groups and Conversion
 - REQ-4.1-01 — `tests/spec/units.rs::spec_builtin_units_cannot_be_redefined` — built-in units cannot be redefined.
 - REQ-4.1-02 — `tests/spec/units.rs::spec_unit_conversions_within_groups` — unit conversions are supported within compatible groups.
+- REQ-4.1-03 — `tests/spec/units.rs::spec_assignment_requires_unit_and_precision_match` — calculations and assignments require matching units and precision.
 
 ## §4.2 Required Properties
 - REQ-4.2-01 — `tests/spec/validation.rs::spec_unit_requirement_validation` — numeric valid values require units.
@@ -91,6 +92,8 @@
 - REQ-4.2-04 — `tests/spec/validation.rs::spec_ask_requires_question_property` — ask requires a question property on the value.
 - REQ-4.2-05 — `tests/spec/validation.rs::spec_validation_error_line_number` — unit requirement errors report line numbers.
 - REQ-4.2-06 — `tests/spec/validation.rs::spec_missing_valid_values_fails` — numbers and enumerations must define valid values.
+- REQ-4.2-07 — `tests/spec/validation.rs::spec_valid_values_ranges_do_not_overlap` — valid value ranges must not overlap.
+- REQ-4.2-07 — `tests/spec/validation.rs::spec_valid_values_datetime_ranges_do_not_overlap` — date/time valid value ranges must not overlap.
 
 ## §4.3 Data Flow and Validity
 - REQ-4.3-01 — `tests/spec/validation.rs::spec_data_flow_use_before_assignment_fails` — values cannot be used before assignment.
@@ -110,6 +113,7 @@
 - REQ-4.4-09 — `tests/spec/validation.rs::spec_range_overlap` — overlapping ranges are rejected.
 - REQ-4.4-10 — `tests/spec/validation.rs::spec_reproduce_missing_error` — missing coverage yields a validation error.
 - REQ-4.4-11 — `tests/spec/validation.rs::spec_trend_requires_full_coverage` — trend assessments require full coverage.
+- REQ-4.4-12 — `tests/spec/validation.rs::spec_precision_consistency` — numeric valid value ranges use consistent precision across bounds and intervals.
 
 ## §4.5 Range Compliance (Pre-Run Validation)
 - REQ-4.5-01 — `tests/spec/validation.rs::spec_interval_creation_and_math` — interval math supports range compliance checks.
@@ -131,6 +135,9 @@
 
 ## §5.1 Validation Logic
 - REQ-5.1-01 — `tests/spec/validation.rs::spec_validate_plan_fixture_suite` — full-plan validation passes for a complete plan.
+
+## §5.2 Input Validation
+- REQ-5.2-01 — `tests/spec/execution.rs::spec_numeric_input_precision_rejection` — numeric answers must respect the decimal precision implied by valid values.
 
 ## Pending / Ignored
 None.

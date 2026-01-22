@@ -2,7 +2,7 @@
 
 use hippocrates_engine::domain::{RuntimeValue, Unit};
 use hippocrates_engine::parser;
-use hippocrates_engine::runtime::{Engine, Environment};
+use hippocrates_engine::runtime::{Engine, Environment, Executor};
 use chrono::{Utc, TimeZone, Duration as ChronoDuration};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -113,6 +113,84 @@ fn spec_date_diff_evaluation() {
 
     let result = Evaluator::evaluate(&env, &expr);
     assert_eq!(result, RuntimeValue::Quantity(10.0, Unit::Day));
+}
+
+// REQ-5.2-01: numeric answers must respect the decimal precision implied by valid values.
+#[test]
+fn spec_numeric_input_precision_rejection() {
+    use hippocrates_engine::domain::InputMessage;
+    use std::sync::atomic::AtomicBool;
+    use std::sync::mpsc;
+
+    let input = r#"
+<hours since meal> is a number:
+    unit is hours.
+    valid values:
+        0 hours ... 24 hours.
+    question:
+        ask "How many hours ago did you eat?".
+
+<intake> is a plan:
+    during plan:
+        ask <hours since meal>.
+"#;
+
+    let plan = parser::parse_plan(input.trim()).expect("Failed to parse plan");
+    let mut env = Environment::new();
+    env.load_plan(plan);
+
+    assert!(
+        env.definitions.contains_key("hours since meal"),
+        "Expected normalized value definition"
+    );
+
+    assert!(
+        hippocrates_engine::runtime::input_validation::validate_input_value(
+            &env.definitions,
+            "hours since meal",
+            &RuntimeValue::Number(10.3)
+        )
+        .is_err(),
+        "Expected precision validation to reject decimal input"
+    );
+
+    let (tx, rx) = mpsc::channel();
+    let mut executor = Executor::new(Arc::new(AtomicBool::new(false)));
+    executor.set_input_receiver(rx);
+
+    let tx_clone = tx.clone();
+    executor.set_ask_callback(Box::new(move |req: hippocrates_engine::domain::AskRequest| {
+        let now = Utc::now().naive_utc();
+        let invalid = InputMessage {
+            variable: req.variable_name.clone(),
+            value: RuntimeValue::Number(10.3),
+            timestamp: now,
+        };
+        let valid = InputMessage {
+            variable: req.variable_name.clone(),
+            value: RuntimeValue::Number(10.0),
+            timestamp: now,
+        };
+        tx_clone.send(invalid).expect("Failed to send invalid input");
+        tx_clone.send(valid).expect("Failed to send valid input");
+    }));
+
+    executor.execute_plan(&mut env, "intake");
+
+    let history = env
+        .get_history("hours since meal")
+        .expect("Expected value history");
+
+    assert!(
+        !history.iter().any(|entry| matches!(entry.value, RuntimeValue::Number(n) if (n - 10.3).abs() < 1e-9)),
+        "Decimal input should be rejected"
+    );
+
+    let last = history.last().expect("Expected final value");
+    assert!(
+        matches!(last.value, RuntimeValue::Number(n) if (n - 10.0).abs() < 1e-9),
+        "Integer input should be accepted"
+    );
 }
 
 // REQ-5-01: runtime executes assignments and actions in order.

@@ -386,6 +386,90 @@ fn spec_precision_gaps() {
     assert!(msg2.contains("10"));
 }
 
+// REQ-4.4-12: numeric valid value ranges use consistent precision across bounds and intervals.
+#[test]
+fn spec_precision_consistency() {
+    let input = r#"<val> is a number:
+    valid values:
+        0.0 mg ... 10 mg.
+"#;
+    let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
+    let result = validator::validate_file(&plan);
+    assert!(result.is_err());
+    let msg = &result.unwrap_err()[0].message;
+    assert!(msg.contains("Precision mismatch"));
+
+    let input2 = r#"<val> is a number:
+    valid values:
+        0.0 mg ... 9.0 mg.
+        10.00 mg ... 20.00 mg.
+"#;
+    let plan2 = parser::parse_plan(input2.trim()).expect("Failed to parse 2");
+    let result2 = validator::validate_file(&plan2);
+    assert!(result2.is_err());
+    let msg2 = &result2.unwrap_err()[0].message;
+    assert!(msg2.contains("Precision mismatch"));
+}
+
+// REQ-4.2-07: valid value ranges must not overlap.
+#[test]
+fn spec_valid_values_ranges_do_not_overlap() {
+    let input = r#"<val> is a number:
+    valid values:
+        0 mg ... 10 mg.
+        10 mg ... 20 mg.
+"#;
+    let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
+    let result = validator::validate_file(&plan);
+    assert!(result.is_err(), "Expected validation error for overlapping valid ranges");
+    let errors = result.unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.message.contains("Valid values") && e.message.contains("overlapping")),
+        "Expected overlapping valid values error, got {:?}",
+        errors
+    );
+}
+
+// REQ-4.2-07: valid value ranges must not overlap (date/time and time-of-day).
+#[test]
+fn spec_valid_values_datetime_ranges_do_not_overlap() {
+    let input = r#"<appointment time> is a date/time:
+    valid values:
+        2026-01-01 08:00 ... 2026-01-10 12:00.
+        2026-01-10 12:00 ... 2026-01-15 12:00.
+"#;
+    let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
+    let result = validator::validate_file(&plan);
+    assert!(result.is_err(), "Expected validation error for overlapping date/time ranges");
+    let errors = result.unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.message.contains("date/time ranges")),
+        "Expected overlapping date/time ranges error, got {:?}",
+        errors
+    );
+
+    let input2 = r#"<quiet hours> is a date/time:
+    valid values:
+        22:00 ... 02:00.
+        01:00 ... 03:00.
+"#;
+    let plan2 = parser::parse_plan(input2.trim()).expect("Failed to parse");
+    let result2 = validator::validate_file(&plan2);
+    assert!(result2.is_err(), "Expected validation error for overlapping time-of-day ranges");
+    let errors2 = result2.unwrap_err();
+    assert!(
+        errors2
+            .iter()
+            .any(|e| e.message.contains("time-of-day ranges")),
+        "Expected overlapping time-of-day ranges error, got {:?}",
+        errors2
+    );
+}
+
 // REQ-4.4-09: overlapping ranges are rejected.
 #[test]
 fn spec_range_overlap() {

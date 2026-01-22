@@ -318,26 +318,30 @@ struct ContentView: View {
         }
     }
     
-    func answer(question: AskRequest, value: String) {
-        if let engine = appState.currentEngine {
-            // Determine if value is number or string and format JSON accordingly
-            // For now, if it parses as double, treat as number (raw), else string (quoted)
-            let json: String
-            if let _ = Double(value) {
-                json = value
-            } else {
-                json = "\"\(value)\""
-            }
-            
-            _ = engine.setValue(name: question.variable_name, valueJson: json)
+    @discardableResult
+    func answer(question: AskRequest, value: String) -> Bool {
+        guard let engine = appState.currentEngine else { return false }
+
+        // Determine if value is number or string and format JSON accordingly
+        // For now, if it parses as double, treat as number (raw), else string (quoted)
+        let json: String
+        if let _ = Double(value) {
+            json = value
+        } else {
+            json = "\"\(value)\""
+        }
+
+        let success = engine.setValue(name: question.variable_name, valueJson: json)
+        if success {
             appState.answerQuestion(value: value)
         }
+        return success
     }
 }
 
 struct QuestionSheetView: View {
     let question: AskRequest
-    let onAnswer: (String) -> Void
+    let onAnswer: (String) -> Bool
     
     @State private var textInput: String = ""
     @State private var errorMessage: String?
@@ -476,7 +480,11 @@ struct QuestionSheetView: View {
         if question.validation_mode == .Twice {
             if confirmationMode {
                 if value == previousValue {
-                    onAnswer(value)
+                    if !onAnswer(value) {
+                        errorMessage = "Answer rejected. Please check the allowed format."
+                        confirmationMode = false
+                        previousValue = nil
+                    }
                 } else {
                     errorMessage = "Value mismatch! Please try again."
                     confirmationMode = false
@@ -489,7 +497,9 @@ struct QuestionSheetView: View {
                 // Visual feedback?
             }
         } else {
-            onAnswer(value)
+            if !onAnswer(value) {
+                errorMessage = "Answer rejected. Please check the allowed format."
+            }
         }
     }
     
@@ -523,7 +533,14 @@ struct QuestionSheetView: View {
         if question.validation_mode == .Twice {
              if confirmationMode {
                  if valueToSubmit == previousValue {
-                     onAnswer(valueToSubmit)
+                     if !onAnswer(valueToSubmit) {
+                         errorMessage = "Answer rejected. Please check the allowed format."
+                         confirmationMode = false
+                         previousValue = nil
+                         if question.style == .Text || question.style == .Numeric {
+                             textInput = ""
+                         }
+                     }
                  } else {
                      errorMessage = "Values do not match. Please start over."
                      confirmationMode = false
@@ -542,7 +559,9 @@ struct QuestionSheetView: View {
                  // Maybe focus field again? Swift UI automatically keeps focus usually.
              }
         } else {
-            onAnswer(valueToSubmit)
+            if !onAnswer(valueToSubmit) {
+                errorMessage = "Answer rejected. Please check the allowed format."
+            }
         }
     }
 
