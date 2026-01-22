@@ -1,5 +1,5 @@
 <point> is a unit:
-    plural is <points>
+    plural is <points>.
 
 <daily wellness check> is a plan:
     during plan:
@@ -10,13 +10,13 @@
 
 <pain level> is a number:
     valid values:
-        0 <points> ... 10 <points>
+        0 <points> ... 10 <points>.
     question:
         ask "How severe is your pain now?":
             question style is visual analogue scale:
-                best value is 0 <points>
+                best value is 0 <points>.
                 text for best value is "No pain".
-                worst value is 10 <points>
+                worst value is 10 <points>.
                 text for worst value is "Worst pain imaginable".
 
 <pain tracker> is a plan:
@@ -35,17 +35,17 @@
 
 <physician> is an addressee:
     contact information:
-        email is "dr_smith@hospital.com"
+        email is "dr_smith@hospital.com".
 
 <body temperature> is a number:
     valid values:
-        35.0 °C ... 42.0 °C
-    unit: °C
+        35.0 °C ... 42.0 °C.
+    unit: °C.
 
 <average temperature> is a number:
     valid values:
-        35.0 °C ... 42.0 °C
-    unit: °C
+        35.0 °C ... 42.0 °C.
+    unit: °C.
     calculation:
         value = average of <body temperature> over 1 day.
 
@@ -70,11 +70,11 @@
 
 <symptom severity> is a number:
     valid values:
-        0 <points> ... 10 <points>
+        0 <points> ... 10 <points>.
 
 <weekly symptom average> is a number:
     valid values:
-        0 <points> ... 10 <points>
+        0 <points> ... 10 <points>.
     calculation:
         timeframe for analysis is 7 days ago ... now:
             <weekly symptom average> = average of <symptom severity> over 7 days.
@@ -91,12 +91,12 @@
 
 <body weight> is a number:
     valid values:
-        0 kg ... 200 kg
-    unit: kg
+        0 kg ... 200 kg.
+    unit: kg.
 
 <patient age> is a number:
     valid values:
-        0 years ... 130 years
+        0 years ... 130 years.
 
 <treatment> is a plan:
     during plan:

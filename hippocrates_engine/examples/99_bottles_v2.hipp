@@ -1,13 +1,13 @@
 <bottle state> is an enumeration:
     valid values:
-        "empty"; "full"
+        "empty"; "full".
 
 <bottle> is a unit:
-    plural is <bottles>
+    plural is <bottles>.
 
 <empty bottles> is a number:
     valid values:
-        0 <bottles> ... 100 <bottles>
+        0 <bottles> ... 100 <bottles>.
 
 <99 bottles of beer> is a plan:
     begin of <99 bottles of beer>:

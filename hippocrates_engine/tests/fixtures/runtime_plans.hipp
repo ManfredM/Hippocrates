@@ -1,25 +1,25 @@
 (* --- PASS: copd_plan --- *)
 <best inhalation period> is a period:
     timeframe:
-        between Monday ... Friday; 07:40 ... 07:50
-        between Saturday ... Sunday; 09:00 ... 09:10
+        between Monday ... Friday; 07:40 ... 07:50.
+        between Saturday ... Sunday; 09:00 ... 09:10.
     customization:
         begin of <best inhalation period> can be customized together for all occurrences.
 
 <fill in evening report> is a period:
     timeframe:
-        between Monday ... Friday; 18:30 ... 18:45
-        between Saturday ... Sunday; 19:45 ... 20:00
+        between Monday ... Friday; 18:30 ... 18:45.
+        between Saturday ... Sunday; 19:45 ... 20:00.
     customization:
         begin of <fill in evening report> can be customized together for all occurrences.
 
 <point> is a unit:
-    plural is <points>
-    abbreviation is "pts"
+    plural is <points>.
+    abbreviation is "pts".
 
 <severity of breathlessness> is a number:
     valid values:
-        0 <points> ... 5 <points>
+        0 <points> ... 5 <points>.
     meaning:
         0 <points>:
             meaning of value = "None".
@@ -42,25 +42,25 @@
             style of question is <Likert scale>.
 
 <use> is a unit:
-    plural is <uses>
+    plural is <uses>.
 
 <use of rescue medication> is a number:
     valid values:
-        0 <uses> ... 10 <uses>
+        0 <uses> ... 10 <uses>.
     question:
         ask "How often did you use your rescue medication?":
             validate answer once.
             question style is visual analogue scale:
-                best value is 0 <uses>
+                best value is 0 <uses>.
                 text for best value is "No breathlessness within last 24 hours".
-                worst value is 10 <uses>
+                worst value is 10 <uses>.
                 text for worst value is "Continuous and severe breathlessness within last 24 hours".
 
 <inhaler used> is an enumeration:
     documentation:
         english: "This value records if the inhaler was used.".
     valid values:
-        "Yes"; "No"
+        "Yes"; "No".
     question:
         ask "Did you use your inhaler today?":
             validate answer once.
@@ -68,11 +68,11 @@
             style of question is <Yes/No>.
 
 <dose> is a unit:
-    plural is <doses>
+    plural is <doses>.
 
 <inhaler used in past 5 days> is a number:
     valid values:
-        0 <doses> ... 1000 <doses>
+        0 <doses> ... 1000 <doses>.
     meaning:
         0 <doses>:
             meaning of value = "all doses missed".
@@ -97,7 +97,7 @@
 
 <inhaler used in past 5 days on time> is a number:
     valid values:
-        0 <doses> ... 1000 <doses>
+        0 <doses> ... 1000 <doses>.
     meaning:
         0 <doses>:
             meaning of value = "all doses missed".
@@ -140,7 +140,7 @@
         ask for <use of rescue medication>.
 
         context for analysis:
-            timeframe: 5 days ago ... now
+            timeframe: 5 days ago ... now.
             assess trend of <use of rescue medication>:
                 "increase":
                     show message to <physician> "Alert: usage of rescue meds is increasing!".
@@ -177,14 +177,14 @@
 (* --- PASS: bottles_plan --- *)
 <bottle state> is an enumeration:
     valid values:
-        "empty"; "full"
+        "empty"; "full".
 
 <bottle> is a unit:
-    plural is <bottles>
+    plural is <bottles>.
 
 <empty bottles> is a number:
     valid values:
-        0 <bottles> ... 100 <bottles>
+        0 <bottles> ... 100 <bottles>.
 
 <99 bottles of beer> is a plan:
     every 1 hour for 100 hours:
@@ -210,11 +210,11 @@
 
 (* --- PASS: sing_plan --- *)
 <bottle> is a unit:
-    plural is <bottles>
+    plural is <bottles>.
 
 <bottle count> is a number:
     valid values:
-        0 <bottles> ... 100 <bottles>
+        0 <bottles> ... 100 <bottles>.
 
 <Sing> is a plan:
     begin of <Sing>:
@@ -241,24 +241,24 @@
 (* --- PASS: implicit_ask --- *)
 <user age> is a number:
   valid values:
-    1 year ... 130 years
+    1 year ... 130 years.
   question:
-    ask "What is your age"
+    ask "What is your age".
 
 <Age assessment> is a plan:
   during plan:
     assess <user age>:
       1 year ... 18 years:
-        show message "Quite young"
+        show message "Quite young".
       19 years ... 80 years:
-        show message "Best age"
+        show message "Best age".
       81 years ... 130 years:
-        show message "Quite old"
+        show message "Quite old".
 
 (* --- FAIL: invalid_plan --- *)
 <unitless value> is a number:
     valid values:
-        0 kg ... 10 kg
+        0 kg ... 10 kg.
 
 <Bad Plan> is a plan:
     during plan:

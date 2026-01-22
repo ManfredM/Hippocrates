@@ -188,9 +188,13 @@ fn parse_value_def(pair: pest::iterators::Pair<Rule>) -> Result<ValueDef, ParseE
     let value_type = match type_pair.as_str() {
         "a number" => ValueType::Number,
         "an enumeration" => ValueType::Enumeration,
+        "a string" => ValueType::String,
         "a time indication" => ValueType::TimeIndication,
         "a period" => ValueType::Period,
         "a plan" => ValueType::Plan,
+        "a drug" => ValueType::Drug,
+        "an addressee" => ValueType::Addressee,
+        "an addressee group" => ValueType::AddresseeGroup,
         _ => ValueType::Number,
     };
 
@@ -225,7 +229,7 @@ fn parse_period_def(pair: pest::iterators::Pair<Rule>) -> Result<PeriodDef, Pars
                         if child.as_rule() == Rule::timeframe_line {
                              let mut selectors = Vec::new();
                              for sel in child.into_inner() {
-                                 if sel.as_rule() == Rule::range_selector {
+                                 if sel.as_rule() == Rule::timeframe_selector {
                                      selectors.push(parse_range_selector(sel)?);
                                  }
                              }
@@ -270,7 +274,7 @@ fn parse_plan_block(pair: pest::iterators::Pair<Rule>) -> Result<PlanBlock, Pars
         }
         Rule::event_block => {
             let mut e_inner = inner.into_inner();
-            let name = parse_string_literal(e_inner.next().unwrap());
+            let name = parse_identifier_str(e_inner.next().unwrap());
             let trigger = parse_event_trigger(e_inner.next().unwrap())?;
             let block_body = e_inner.next().unwrap();
             let stmts = parse_block(block_body)?;
@@ -466,7 +470,7 @@ fn parse_context_def(pair: pest::iterators::Pair<Rule>) -> Result<ContextDef, Pa
             if s.starts_with("timeframe") {
                 // Find range_selector
                 for child in i_inner {
-                    if child.as_rule() == Rule::range_selector {
+                    if child.as_rule() == Rule::timeframe_selector {
                         items.push(ContextItem::Timeframe(parse_range_selector(child)?));
                         break;
                     }
@@ -719,7 +723,7 @@ fn parse_value_property(pair: pest::iterators::Pair<Rule>) -> Result<Property, P
                 if line.as_rule() == Rule::timeframe_line {
                     let mut selectors = Vec::new();
                     for sel in line.into_inner() {
-                        if sel.as_rule() == Rule::range_selector {
+                        if sel.as_rule() == Rule::timeframe_selector {
                             selectors.push(parse_range_selector(sel)?);
                         }
                     }
@@ -757,16 +761,61 @@ fn parse_value_property(pair: pest::iterators::Pair<Rule>) -> Result<Property, P
         }
 
         Rule::inheritance_prop => {
-            let ident = parse_identifier_str(inner.into_inner().next().unwrap());
-            Ok(Property::Inheritance(ident, None))
+            let mut props_inner = inner.into_inner();
+            let ident = parse_identifier_str(props_inner.next().unwrap());
+            let mut overrides = Vec::new();
+
+            for prop in props_inner {
+                if prop.as_rule() == Rule::value_property {
+                    overrides.push(parse_value_property(prop)?);
+                }
+            }
+
+            let overrides = if overrides.is_empty() { None } else { Some(overrides) };
+            Ok(Property::Inheritance(ident, overrides))
         }
-        Rule::documentation_prop => Ok(Property::Documentation("Todo".to_string())),
+        Rule::documentation_prop => {
+            let mut doc = None;
+            for child in inner.into_inner() {
+                if child.as_rule() == Rule::string_literal {
+                    doc = Some(parse_string_literal(child));
+                    break;
+                }
+                for grand in child.clone().into_inner() {
+                    if grand.as_rule() == Rule::string_literal {
+                        doc = Some(parse_string_literal(grand));
+                        break;
+                    }
+                }
+                if doc.is_some() {
+                    break;
+                }
+            }
+            Ok(Property::Documentation(doc.unwrap_or_default()))
+        }
         Rule::unit_ref_prop => { // "unit" is/[:] <unit>
             // inner: unit
             let unit_pair = inner.into_inner().next().unwrap();
             Ok(Property::Unit(parse_unit(unit_pair)?))
         }
         Rule::reuse_prop => parse_reuse_prop(inner),
+        Rule::generic_property => {
+            let mut props_inner = inner.into_inner();
+            let name = parse_identifier_str(props_inner.next().unwrap());
+            let mut content_parts: Vec<String> = Vec::new();
+
+            for part in props_inner {
+                match part.as_rule() {
+                    Rule::property_content | Rule::property_line => {
+                        content_parts.push(part.as_str().to_string());
+                    }
+                    _ => {}
+                }
+            }
+
+            let content = content_parts.join("").trim().to_string();
+            Ok(Property::Custom(name, content))
+        }
         _ => Ok(Property::Custom(inner.as_str().to_string(), "".to_string())),
     }
 }
@@ -808,10 +857,21 @@ fn parse_valid_values_block(
 ) -> Result<Vec<RangeSelector>, ParseError> {
     let mut selectors = Vec::new();
     for p in pair.into_inner() {
-        if p.as_rule() == Rule::safe_range_item {
-            // safe_range_item = { range_selector ~ !":" }
-            let inner = p.into_inner().next().unwrap();
-            selectors.push(parse_range_selector(inner)?);
+        match p.as_rule() {
+            Rule::safe_range_item => {
+                // safe_range_item = { range_selector ~ !":" }
+                let inner = p.into_inner().next().unwrap();
+                selectors.push(parse_range_selector(inner)?);
+            }
+            Rule::valid_values_line => {
+                for item in p.into_inner() {
+                    if item.as_rule() == Rule::safe_range_item {
+                        let inner = item.into_inner().next().unwrap();
+                        selectors.push(parse_range_selector(inner)?);
+                    }
+                }
+            }
+            _ => {}
         }
     }
     Ok(selectors)
@@ -882,6 +942,16 @@ fn parse_range_selector(pair: pest::iterators::Pair<Rule>) -> Result<RangeSelect
          }
          return Ok(RangeSelector::Equals(e1));
     }
+
+    if first.as_rule() == Rule::identifier || first.as_rule() == Rule::angled_identifier {
+        let ident = parse_identifier_str(first);
+        return Ok(RangeSelector::Equals(Expression::Variable(ident)));
+    }
+
+    if first.as_rule() == Rule::string_literal {
+        let s = parse_string_literal(first);
+        return Ok(RangeSelector::Equals(Expression::Literal(Literal::String(s))));
+    }
     
     // Fallback?
     Ok(RangeSelector::Equals(Expression::Literal(Literal::String(s))))
@@ -895,9 +965,39 @@ fn parse_range_selector(pair: pest::iterators::Pair<Rule>) -> Result<RangeSelect
 fn parse_block(pair: pest::iterators::Pair<Rule>) -> Result<Block, ParseError> {
     let mut stmts = Vec::new();
     for stmt in pair.into_inner() {
+        let extra_stmts = extract_question_modifier_block(&stmt)?;
         stmts.push(parse_statement(stmt)?);
+        stmts.extend(extra_stmts);
     }
     Ok(stmts)
+}
+
+fn extract_question_modifier_block(stmt: &pest::iterators::Pair<Rule>) -> Result<Vec<Statement>, ParseError> {
+    let mut extra = Vec::new();
+    let mut inner_iter = stmt.clone().into_inner();
+    let inner = match inner_iter.next() {
+        Some(i) => i,
+        None => return Ok(extra),
+    };
+
+    if inner.as_rule() == Rule::action {
+        for action_child in inner.into_inner() {
+            if action_child.as_rule() == Rule::question_modifier {
+                let mut stack = vec![action_child];
+                while let Some(node) = stack.pop() {
+                    if node.as_rule() == Rule::block_body {
+                        extra.extend(parse_block(node)?);
+                        continue;
+                    }
+                    for child in node.into_inner() {
+                        stack.push(child);
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(extra)
 }
 
 fn parse_statement(pair: pest::iterators::Pair<Rule>) -> Result<Statement, ParseError> {
@@ -976,7 +1076,7 @@ fn parse_statement(pair: pest::iterators::Pair<Rule>) -> Result<Statement, Parse
 
                         if s.starts_with("timeframe") {
                             for child in i_inner {
-                                if child.as_rule() == Rule::range_selector {
+                                if child.as_rule() == Rule::timeframe_selector {
                                     items
                                         .push(ContextItem::Timeframe(parse_range_selector(child)?));
                                     break;
@@ -1082,16 +1182,34 @@ fn parse_action(pair: pest::iterators::Pair<Rule>) -> Result<Action, ParseError>
             Ok(Action::ListenFor(ident))
         }
         Rule::simple_command => {
-            // Corrected: use inner.as_str() because inner IS the simple_command (multi_word + dot)
-            // inner.as_str() includes the dot. We should trim it.
-            let s = inner.as_str().trim_end_matches('.').trim().to_string();
-            Ok(Action::ListenFor(s))
+            let fallback = inner.as_str().trim_end_matches('.').trim().to_string();
+            let mut s_inner = inner.into_inner();
+            if let Some(ident) = s_inner.next() {
+                Ok(Action::ListenFor(parse_identifier_str(ident)))
+            } else {
+                Ok(Action::ListenFor(fallback))
+            }
         }
         Rule::question_modifier => {
             let mut q_check = inner.clone().into_inner();
             if let Some(first) = q_check.next() {
                 if first.as_rule() == Rule::validate_modifier {
                     return parse_validate_modifier(first);
+                }
+            }
+            let raw = inner.as_str().trim().trim_end_matches('.');
+
+            if raw.starts_with("type of question is") {
+                if let Some(lit) = inner.clone().into_inner().find(|p| p.as_rule() == Rule::string_literal) {
+                    let t = parse_string_literal(lit);
+                    return Ok(Action::Configure(QuestionConfig::Type(t)));
+                }
+            }
+
+            if raw.starts_with("style of question is") {
+                if let Some(ident) = inner.clone().into_inner().find(|p| p.as_rule() == Rule::identifier) {
+                    let s = parse_identifier_str(ident);
+                    return Ok(Action::Configure(QuestionConfig::Style(s)));
                 }
             }
             // detailed check for vas_block
@@ -1148,12 +1266,6 @@ fn parse_action(pair: pest::iterators::Pair<Rule>) -> Result<Action, ParseError>
             // start_period = { "start" ~ identifier ... }
             Ok(Action::StartPeriod)
         }
-        Rule::message_expiration => {
-            let mut pairs = inner.into_inner();
-            let rs_pair = pairs.next().unwrap();
-            let rs = parse_range_selector(rs_pair)?;
-            Ok(Action::MessageExpiration(rs))
-        }
         _ => Err(ParseError::UnknownRule(format!("{:?}", inner.as_rule()))),
     }
 }
@@ -1163,62 +1275,64 @@ fn parse_action(pair: pest::iterators::Pair<Rule>) -> Result<Action, ParseError>
 // -----------------------------------------------------------------------------
 
 fn parse_show_message(pairs: pest::iterators::Pairs<Rule>) -> Result<Action, ParseError> {
-    // show_message = { "show message" ~ ("to" ~ ("patient" | "physician"))? ~ (expression | NEWLINE)+ ~ flexible_block? ~ "."? }
-    // Skip "to patient" if present? No, pest pairs only contains non-silent rules.
-    // "to" etc are effectively keywords but not silent rules in grammar?
-    // Grammar: "show message" ...
-    // Pairs iterator iterates over children.
-    // My grammar for show_message doesn't have named rules for "to patient", just literals. Literals aren't produced unless atomic?
-    // Actually, string literals in rules *are* produced if not silent _
-    // But typically we look at relevant internal rules.
-    // Pairs will contain: expression, expression... and optionally flexible_block statements.
-
-    // We need to iterate and assume anything that is `expression` is message content.
-    // Anything that is `statement` (from flexible block) is a sub-statement.
-
-    // Actually, flexible_block is _{ (":" ~ ... block_body) ... }
-    // block_body = { statement+ }
-    // So pairs will contain `expression`s and then `statement`s.
-    // But `expression` matches `multi_word_identifier` too.
-
-    // Let's iterate.
-    // Wait, the first pair logic in old function was:
-    // let msg_pair = pairs.next().unwrap(); (assumed string literal)
-
-    // New logic:
     let mut message_parts = Vec::new();
-    let mut statements = Vec::new(); // If flexible block exists
+    let mut statements = Vec::new();
 
-    for p in pairs {
-        match p.as_rule() {
-            Rule::expression => {
-                message_parts.push(parse_expression(p)?);
-            }
-            Rule::statement => {
-                statements.push(parse_statement(p)?);
-            }
-            Rule::string_literal => {
-                let s = p.as_str().trim_matches('"').to_string();
-                message_parts.push(Expression::Literal(Literal::String(s)));
-            }
-            _ => {} // Ignore keywords or unknown tokens if any
-        }
+    fn push_message_expiration(
+        pair: pest::iterators::Pair<Rule>,
+        statements: &mut Vec<Statement>,
+    ) -> Result<(), ParseError> {
+        let line = pair.as_span().start_pos().line_col().0;
+        let mut inner = pair.into_inner();
+        let value_pair = inner.next().unwrap();
+        let value_inner = if value_pair.as_rule() == Rule::message_expiration_value {
+            value_pair.into_inner().next().unwrap()
+        } else {
+            value_pair
+        };
+        let expr = parse_expression(value_inner)?;
+        let rs = RangeSelector::Equals(expr);
+        statements.push(Statement {
+            kind: StatementKind::Action(Action::MessageExpiration(rs)),
+            line,
+        });
+        Ok(())
     }
 
-    // Concatenate message parts into a single string formatting structure?
-    // Action::ShowMessage expects (String, Option<Vec<Statement>>).
-    // This is a breaking change for Action::ShowMessage if it expects a single String.
-    // I should change Action::ShowMessage to (Vec<Expression>, ...) or hack it.
-    // But refactoring AST is risky if other things use it.
-    // Let's check send_info. It uses (String, Vec<Expression>).
-    // User wants complex output.
-    // I will refactor Action::ShowMessage to (Vec<Expression>, Option<Vec<Statement>>).
-    // Or I'll just change ParseShowMessage to use SendInfo action?
-    // No, AST has ShowMessage.
+    fn handle_pair(
+        pair: pest::iterators::Pair<Rule>,
+        message_parts: &mut Vec<Expression>,
+        statements: &mut Vec<Statement>,
+    ) -> Result<(), ParseError> {
+        match pair.as_rule() {
+            Rule::expression => {
+                message_parts.push(parse_expression(pair)?);
+            }
+            Rule::message_expiration => {
+                push_message_expiration(pair, statements)?;
+            }
+            Rule::message_block | Rule::message_block_line | Rule::message_property_block => {
+                for child in pair.into_inner() {
+                    handle_pair(child, message_parts, statements)?;
+                }
+            }
+            Rule::message_property => {
+                for child in pair.into_inner() {
+                    handle_pair(child, message_parts, statements)?;
+                }
+            }
+            Rule::string_literal => {
+                let s = pair.as_str().trim_matches('"').to_string();
+                message_parts.push(Expression::Literal(Literal::String(s)));
+            }
+            _ => {}
+        }
+        Ok(())
+    }
 
-    // Changing AST Action::ShowMessage check.
-    // I already checked AST, it was (String, Option...).
-    // I MUST update AST to support dynamic message.
+    for p in pairs {
+        handle_pair(p, &mut message_parts, &mut statements)?;
+    }
 
     Ok(Action::ShowMessage(
         message_parts,
@@ -1247,12 +1361,30 @@ fn parse_ask_question(pairs: pest::iterators::Pairs<Rule>) -> Result<Action, Par
                 subject = p.as_str().trim_matches('"').to_string();
             }
             Rule::statement => {
+                let mut extra_stmts = Vec::new();
+
+                let mut stmt_inner = p.clone().into_inner();
+                if let Some(stmt_first) = stmt_inner.next() {
+                    if stmt_first.as_rule() == Rule::action {
+                        for action_child in stmt_first.into_inner() {
+                            if action_child.as_rule() == Rule::question_modifier {
+                                for qm_child in action_child.into_inner() {
+                                    if qm_child.as_rule() == Rule::flexible_block {
+                                        if let Some(block_body) = qm_child.into_inner().next() {
+                                            extra_stmts.extend(parse_block(block_body)?);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 statements.push(parse_statement(p)?);
+                statements.extend(extra_stmts);
             }
             Rule::block_body => {
-                for sub in p.into_inner() {
-                    statements.push(parse_statement(sub)?);
-                }
+                statements.extend(parse_block(p)?);
             }
             _ => {}
         }

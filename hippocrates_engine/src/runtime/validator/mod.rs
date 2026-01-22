@@ -3,7 +3,7 @@ mod semantics;
 mod data_flow;
 mod coverage;
 
-use crate::ast::{Plan, Definition, Property, RangeSelector, Expression, Literal};
+use crate::ast::{Plan, Definition, Property, RangeSelector, Expression, Literal, Statement, StatementKind, ConditionalTarget};
 use crate::domain::EngineError;
 use std::collections::{HashMap, HashSet};
 
@@ -152,6 +152,8 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
         }
     }
 
+    let timeframe_values = collect_timeframe_values(plan);
+
     // 2. Validate Assignments and Expressions using Intervals AND Data Flow
     for def in &plan.definitions {
         match def {
@@ -189,6 +191,7 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
                       for stmt in statements {
                           // Run semantic checks (undefined vars, etc)
                           semantics::check_statement_semantics(stmt, &enum_vars, &defs_map, &mut errors);
+                          check_timeframe_not_enough_data(stmt, &timeframe_values, &mut errors);
 
                           match &stmt.kind {
                               crate::ast::StatementKind::Assignment(assign) => {
@@ -297,6 +300,97 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
         errors.sort();
         errors.dedup();
         Err(errors)
+    }
+}
+
+fn collect_timeframe_values(plan: &Plan) -> HashSet<String> {
+    let mut values = HashSet::new();
+    for def in &plan.definitions {
+        if let Definition::Value(vd) = def {
+            if value_depends_on_timeframe(vd) {
+                values.insert(vd.name.clone());
+            }
+        }
+    }
+    values
+}
+
+fn value_depends_on_timeframe(vd: &crate::ast::ValueDef) -> bool {
+    for prop in &vd.properties {
+        if let Property::Calculation(stmts) = prop {
+            if statements_contain_timeframe(stmts) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+fn statements_contain_timeframe(stmts: &[Statement]) -> bool {
+    for stmt in stmts {
+        match &stmt.kind {
+            StatementKind::Timeframe(_) => return true,
+            StatementKind::Conditional(cond) => {
+                for case in &cond.cases {
+                    if statements_contain_timeframe(&case.block) {
+                        return true;
+                    }
+                }
+            }
+            StatementKind::ContextBlock(cb) => {
+                if statements_contain_timeframe(&cb.statements) {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
+fn check_timeframe_not_enough_data(
+    stmt: &Statement,
+    timeframe_values: &HashSet<String>,
+    errors: &mut Vec<EngineError>,
+) {
+    match &stmt.kind {
+        StatementKind::Conditional(cond) => {
+            if let ConditionalTarget::Expression(Expression::Variable(name)) = &cond.condition {
+                if timeframe_values.contains(name) {
+                    let has_not_enough = cond
+                        .cases
+                        .iter()
+                        .any(|case| matches!(case.condition, RangeSelector::NotEnoughData));
+                    if !has_not_enough {
+                        errors.push(EngineError {
+                            message: format!(
+                                "Assessment of '{}' depends on a timeframe calculation but does not handle 'Not enough data'.",
+                                name
+                            ),
+                            line: stmt.line,
+                            column: 0,
+                        });
+                    }
+                }
+            }
+
+            for case in &cond.cases {
+                for nested in &case.block {
+                    check_timeframe_not_enough_data(nested, timeframe_values, errors);
+                }
+            }
+        }
+        StatementKind::Timeframe(tb) => {
+            for nested in &tb.block {
+                check_timeframe_not_enough_data(nested, timeframe_values, errors);
+            }
+        }
+        StatementKind::ContextBlock(cb) => {
+            for nested in &cb.statements {
+                check_timeframe_not_enough_data(nested, timeframe_values, errors);
+            }
+        }
+        _ => {}
     }
 }
 

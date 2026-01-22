@@ -1,28 +1,28 @@
 (* --- PASS: full_spec --- *)
 <Test Unit> is a unit:
-    plural is <Test Units>
-    abbreviation is "tu"
+    plural is <Test Units>.
+    abbreviation is "tu".
 
 <count> is a unit:
-    plural is <counts>
+    plural is <counts>.
 
 <Temperature> is a number:
     valid values:
-        35.0 °C ... 42.0 °C
+        35.0 °C ... 42.0 °C.
     meaning:
         38.0 °C ... 42.0 °C:
             <High Fever> = "yes".
         35.0 °C ... 37.9 °C:
             <High Fever> = "no".
     question:
-        ask "What is the patient's temperature?"
+        ask "What is the patient's temperature?".
 
 <High Fever> is an enumeration:
     valid values:
-        "yes"; "no"
+        "yes"; "no".
 
 <Pain Level> is a number:
-    unit is <count>
+    unit is <count>.
     question:
         style of question is <VisualAnalogScale>.
         question style is visual analogue scale:
@@ -33,32 +33,32 @@
     
 <Aspirin> is a drug:
     ingredients:
-        <Acetylsalicylic Acid> 500 mg
+        <Acetylsalicylic Acid> 500 mg.
     dosage safety:
-        maximum single dose = 1000 mg
-        maximum daily dose = 4000 mg
-        minimum time between doses = 4 hours
+        maximum single dose = 1000 mg.
+        maximum daily dose = 4000 mg.
+        minimum time between doses = 4 hours.
     administration:
-        form of administration is "Tablet"
+        form of administration is "Tablet".
     interactions:
         assess interaction with <Warfarin>:
             show message "Warning: Risk of bleeding".
 
 <Dr. House> is an addressee:
     contact information:
-        email is "house@princeton-plainsboro.com"
-        phone is "555-1234"
+        email is "house@princeton-plainsboro.com".
+        phone is "555-1234".
     after consent has been rejected:
          show message "Patient rejected consent.".
 
 <Dr. Wilson> is an addressee:
     contact information:
-        email is "wilson@princeton-plainsboro.com"
+        email is "wilson@princeton-plainsboro.com".
 
 <OncologyTeam> is an addressee group:
-    grouped addressees are <Dr. House>; <Dr. Wilson>
+    grouped addressees are <Dr. House>; <Dr. Wilson>.
     order of contacting:
-        contact all addressees in parallel
+        contact all addressees in parallel.
 
 <Treatment Plan> is a plan:
     during plan:
@@ -87,8 +87,8 @@
 
     change of <Pain Level>:
         context:
-            timeframe: 24 hours ago
-            data: <Pain Level>
+            timeframe: 24 hours ago ... now.
+            data: <Pain Level>.
         
         assess count of <Pain Level>:
             3 <counts> ... 100 <counts>:
@@ -97,20 +97,20 @@
 (* --- FAIL: full_spec --- *)
 <mismatched unit> is a number:
     valid values:
-        0 kg ... 10 kg 
+        0 kg ... 10 kg.
 
 <duplicate enums> is an enumeration:
     valid values:
-        "A"; "B"; "A"
+        "A"; "B"; "A".
 
 <overlapping ranges> is a number:
     valid values:
-        0 kg ... 10 kg;
-        5 kg ... 15 kg
+        0 kg ... 10 kg.
+        5 kg ... 15 kg.
 
 <incomplete meaning> is a number:
     valid values:
-        0 kg ... 100 kg
+        0 kg ... 100 kg.
     meaning:
         0 kg ... 50 kg:
             <status> = "low".
@@ -130,20 +130,20 @@
 
 (* --- PASS: golden_master --- *)
 <testpoint> is a unit:
-    plural is <testpoints>
-    abbreviation is "tp"
+    plural is <testpoints>.
+    abbreviation is "tp".
 
 <Test Number> is a number:
     valid values:
-        0 <testpoints> ... 100 <testpoints>
+        0 <testpoints> ... 100 <testpoints>.
 
 <Test String> is a string.
 
 <TestEnum> is an enumeration:
     valid values:
-        "A";
-        "B";
-        "C"
+        "A".
+        "B".
+        "C".
 
 <Golden Plan> is a plan:
     during plan:
@@ -172,39 +172,39 @@
 (* --- FAIL: golden_master --- *)
 <BadNumber> is a number:
     valid values:
-        0 kg ... 10 kg
+        0 kg ... 10 kg.
 
 (* --- PASS: value_definition --- *)
 <TestUnit> is a unit:
-    plural is <TestUnits>
-    abbreviation is "tu"
+    plural is <TestUnits>.
+    abbreviation is "tu".
 
 <BloodPressure> is a number:
-    unit is mmHg
+    unit is mmHg.
     valid values:
-        0 mmHg ... 300 mmHg
+        0 mmHg ... 300 mmHg.
     meaning:
         0 mmHg ... 90 mmHg:
-            meaning of value = "Low"
+            meaning of value = "Low".
         91 mmHg ... 120 mmHg:
-            meaning of value = "Normal"
+            meaning of value = "Normal".
     documentation:
-        english: "The force of circulating blood."
+        english: "The force of circulating blood.".
 
 <Status> is an enumeration:
     valid values:
-        "Active"; "Inactive"; "Pending"
+        "Active"; "Inactive"; "Pending".
     reuse:
         reuse period of value is 1 day.
 
 (* --- PASS: period_definition --- *)
 <Morning> is a period:
     timeframe:
-        06:00 ... 12:00
+        06:00 ... 12:00.
 
 <Week> is a period:
     timeframe:
-        1 week
+        between Monday ... Sunday.
 
 (* --- PASS: event_trigger --- *)
 <TriggerPlan> is a plan:
@@ -223,33 +223,33 @@
 (* --- PASS: timeframe --- *)
 <TimeframePlan> is a plan:
     during plan:
-        timeframe for analysis:
-            show message "Analyzing unrestricted".
+        timeframe for analysis is 1 day ago ... now:
+            show message "Analyzing recent window".
 
         timeframe during 08:00 ... 18:00:
             show message "Working hours".
             
-            timeframe after 12:00:
+            timeframe during 12:00 ... 18:00:
                 show message "Afternoon work".
 
 (* --- PASS: addressee_definition --- *)
 <DrHouse> is an addressee:
     contact information:
-        email is "dr.house@example.com"
+        email is "dr.house@example.com".
 
 (* --- FAIL: addressee_definition --- *)
 <DrHouse> is an addressee:
     contact information:
-        email is "bad_email_no_at_sign"
+        email is "bad_email_no_at_sign".
 
 (* --- FAIL: drug_definition --- *)
 <MyUnit> is a unit:
-    plural is <MyUnits>
+    plural is <MyUnits>.
 
 <MyDrug> is a drug:
     ingredients:
-        <Aspirin> 500 mg
-        <Caffeine> 50 <BadUnit>
+        <Aspirin> 500 mg.
+        <Caffeine> 50 <BadUnit>.
 
 (* --- FAIL: question_config --- *)
 <Pain> is a number.
@@ -257,9 +257,9 @@
 <MyPlan> is a plan:
     during plan:
         question style is visual analogue scale:
-            best value is 0 <count>
-            text for best value is "No Pain"
-            worst value is 10 <counts>
-            text for worst value is "Worst Pain"
+            best value is 0 <count>.
+            text for best value is "No Pain".
+            worst value is 10 <counts>.
+            text for worst value is "Worst Pain".
 
-        show message "Hello " + <UnknownVar>
+        show message "Hello " + <UnknownVar>.

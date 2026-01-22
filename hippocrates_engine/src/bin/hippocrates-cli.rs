@@ -455,7 +455,8 @@ fn parse_answer_value(
             let text = parse_string_value(value)?;
             Ok(RuntimeValue::Enumeration(text))
         }
-        ValueType::TimeIndication
+        ValueType::String
+        | ValueType::TimeIndication
         | ValueType::Period
         | ValueType::Plan
         | ValueType::Drug

@@ -161,6 +161,7 @@ impl fmt::Display for Unit {
 pub enum ValueType {
     Number,
     Enumeration,
+    String,
     TimeIndication,
     Period,
     Plan,

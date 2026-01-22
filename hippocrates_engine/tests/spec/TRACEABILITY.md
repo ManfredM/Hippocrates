@@ -1,0 +1,116 @@
+# Specification Traceability
+
+## §2 Language Principles
+- REQ-2-01 — `tests/spec/grammar.rs::spec_identifiers_require_angle_brackets` — identifiers must use angle brackets.
+- REQ-2-02 — `tests/spec/grammar.rs::spec_string_literal_rejects_angle_brackets` — string literals must not contain angle brackets.
+- REQ-2-03 — `tests/spec/grammar.rs::spec_no_comparison_operators` — comparison operators are not supported; use ranges.
+
+## §3.1 Basic Elements
+- REQ-3.1-01 — `tests/spec/contexts_expressions.rs::spec_time_indications_parsing` — time indications parse for now, weekday, and time-of-day.
+- REQ-3.1-02 — `tests/spec/contexts_expressions.rs::spec_relative_time_from_now_parsing` — relative time expressions from now parse.
+
+## §3.2 Units and Quantities
+- REQ-3.2-01 — `tests/spec/units.rs::spec_custom_unit_pluralization_is_canonical` — custom unit pluralization canonicalizes values.
+- REQ-3.2-02 — `tests/spec/units.rs::spec_standard_units_still_work` — standard units work in calculations.
+- REQ-3.2-03 — `tests/spec/units.rs::spec_custom_unit_abbreviation_is_canonical` — custom unit abbreviations canonicalize values.
+- REQ-3.2-04 — `tests/spec/units.rs::spec_custom_unit_quantity_parsing` — custom unit quantities parse with definitions.
+
+## §3.3 Program Structure
+- REQ-3.3-01 — `tests/spec/fixtures.rs::spec_full_fixture_parses_core_definitions` — multi-definition fixtures parse core definitions.
+
+## §3.4 Values
+- REQ-3.4-01 — `tests/spec/values.rs::spec_value_definition_parsing` — value definitions parse from fixtures.
+- REQ-3.4-02 — `tests/spec/values.rs::spec_value_type_variants_parse` — value type variants parse correctly.
+- REQ-3.4-03 — `tests/spec/values.rs::spec_unit_property_parsing` — unit properties parse in numeric values.
+- REQ-3.4-04 — `tests/spec/values.rs::spec_value_timeframe_property_parsing` — value timeframe properties parse.
+- REQ-3.4-05 — `tests/spec/values.rs::spec_inheritance_property_parsing` — inheritance properties parse with overrides.
+- REQ-3.4-06 — `tests/spec/values.rs::spec_documentation_property_parsing` — documentation properties parse in inline and block forms.
+- REQ-3.4-07 — `tests/spec/values.rs::spec_generic_property_parsing` — custom properties parse as generic properties.
+
+## §3.5 Periods and Plans
+- REQ-3.5-01 — `tests/spec/periods_plans.rs::spec_period_definition_parsing` — period definitions parse by name.
+- REQ-3.5-02 — `tests/spec/periods_plans.rs::spec_period_parsing_structure` — period timeframe lines parse with range selectors.
+
+## §3.6 Statements, Assessments, and Ranges
+- REQ-3.6-01 — `tests/spec/statements_actions.rs::spec_timeframe_block_parsing` — timeframe blocks parse with nested statements.
+
+## §3.7 Actions and Questions
+- REQ-3.7-01 — `tests/spec/statements_actions.rs::spec_question_config_parsing_and_validation` — question configuration parses and validates references.
+- REQ-3.7-02 — `tests/spec/statements_actions.rs::spec_message_expiration_parsing` — message expiration attaches to show message.
+- REQ-3.7-03 — `tests/spec/statements_actions.rs::spec_question_modifiers_parsing` — question modifiers parse (validate/type/style/expire).
+- REQ-3.7-04 — `tests/spec/statements_actions.rs::spec_validate_answer_within_parsing` — validate answer within parsing attaches to ask blocks.
+- REQ-3.7-05 — `tests/spec/statements_actions.rs::spec_listen_send_start_and_simple_command_parsing` — listen/send/start/simple command actions parse.
+- REQ-3.7-06 — `tests/spec/statements_actions.rs::spec_question_expiration_block_parsing` — question expiration blocks parse with reminder statements.
+- REQ-3.7-07 — `tests/spec/statements_actions.rs::spec_question_expiration_until_event_trigger_parsing` — question expiration supports until event triggers.
+
+## §3.8 Events and Timing
+- REQ-3.8-01 — `tests/spec/periods_plans.rs::spec_event_trigger_parsing` — event triggers parse for change/start/periodic.
+- REQ-3.8-02 — `tests/spec/periods_plans.rs::spec_event_block_parsing` — event blocks attach statements to triggers.
+- REQ-3.8-03 — `tests/spec/execution.rs::spec_scheduler_next_occurrence` — scheduler computes next occurrence for periods.
+- REQ-3.8-04 — `tests/spec/periods_plans.rs::spec_event_trigger_duration_and_offset_parsing` — periodic triggers parse duration and offsets.
+
+## §3.9 Communication & Actors
+- REQ-3.9-01 — `tests/spec/actors_drugs.rs::spec_addressee_group_and_contact_logic_parsing` — addressee groups and contact logic parse.
+- REQ-3.9-02 — `tests/spec/actors_drugs.rs::spec_addressee_contact_details_and_sequence_order_parsing` — contact details and sequence ordering parse.
+
+## §3.10 Medication
+- REQ-3.10-01 — `tests/spec/actors_drugs.rs::spec_drug_definition_validation` — drug definition validation rejects undefined units.
+- REQ-3.10-02 — `tests/spec/actors_drugs.rs::spec_drug_interactions_parse` — drug interaction properties parse.
+- REQ-3.10-03 — `tests/spec/actors_drugs.rs::spec_drug_dosage_and_admin_rules_parsing` — dosage safety and administration rules parse.
+
+## §3.11 Data Contexts
+- REQ-3.11-01 — `tests/spec/contexts_expressions.rs::spec_context_definition_parsing` — context definitions parse timeframe/data/value filter items.
+- REQ-3.11-02 — `tests/spec/contexts_expressions.rs::spec_context_block_items_parsing` — context blocks parse data/value filters and nested statements.
+- REQ-3.11-03 — `tests/spec/contexts_expressions.rs::spec_context_for_analysis_execution` — context for analysis executes with scoped timeframe.
+
+## §3.12 Expressions and Statistical Analysis
+- REQ-3.12-01 — `tests/spec/contexts_expressions.rs::spec_statistical_functions_parsing` — statistical function expressions parse in assignments.
+- REQ-3.12-02 — `tests/spec/execution.rs::spec_timeframe_filtering` — timeframe filtering applies to statistical evaluations.
+- REQ-3.12-03 — `tests/spec/execution.rs::spec_timeframe_variants` — timeframe variants resolve counts over different windows.
+- REQ-3.12-04 — `tests/spec/execution.rs::spec_trend_analysis_evaluates` — trend analysis evaluates statistical trends over timeframes.
+
+## §4.1 Core Unit Groups and Conversion
+- REQ-4.1-01 — `tests/spec/units.rs::spec_builtin_units_cannot_be_redefined` — built-in units cannot be redefined.
+- REQ-4.1-02 — `tests/spec/units.rs::spec_unit_conversions_within_groups` — unit conversions are supported within compatible groups.
+
+## §4.2 Required Properties
+- REQ-4.2-01 — `tests/spec/validation.rs::spec_unit_requirement_validation` — numeric valid values require units.
+- REQ-4.2-02 — `tests/spec/validation.rs::spec_unitless_assess_fails` — assessment ranges require units.
+- REQ-4.2-03 — `tests/spec/validation.rs::spec_unitless_definition_fails` — numeric definitions require units.
+- REQ-4.2-04 — `tests/spec/validation.rs::spec_ask_requires_question_property` — ask requires a question property on the value.
+- REQ-4.2-05 — `tests/spec/validation.rs::spec_validation_error_line_number` — unit requirement errors report line numbers.
+
+## §4.3 Data Flow and Validity
+- REQ-4.3-01 — `tests/spec/validation.rs::spec_data_flow_use_before_assignment_fails` — values cannot be used before assignment.
+
+## §4.4 Assessment Coverage
+- REQ-4.4-01 — `tests/spec/validation.rs::spec_meaning_coverage_gaps_integer` — meaning ranges must cover valid values (integer gaps).
+- REQ-4.4-02 — `tests/spec/validation.rs::spec_meaning_coverage_gaps_float` — meaning ranges must cover valid values (float gaps).
+- REQ-4.4-03 — `tests/spec/validation.rs::spec_meaning_coverage_disjoint_ranges_ok` — disjoint valid ranges are allowed when fully covered.
+- REQ-4.4-04 — `tests/spec/validation.rs::spec_validator_numeric_overlap` — overlapping numeric assessment ranges are invalid.
+- REQ-4.4-05 — `tests/spec/validation.rs::spec_validator_enum_duplicate` — duplicate enumeration cases are invalid.
+- REQ-4.4-06 — `tests/spec/validation.rs::spec_validator_integer_gap_message` — gap detection reports missing integer spans.
+- REQ-4.4-07 — `tests/spec/validation.rs::spec_validator_float_gap_message` — gap detection reports missing float spans.
+- REQ-4.4-08 — `tests/spec/validation.rs::spec_precision_gaps` — coverage gaps respect precision for float and integer ranges.
+- REQ-4.4-09 — `tests/spec/validation.rs::spec_range_overlap` — overlapping ranges are rejected.
+- REQ-4.4-10 — `tests/spec/validation.rs::spec_reproduce_missing_error` — missing coverage yields a validation error.
+- REQ-4.4-11 — `tests/spec/validation.rs::spec_trend_requires_full_coverage` — trend assessments require full coverage.
+
+## §4.5 Range Compliance (Pre-Run Validation)
+- REQ-4.5-01 — `tests/spec/validation.rs::spec_interval_creation_and_math` — interval math supports range compliance checks.
+- REQ-4.5-02 — `tests/spec/validation.rs::spec_assignment_range_compliance_warning` — assignment range compliance fails when out of bounds.
+
+## §4.6 Data Sufficiency
+- REQ-4.6-01 — `tests/spec/validation.rs::spec_validator_requires_not_enough_data_case` — timeframe calculations require Not enough data handling.
+- REQ-4.6-02 — `tests/spec/validation.rs::spec_validator_passes_with_not_enough_data` — Not enough data handling satisfies sufficiency.
+- REQ-4.6-03 — `tests/spec/execution.rs::spec_not_enough_data_evaluation` — runtime evaluation returns NotEnoughData when history is insufficient.
+
+## §5 Execution Model
+- REQ-5-01 — `tests/spec/execution.rs::spec_runtime_execution_flow` — runtime executes assignments and actions in order.
+- REQ-5-02 — `tests/spec/execution.rs::spec_validity_reuse_timeframe` — reuse timeframes prevent re-asking within the validity window.
+
+## §5.1 Validation Logic
+- REQ-5.1-01 — `tests/spec/validation.rs::spec_validate_copd_plan_fixtures` — full-plan validation passes for a complete plan.
+
+## Pending / Ignored
+None.

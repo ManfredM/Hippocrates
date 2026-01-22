@@ -1,22 +1,22 @@
 <age> is a number:
-    unit is years
+    unit is years.
     valid values:
-        0 years ... 120 years
+        0 years ... 120 years.
     question:
-        ask "How old are you?"
+        ask "How old are you?".
 
 <weight> is a number:
-    unit is kg
+    unit is kg.
     valid values:
-        30 kg ... 200 kg
+        30 kg ... 200 kg.
     question:
-        ask "What is your weight?"
+        ask "What is your weight?".
 
 <symptom severity> is an enumeration:
     valid values:
-        "mild"; "moderate"; "severe"
+        "mild"; "moderate"; "severe".
     question:
-        ask "How severe are your symptoms?"
+        ask "How severe are your symptoms?".
 
 <cli intake> is a plan:
     during plan:
