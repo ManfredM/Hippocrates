@@ -144,6 +144,7 @@ Requirements:
 - REQ-3.4-06: documentation properties parse in inline and block forms.
 - REQ-3.4-07: custom properties parse as generic properties.
 - REQ-3.4-08: date/time value types parse correctly.
+- REQ-3.4-09: meaning assessments are only allowed in value definition blocks.
 
 
 
@@ -175,7 +176,24 @@ valid_values_prop =
 
 valid_values_block = { range_selector, [ ";" ], newline };
 
-meaning_prop = "meaning:", newline, indent, { assessment_case }, dedent;
+meaning_prop =
+    "meaning", [ " of ", identifier ], ":", newline, indent,
+    { meaning_item_block },
+    dedent;
+
+meaning_item_block =
+    valid_meanings_prop |
+    meaning_assess_block |
+    assessment_case;
+
+valid_meanings_prop =
+    "valid meanings:", newline, indent, valid_meanings_line, { valid_meanings_line }, dedent;
+
+valid_meanings_line = meaning_item, { ";", meaning_item }, [ ";" ], ".";
+meaning_item = identifier | string_literal;
+
+meaning_assess_block =
+    "assess meaning of ", identifier, ":", newline, indent, { assessment_case }, dedent;
 
 question_prop = "question:", newline, indent, { statement }, dedent;
 
@@ -205,6 +223,8 @@ flexible_property_content =
 property_content = { character };
 property_line = { character - newline };
 ```
+
+Informative: `meaning:` blocks and `assess meaning of <value>` blocks are value properties only; they are not valid statements inside plans or other block contexts. (See REQ-3.4-09.)
 
 ### 3.5. Periods and Plans
 
@@ -505,6 +525,7 @@ Requirements:
 - REQ-3.12-04: trend analysis evaluates statistical trends over timeframes.
 - REQ-3.12-05: statistical functions require an analysis timeframe context.
 - REQ-3.12-06: date diff expressions parse.
+- REQ-3.12-07: meaning-of expressions parse.
 
 
 
@@ -514,6 +535,7 @@ expression = term, { infix_op, term };
 
 term =
     date_diff |
+    "meaning of ", identifier |
     quantity, relative_time_modifier |
     statistical_func |
     quantity |
@@ -600,6 +622,7 @@ Requirements:
 - REQ-4.3-02: calculation properties do not seed values.
 - REQ-4.3-03: statistical functions do not require local initialization.
 - REQ-4.3-04: listen for and context data initialize values.
+- REQ-4.3-05: meaning-of expressions require an askable value when not initialized.
 
 
 
@@ -608,6 +631,7 @@ Requirements:
 * Informative — values gain valid content by being assigned, asked, or provided by `listen for` or `context data:`. (See REQ-4.3-04.)
 * Informative — calculation properties describe how a value is derived but do not implicitly seed it; plans assign or ask before use. (See REQ-4.3-02.)
 * Informative — statistical functions read history and do not require local initialization of the referenced value. (See REQ-4.3-03.)
+* Informative — `meaning of <value>` is valid only if the value is already initialized or has a `question` property so the runtime can ask when missing. (See REQ-4.3-05.)
 
 ### 4.4. Assessment Coverage
 
@@ -624,13 +648,18 @@ Requirements:
 - REQ-4.4-10: missing coverage yields a validation error.
 - REQ-4.4-11: trend assessments require full coverage.
 - REQ-4.4-12: numeric valid value ranges use consistent precision across bounds and intervals.
+- REQ-4.4-13: valid meanings must be fully used across meaning assessments.
+- REQ-4.4-14: meaning labels must be drawn from declared valid meanings.
 
 
 
+
+Meaning assessments may declare `valid meanings` and use `assess meaning of <value>` blocks. Within a meaning case, a bare identifier statement (e.g., `<light>.`) assigns that meaning label, equivalent to `meaning of value = <light>.`.
 
 * Informative — `assess` blocks, `meaning` cases, and assessments over statistical results fully cover the valid range of the target/output. (See REQ-4.4-01, REQ-4.4-02, REQ-4.4-03.)
 * Informative — for enumerations, all valid values are covered. (See REQ-4.4-05.)
 * Informative — for `trend of <value>`, all cases (`"increase"`, `"decrease"`, `"stable"`) are covered. (See REQ-4.4-11.)
+* Informative — when `valid meanings` are declared, meaning assessments use all declared labels and no others. (See REQ-4.4-13, REQ-4.4-14.)
 
 ### 4.5. Range Compliance (Pre-Run Validation)
 
@@ -709,6 +738,18 @@ Requirements:
 
 
 Informative: Integer valid values (e.g., `0 hours ... 24 hours`) reject fractional inputs; decimal ranges allow their declared precision. (See REQ-5.2-01.)
+
+### 5.3 Meaning Evaluation
+
+Requirements:
+- REQ-5.3-01: `meaning of <value>` expressions evaluate using the value’s meaning assessments.
+- REQ-5.3-02: meaning evaluation returns `Missing` when the source value is unknown and askable.
+- REQ-5.3-03: meaning evaluation supports nested assessments within meaning cases.
+
+
+
+Informative: Meaning evaluation selects the first matching meaning case for the value and returns the assigned meaning label. Nested `assess` blocks are evaluated to resolve the final meaning. (See REQ-5.3-01, REQ-5.3-03.)
+Informative: When the source value is unknown, the runtime returns `Missing` to trigger the associated question. (See REQ-5.3-02.)
 
 ## 6. Examples by Feature
 
@@ -859,6 +900,7 @@ during plan:
 - REQ-3.4-06: documentation properties parse in inline and block forms.
 - REQ-3.4-07: custom properties parse as generic properties.
 - REQ-3.4-08: date/time value types parse correctly.
+- REQ-3.4-09: meaning assessments are only allowed in value definition blocks.
 - REQ-3.5-01: period definitions parse by name.
 - REQ-3.5-02: period timeframe lines parse with range selectors.
 - REQ-3.6-01: timeframe blocks parse with nested statements.
@@ -891,6 +933,7 @@ during plan:
 - REQ-3.12-04: trend analysis evaluates statistical trends over timeframes.
 - REQ-3.12-05: statistical functions require an analysis timeframe context.
 - REQ-3.12-06: date diff expressions parse.
+- REQ-3.12-07: meaning-of expressions parse.
 - REQ-4.1-01: built-in units cannot be redefined.
 - REQ-4.1-02: unit conversions are supported within compatible groups.
 - REQ-4.1-03: calculations and assignments require matching units and precision.
@@ -905,6 +948,7 @@ during plan:
 - REQ-4.3-02: calculation properties do not seed values.
 - REQ-4.3-03: statistical functions do not require local initialization.
 - REQ-4.3-04: listen for and context data initialize values.
+- REQ-4.3-05: meaning-of expressions require an askable value when not initialized.
 - REQ-4.4-01: meaning ranges must cover valid values (integer gaps).
 - REQ-4.4-02: meaning ranges must cover valid values (float gaps).
 - REQ-4.4-03: disjoint valid ranges are allowed when fully covered.
@@ -917,6 +961,8 @@ during plan:
 - REQ-4.4-10: missing coverage yields a validation error.
 - REQ-4.4-11: trend assessments require full coverage.
 - REQ-4.4-12: numeric valid value ranges use consistent precision across bounds and intervals.
+- REQ-4.4-13: valid meanings must be fully used across meaning assessments.
+- REQ-4.4-14: meaning labels must be drawn from declared valid meanings.
 - REQ-4.5-01: interval math supports range compliance checks.
 - REQ-4.5-02: assignment range compliance fails when out of bounds.
 - REQ-4.6-01: timeframe calculations require Not enough data handling.
@@ -929,3 +975,6 @@ during plan:
 - REQ-5-02: reuse timeframes prevent re-asking within the validity window.
 - REQ-5.1-01: full-plan validation passes for a complete plan.
 - REQ-5.2-01: numeric answers must respect the decimal precision implied by valid values.
+- REQ-5.3-01: meaning-of expressions evaluate using meaning assessments.
+- REQ-5.3-02: meaning evaluation returns Missing for unknown askable values.
+- REQ-5.3-03: meaning evaluation supports nested assessments.

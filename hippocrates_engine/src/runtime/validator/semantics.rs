@@ -456,6 +456,15 @@ fn validate_expression(
                  });
              }
         }
+        Expression::MeaningOf(name) => {
+             if !defined_values.contains(name) {
+                 errors.push(EngineError {
+                     message: format!("Undefined variable '{}' in meaning expression", name),
+                     line,
+                     column: 0,
+                 });
+             }
+        }
         Expression::Binary(left, _, right) => {
              validate_expression(left, enum_vars, defined_values, line, errors);
              validate_expression(right, enum_vars, defined_values, line, errors);

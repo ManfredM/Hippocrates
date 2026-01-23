@@ -124,6 +124,45 @@ fn spec_statistical_functions_parsing() {
     assert!(saw_avg, "Expected average of <val>");
 }
 
+// REQ-3.12-07: meaning-of expressions parse in assignments.
+#[test]
+fn spec_meaning_of_expression_parsing() {
+    let input = r#"
+<weight> is a number:
+    unit is kg.
+    valid values:
+        0 kg ... 100 kg.
+
+<label> is a string.
+
+<plan> is a plan:
+    during plan:
+        <label> = meaning of <weight>.
+"#;
+
+    let plan = parser::parse_plan(input).expect("Failed to parse");
+    let plan_def = plan
+        .definitions
+        .iter()
+        .find_map(|d| if let Definition::Plan(p) = d { Some(p) } else { None })
+        .expect("Plan definition not found");
+
+    let during = match &plan_def.blocks[0] {
+        PlanBlock::DuringPlan(stmts) => stmts,
+        _ => panic!("Expected DuringPlan"),
+    };
+
+    let assignment = during
+        .iter()
+        .find_map(|stmt| if let StatementKind::Assignment(assign) = &stmt.kind { Some(assign) } else { None })
+        .expect("Assignment not found");
+
+    match &assignment.expression {
+        Expression::MeaningOf(name) => assert_eq!(name, "weight"),
+        _ => panic!("Expected MeaningOf expression"),
+    }
+}
+
 // REQ-3.1-01: time indications parse for now, weekday, and time-of-day.
 #[test]
 fn spec_time_indications_parsing() {

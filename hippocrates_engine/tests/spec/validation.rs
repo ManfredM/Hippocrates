@@ -83,6 +83,68 @@ fn spec_meaning_coverage_disjoint_ranges_ok() {
     }
 }
 
+// REQ-4.4-13: valid meanings must be fully used across meaning assessments.
+#[test]
+fn spec_meaning_valid_meanings_must_be_used() {
+    use hippocrates_engine::runtime::validator::validate_file;
+
+    let input = r#"
+<weight> is a number:
+    unit is kg.
+    valid values:
+        1 kg ... 1000 kg.
+    meaning of <weight>:
+        valid meanings:
+            <light>; <heavy>; <super heavy>.
+        assess meaning of <weight>:
+            1 kg ... 100 kg:
+                <light>.
+            101 kg ... 900 kg:
+                <heavy>.
+"#;
+
+    let plan = parser::parse_plan(input).expect("Failed to parse plan input");
+    let result = validate_file(&plan);
+    assert!(result.is_err(), "Expected validation error for missing valid meaning");
+    let errors = result.unwrap_err();
+    assert!(
+        errors.iter().any(|e| e.message.contains("Missing")),
+        "Expected error about missing meanings, got {:?}",
+        errors
+    );
+}
+
+// REQ-4.4-14: meaning labels must be drawn from the declared valid meanings list.
+#[test]
+fn spec_meaning_invalid_label_rejected() {
+    use hippocrates_engine::runtime::validator::validate_file;
+
+    let input = r#"
+<weight> is a number:
+    unit is kg.
+    valid values:
+        1 kg ... 1000 kg.
+    meaning of <weight>:
+        valid meanings:
+            <light>; <heavy>.
+        assess meaning of <weight>:
+            1 kg ... 100 kg:
+                <light>.
+            101 kg ... 900 kg:
+                <unknown>.
+"#;
+
+    let plan = parser::parse_plan(input).expect("Failed to parse plan input");
+    let result = validate_file(&plan);
+    assert!(result.is_err(), "Expected validation error for invalid meaning label");
+    let errors = result.unwrap_err();
+    assert!(
+        errors.iter().any(|e| e.message.contains("invalid meaning")),
+        "Expected error about invalid meaning label, got {:?}",
+        errors
+    );
+}
+
 // REQ-4.4-04: overlapping numeric assessment ranges are invalid.
 #[test]
 fn spec_validator_numeric_overlap() {
@@ -730,6 +792,64 @@ fn spec_statistical_functions_do_not_require_local_init() {
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
     let result = validator::validate_file(&plan);
     assert!(result.is_ok(), "Expected statistical functions to bypass local init checks");
+}
+
+// REQ-4.3-05: meaning-of requires a question property when the value is not initialized.
+#[test]
+fn spec_meaning_of_requires_question_when_uninitialized() {
+    let input = r#"
+<val> is a number:
+    unit is kg.
+    valid values:
+        0 kg ... 10 kg.
+    meaning:
+        0 kg ... 10 kg:
+            meaning of value = "ok".
+
+<label> is a string.
+
+<plan> is a plan:
+    during plan:
+        <label> = meaning of <val>.
+"#;
+
+    let plan = parser::parse_plan(input).expect("Failed to parse");
+    let result = validator::validate_file(&plan);
+    assert!(result.is_err(), "Expected data flow validation error");
+    let errors = result.err().unwrap();
+    assert!(
+        errors
+            .iter()
+            .any(|e| e.message.contains("Meaning of") && e.message.contains("question property")),
+        "Expected meaning-of question requirement error, got {:?}",
+        errors
+    );
+}
+
+// REQ-4.3-05: meaning-of is allowed when the value is askable.
+#[test]
+fn spec_meaning_of_allows_question_when_uninitialized() {
+    let input = r#"
+<val> is a number:
+    unit is kg.
+    valid values:
+        0 kg ... 10 kg.
+    question:
+        ask "What is the value".
+    meaning:
+        0 kg ... 10 kg:
+            meaning of value = "ok".
+
+<label> is a string.
+
+<plan> is a plan:
+    during plan:
+        <label> = meaning of <val>.
+"#;
+
+    let plan = parser::parse_plan(input).expect("Failed to parse");
+    let result = validator::validate_file(&plan);
+    assert!(result.is_ok(), "Expected validation OK for meaning-of with question");
 }
 
 // REQ-4.3-04: listen for and context data initialize values for data flow.

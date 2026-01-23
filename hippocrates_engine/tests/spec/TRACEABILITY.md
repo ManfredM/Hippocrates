@@ -31,6 +31,7 @@
 - REQ-3.4-06 — `tests/spec/values.rs::spec_documentation_property_parsing` — documentation properties parse in inline and block forms.
 - REQ-3.4-07 — `tests/spec/values.rs::spec_generic_property_parsing` — custom properties parse as generic properties.
 - REQ-3.4-08 — `tests/spec/values.rs::spec_value_type_variants_parse` — date/time value type parses.
+- REQ-3.4-09 — `tests/spec/grammar.rs::spec_meaning_assessments_not_allowed_in_plans` — meaning assessments are only allowed in value definition blocks.
 
 ## §3.5 Periods and Plans
 - REQ-3.5-01 — `tests/spec/periods_plans.rs::spec_period_definition_parsing` — period definitions parse by name.
@@ -79,6 +80,7 @@
 - REQ-3.12-04 — `tests/spec/execution.rs::spec_trend_analysis_evaluates` — trend analysis evaluates statistical trends over timeframes.
 - REQ-3.12-05 — `tests/spec/validation.rs::spec_statistical_functions_require_timeframe_context` — statistical functions require an analysis timeframe context.
 - REQ-3.12-06 — `tests/spec/contexts_expressions.rs::spec_date_diff_parsing` — date diff expressions parse.
+- REQ-3.12-07 — `tests/spec/contexts_expressions.rs::spec_meaning_of_expression_parsing` — meaning-of expressions parse in assignments.
 
 ## §4.1 Core Unit Groups and Conversion
 - REQ-4.1-01 — `tests/spec/units.rs::spec_builtin_units_cannot_be_redefined` — built-in units cannot be redefined.
@@ -100,6 +102,8 @@
 - REQ-4.3-02 — `tests/spec/validation.rs::spec_calculation_does_not_initialize_value` — calculation properties do not seed values.
 - REQ-4.3-03 — `tests/spec/validation.rs::spec_statistical_functions_do_not_require_local_init` — statistical functions do not require local initialization.
 - REQ-4.3-04 — `tests/spec/validation.rs::spec_listen_and_context_initialize_values` — listen for and context data initialize values.
+- REQ-4.3-05 — `tests/spec/validation.rs::spec_meaning_of_requires_question_when_uninitialized` — meaning-of expressions require an askable value when not initialized.
+- REQ-4.3-05 — `tests/spec/validation.rs::spec_meaning_of_allows_question_when_uninitialized` — meaning-of is allowed when the value is askable.
 
 ## §4.4 Assessment Coverage
 - REQ-4.4-01 — `tests/spec/validation.rs::spec_meaning_coverage_gaps_integer` — meaning ranges must cover valid values (integer gaps).
@@ -114,6 +118,8 @@
 - REQ-4.4-10 — `tests/spec/validation.rs::spec_reproduce_missing_error` — missing coverage yields a validation error.
 - REQ-4.4-11 — `tests/spec/validation.rs::spec_trend_requires_full_coverage` — trend assessments require full coverage.
 - REQ-4.4-12 — `tests/spec/validation.rs::spec_precision_consistency` — numeric valid value ranges use consistent precision across bounds and intervals.
+- REQ-4.4-13 — `tests/spec/validation.rs::spec_meaning_valid_meanings_must_be_used` — valid meanings must be fully used across meaning assessments.
+- REQ-4.4-14 — `tests/spec/validation.rs::spec_meaning_invalid_label_rejected` — meaning labels must be drawn from declared valid meanings.
 
 ## §4.5 Range Compliance (Pre-Run Validation)
 - REQ-4.5-01 — `tests/spec/validation.rs::spec_interval_creation_and_math` — interval math supports range compliance checks.
@@ -138,6 +144,11 @@
 
 ## §5.2 Input Validation
 - REQ-5.2-01 — `tests/spec/execution.rs::spec_numeric_input_precision_rejection` — numeric answers must respect the decimal precision implied by valid values.
+
+## §5.3 Meaning Evaluation
+- REQ-5.3-01 — `tests/spec/execution.rs::spec_meaning_of_evaluates` — meaning evaluation returns the assessed meaning.
+- REQ-5.3-02 — `tests/spec/execution.rs::spec_meaning_of_missing_value` — meaning evaluation returns Missing when the source value is unknown.
+- REQ-5.3-03 — `tests/spec/execution.rs::spec_meaning_of_nested_assessment` — meaning evaluation supports nested assessments.
 
 ## Pending / Ignored
 None.

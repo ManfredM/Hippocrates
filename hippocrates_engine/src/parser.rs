@@ -713,10 +713,7 @@ fn parse_value_property(pair: pest::iterators::Pair<Rule>) -> Result<Property, P
                 }
             }
         }
-        Rule::meaning_prop => {
-            let cases = parse_assessment_cases(inner.into_inner())?;
-            Ok(Property::Meaning(cases))
-        }
+        Rule::meaning_prop => parse_meaning_prop(inner),
         Rule::timeframe_prop => {
             let inner_node = inner.into_inner();
             // timeframe_prop children are timeframe_line+
@@ -842,16 +839,73 @@ fn parse_reuse_prop(pair: pest::iterators::Pair<Rule>) -> Result<Property, Parse
     }
 }
 
-fn parse_assessment_cases(
-    pairs: pest::iterators::Pairs<Rule>,
-) -> Result<Vec<AssessmentCase>, ParseError> {
+fn parse_meaning_prop(pair: pest::iterators::Pair<Rule>) -> Result<Property, ParseError> {
+    let mut valid_meanings = Vec::new();
     let mut cases = Vec::new();
-    for pair in pairs {
-        if pair.as_rule() == Rule::assessment_case {
-            cases.extend(parse_assessment_case(pair)?);
+
+    for child in pair.into_inner() {
+        match child.as_rule() {
+            Rule::identifier => {
+                // Optional "meaning of <id>" target - currently unused.
+            }
+            Rule::meaning_item_block => {
+                for inner in child.into_inner() {
+                    match inner.as_rule() {
+                        Rule::valid_meanings_prop => {
+                            valid_meanings.extend(parse_valid_meanings(inner));
+                        }
+                        Rule::meaning_assess_block => {
+                            for block_child in inner.into_inner() {
+                                if block_child.as_rule() == Rule::assessment_case {
+                                    cases.extend(parse_assessment_case(block_child)?);
+                                }
+                            }
+                        }
+                        Rule::assessment_case => {
+                            cases.extend(parse_assessment_case(inner)?);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+            Rule::valid_meanings_prop => {
+                valid_meanings.extend(parse_valid_meanings(child));
+            }
+            Rule::meaning_assess_block => {
+                for inner in child.into_inner() {
+                    if inner.as_rule() == Rule::assessment_case {
+                        cases.extend(parse_assessment_case(inner)?);
+                    }
+                }
+            }
+            Rule::assessment_case => {
+                cases.extend(parse_assessment_case(child)?);
+            }
+            _ => {}
         }
     }
-    Ok(cases)
+
+    Ok(Property::Meaning(crate::ast::MeaningDef {
+        cases,
+        valid_meanings,
+    }))
+}
+
+fn parse_valid_meanings(pair: pest::iterators::Pair<Rule>) -> Vec<String> {
+    let mut meanings = Vec::new();
+    let mut stack = vec![pair];
+    while let Some(node) = stack.pop() {
+        match node.as_rule() {
+            Rule::identifier => meanings.push(parse_identifier_str(node)),
+            Rule::string_literal => meanings.push(parse_string_literal(node)),
+            _ => {
+                for child in node.into_inner() {
+                    stack.push(child);
+                }
+            }
+        }
+    }
+    meanings
 }
 
 fn parse_valid_values_block(
@@ -1509,6 +1563,11 @@ fn parse_expression(pair: pest::iterators::Pair<Rule>) -> Result<Expression, Par
                 }
             }
             parse_expression(first)
+        }
+        Rule::meaning_of_expr => {
+            let mut inner = pair.into_inner();
+            let ident = parse_identifier_str(inner.next().unwrap());
+            Ok(Expression::MeaningOf(ident))
         }
         Rule::number => {
             let s = pair.as_str().trim();

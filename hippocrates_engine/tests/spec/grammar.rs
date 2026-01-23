@@ -104,3 +104,22 @@ fn spec_blocks_require_colon() {
     let result = parser::parse_plan(input);
     assert!(result.is_err(), "Expected parser error for missing ':' on block");
 }
+
+// REQ-3.4-09: meaning assessments are only allowed in value definition blocks.
+#[test]
+fn spec_meaning_assessments_not_allowed_in_plans() {
+    let input = r#"
+<val> is a number:
+    unit is kg.
+    valid values:
+        0 kg ... 10 kg.
+
+<plan> is a plan:
+    during plan:
+        meaning:
+            0 kg ... 10 kg:
+                meaning of value = "ok".
+"#;
+    let result = parser::parse_plan(input);
+    assert!(result.is_err(), "Expected parser error for meaning block inside a plan");
+}

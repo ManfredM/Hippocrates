@@ -144,7 +144,12 @@ valid_values_block = { valid_values_line+ }
 valid_values_line = { safe_range_item ~ (";" ~ safe_range_item)* ~ ";"? ~ "." ~ NEWLINE* }
 inline_valid_values = { safe_range_item ~ ((";" | NEWLINE)? ~ safe_range_item)* ~ "." }
 
-meaning_prop = { "meaning" ~ ":" ~ NEWLINE* ~ INDENT ~ assessment_case+ ~ DEDENT }
+meaning_prop = { "meaning" ~ ("of" ~ identifier)? ~ ":" ~ NEWLINE* ~ INDENT ~ meaning_item_block+ ~ DEDENT }
+meaning_item_block = { valid_meanings_prop | meaning_assess_block | assessment_case }
+valid_meanings_prop = { "valid" ~ "meanings" ~ ":" ~ NEWLINE* ~ INDENT ~ valid_meanings_line+ ~ DEDENT }
+valid_meanings_line = { meaning_item ~ (";" ~ meaning_item)* ~ ";"? ~ "." ~ NEWLINE* }
+meaning_item = { identifier | string_literal }
+meaning_assess_block = { "assess" ~ "meaning" ~ "of" ~ identifier ~ ":" ~ NEWLINE* ~ INDENT ~ assessment_case+ ~ DEDENT }
 question_prop = { "question" ~ flexible_block } 
 calculation_prop = { "calculation" ~ flexible_block }
 reuse_prop = { "reuse" ~ ":" ~ NEWLINE* ~ INDENT ~ reuse_stmt ~ DEDENT }
@@ -324,6 +329,7 @@ confidence_target = { "confidence of" ~ identifier }
 expression = { term ~ (infix_op ~ term)* }
 term = { 
     date_diff |
+    meaning_of_expr |
     (quantity ~ relative_time_modifier) |
     statistical_func |
     quantity | 
@@ -334,6 +340,7 @@ term = {
     identifier |
     "(" ~ expression ~ ")"
 }
+meaning_of_expr = { "meaning" ~ "of" ~ identifier }
 date_diff_unit = { "years" | "months" | "days" | "hours" | "minutes" | "year" | "month" | "day" | "hour" | "minute" }
 date_diff = { date_diff_unit ~ "between" ~ expression ~ "and" ~ expression }
 statistical_func = { 

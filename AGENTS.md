@@ -4,6 +4,7 @@
 - Ensure the application builds before completing a task.
 - When refactoring, NO feature must be lost. Ensure parity.
 - WE DO NOT SUPPORT comparison operators like <, >, <=, >= in the grammar. Use ranges (min ... max) instead.
+- Never change the Hippocrates Engine to fix failures that originate in the app; fix the app instead.
 
 ## Repository Handling
 - All GitHub issues and pull requests MUST be authored in Markdown with headings and bullet lists; use code fences where needed for clarity.

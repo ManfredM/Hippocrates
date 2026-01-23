@@ -285,11 +285,60 @@ fn format_timeframe_prop(pair: Pair<Rule>, _source: &str, indent: usize, out: &m
 }
 
 fn format_meaning_prop(pair: Pair<Rule>, source: &str, indent: usize, out: &mut String) {
-    write_line(out, indent, "meaning:".to_string());
-    for case in pair.into_inner() {
-        if case.as_rule() == Rule::assessment_case {
-            format_assessment_case(case, source, indent + 1, out);
+    let mut target = None;
+    let mut items = Vec::new();
+
+    for child in pair.into_inner() {
+        match child.as_rule() {
+            Rule::identifier => target = Some(clean_line(child.as_str())),
+            _ => items.push(child),
         }
+    }
+
+    let header = match target {
+        Some(t) => format!("meaning of {}:", t),
+        None => "meaning:".to_string(),
+    };
+    write_line(out, indent, header);
+
+    for item in items {
+        match item.as_rule() {
+            Rule::valid_meanings_prop => format_valid_meanings_prop(item, indent + 1, out),
+            Rule::meaning_assess_block => format_meaning_assess_block(item, source, indent + 1, out),
+            Rule::assessment_case => format_assessment_case(item, source, indent + 1, out),
+            _ => {}
+        }
+    }
+}
+
+fn format_valid_meanings_prop(pair: Pair<Rule>, indent: usize, out: &mut String) {
+    write_line(out, indent, "valid meanings:".to_string());
+    for line in pair.into_inner() {
+        if line.as_rule() == Rule::valid_meanings_line {
+            write_line(out, indent + 1, clean_line(line.as_str()));
+        }
+    }
+}
+
+fn format_meaning_assess_block(pair: Pair<Rule>, source: &str, indent: usize, out: &mut String) {
+    let mut target = None;
+    let mut cases = Vec::new();
+    for child in pair.into_inner() {
+        match child.as_rule() {
+            Rule::identifier => target = Some(clean_line(child.as_str())),
+            Rule::assessment_case => cases.push(child),
+            _ => {}
+        }
+    }
+
+    let header = match target {
+        Some(t) => format!("assess meaning of {}:", t),
+        None => "assess meaning of <value>:".to_string(),
+    };
+    write_line(out, indent, header);
+
+    for case in cases {
+        format_assessment_case(case, source, indent + 1, out);
     }
 }
 

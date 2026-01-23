@@ -37,7 +37,7 @@ pub fn analyze_statement(
     match &stmt.kind {
         StatementKind::Assignment(assign) => {
             // Check RHS uses
-            check_expression(&assign.expression, state, stmt.line, errors);
+            check_expression(&assign.expression, state, defs, stmt.line, errors);
             // Mark LHS initialized
             state.initialized.insert(assign.target.clone());
         }
@@ -63,12 +63,12 @@ pub fn analyze_statement(
                 },
                 crate::ast::Action::ShowMessage(parts, _) => {
                      for part in parts {
-                         check_expression(part, state, stmt.line, errors);
+                         check_expression(part, state, defs, stmt.line, errors);
                      }
                 },
                 crate::ast::Action::SendInfo(_, parts) => {
                      for part in parts {
-                         check_expression(part, state, stmt.line, errors);
+                         check_expression(part, state, defs, stmt.line, errors);
                      }
                 },
                 crate::ast::Action::ListenFor(var) => {
@@ -80,7 +80,7 @@ pub fn analyze_statement(
         StatementKind::Conditional(cond) => {
              // Check condition
              match &cond.condition {
-                 ConditionalTarget::Expression(e) => check_expression(e, state, stmt.line, errors),
+                 ConditionalTarget::Expression(e) => check_expression(e, state, defs, stmt.line, errors),
                  _ => {}
              }
              
@@ -119,6 +119,7 @@ pub fn analyze_statement(
 fn check_expression(
     expr: &Expression,
     state: &FlowState,
+    defs: &HashMap<String, Definition>,
     line: usize,
     errors: &mut Vec<EngineError>
 ) {
@@ -132,28 +133,53 @@ fn check_expression(
                  });
              }
         },
+        Expression::MeaningOf(name) => {
+             if !state.initialized.contains(name) {
+                 let askable = defs
+                     .get(name)
+                     .and_then(|def| {
+                         if let Definition::Value(vd) = def {
+                             Some(vd.properties.iter().any(|p| matches!(p, crate::ast::Property::Question(_))))
+                         } else {
+                             None
+                         }
+                     })
+                     .unwrap_or(false);
+
+                 if !askable {
+                     errors.push(EngineError {
+                         message: format!(
+                             "Data Flow Error: Meaning of '{}' requires a question property when the value is not initialized.",
+                             name
+                         ),
+                         line,
+                         column: 0
+                     });
+                 }
+             }
+        },
         Expression::Binary(l, _, r) => {
-            check_expression(l, state, line, errors);
-            check_expression(r, state, line, errors);
+            check_expression(l, state, defs, line, errors);
+            check_expression(r, state, defs, line, errors);
         },
         Expression::FunctionCall(_, args) => {
-            for arg in args { check_expression(arg, state, line, errors); }
+            for arg in args { check_expression(arg, state, defs, line, errors); }
         },
         Expression::InterpolatedString(parts) => {
-             for part in parts { check_expression(part, state, line, errors); }
+             for part in parts { check_expression(part, state, defs, line, errors); }
         },
         // Statistical functions: Exception!
         // "count of <var>" or "trend of <var>" do not require <var> to be initialized in current scope.
         // They look at execution history (database).
         Expression::Statistical(stat) => {
              match stat {
-                 crate::ast::StatisticalFunc::AverageOf(_, period) => check_expression(period, state, line, errors),
+                 crate::ast::StatisticalFunc::AverageOf(_, period) => check_expression(period, state, defs, line, errors),
                  crate::ast::StatisticalFunc::TrendOf(_var) => {
                       // Trend calculation on history.
                  },
                  crate::ast::StatisticalFunc::CountOf(_var, filter) => {
                       if let Some(f) = filter {
-                          check_expression(f, state, line, errors);
+                          check_expression(f, state, defs, line, errors);
                       }
                  },
                  _ => {}

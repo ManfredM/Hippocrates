@@ -201,8 +201,8 @@ impl Environment {
                         return Some(unit);
                     }
                 }
-                Property::Meaning(cases) => {
-                    if let Some(unit) = unit_from_cases(cases, &self.unit_map) {
+                Property::Meaning(meaning_def) => {
+                    if let Some(unit) = unit_from_cases(&meaning_def.cases, &self.unit_map) {
                         return Some(unit);
                     }
                 }

@@ -115,6 +115,119 @@ fn spec_date_diff_evaluation() {
     assert_eq!(result, RuntimeValue::Quantity(10.0, Unit::Day));
 }
 
+// REQ-5.3-01: meaning evaluation returns the assessed meaning for the value.
+#[test]
+fn spec_meaning_of_evaluates() {
+    use hippocrates_engine::ast::Expression;
+    use hippocrates_engine::runtime::evaluator::Evaluator;
+
+    let input = r#"
+<weight> is a number:
+    unit is kg.
+    valid values:
+        1 kg ... 1000 kg.
+    question:
+        ask "What is the weight".
+    meaning of <weight>:
+        valid meanings:
+            <light>; <heavy>; <super heavy>.
+        assess meaning of <weight>:
+            1 kg ... 100 kg:
+                <light>.
+            101 kg ... 900 kg:
+                <heavy>.
+            901 kg ... 1000 kg:
+                <super heavy>.
+"#;
+
+    let plan = parser::parse_plan(input).expect("Failed to parse plan");
+    let mut env = Environment::new();
+    env.load_plan(plan);
+    env.set_value("weight", RuntimeValue::Quantity(70.0, Unit::Kilogram));
+
+    let result = Evaluator::evaluate(&env, &Expression::MeaningOf("weight".to_string()));
+    assert_eq!(result, RuntimeValue::String("light".to_string()));
+}
+
+// REQ-5.3-02: meaning evaluation returns Missing when the source value is unknown.
+#[test]
+fn spec_meaning_of_missing_value() {
+    use hippocrates_engine::ast::Expression;
+    use hippocrates_engine::runtime::evaluator::Evaluator;
+
+    let input = r#"
+<weight> is a number:
+    unit is kg.
+    valid values:
+        1 kg ... 1000 kg.
+    question:
+        ask "What is the weight".
+    meaning of <weight>:
+        valid meanings:
+            <light>; <heavy>.
+        assess meaning of <weight>:
+            1 kg ... 100 kg:
+                <light>.
+            101 kg ... 1000 kg:
+                <heavy>.
+"#;
+
+    let plan = parser::parse_plan(input).expect("Failed to parse plan");
+    let mut env = Environment::new();
+    env.load_plan(plan);
+
+    let result = Evaluator::evaluate(&env, &Expression::MeaningOf("weight".to_string()));
+    assert_eq!(result, RuntimeValue::Missing("weight".to_string()));
+}
+
+// REQ-5.3-03: meaning evaluation supports nested assessments.
+#[test]
+fn spec_meaning_of_nested_assessment() {
+    use hippocrates_engine::ast::Expression;
+    use hippocrates_engine::runtime::evaluator::Evaluator;
+
+    let input = r#"
+<pediatric age> is a number:
+    unit is months.
+    valid values:
+        0 months ... 12 months.
+    question:
+        ask "How old is the child".
+
+<age> is a number:
+    unit is years.
+    valid values:
+        0 years ... 150 years.
+    question:
+        ask "What is your age".
+    meaning of <age>:
+        valid meanings:
+            <just born>; <newborn>; <young>; <best age>; <old>.
+        assess meaning of <age>:
+            0 years ... 1 year:
+                assess <pediatric age>:
+                    0 months:
+                        <just born>.
+                    1 month ... 12 months:
+                        <newborn>.
+            2 years ... 20 years:
+                <young>.
+            21 years ... 100 years:
+                <best age>.
+            101 years ... 150 years:
+                <old>.
+"#;
+
+    let plan = parser::parse_plan(input).expect("Failed to parse plan");
+    let mut env = Environment::new();
+    env.load_plan(plan);
+    env.set_value("age", RuntimeValue::Quantity(0.0, Unit::Year));
+    env.set_value("pediatric age", RuntimeValue::Quantity(6.0, Unit::Month));
+
+    let result = Evaluator::evaluate(&env, &Expression::MeaningOf("age".to_string()));
+    assert_eq!(result, RuntimeValue::String("newborn".to_string()));
+}
+
 // REQ-5.2-01: numeric answers must respect the decimal precision implied by valid values.
 #[test]
 fn spec_numeric_input_precision_rejection() {

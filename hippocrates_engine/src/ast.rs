@@ -99,7 +99,7 @@ pub enum Trigger {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Property {
     ValidValues(Vec<Statement>),
-    Meaning(Vec<AssessmentCase>),
+    Meaning(MeaningDef),
     Question(Action), // AskQuestion
     Calculation(Vec<Statement>),
     Reuse(f64, Unit),
@@ -116,6 +116,12 @@ pub enum Property {
     Timeframe(Vec<Vec<RangeSelector>>),
     Custom(String, String),
     Unit(Unit),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MeaningDef {
+    pub cases: Vec<AssessmentCase>,
+    pub valid_meanings: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -273,6 +279,7 @@ pub type Block = Vec<Statement>;
 pub enum Expression {
     Literal(Literal),
     Variable(String),
+    MeaningOf(String),
     Binary(Box<Expression>, String, Box<Expression>),
     Statistical(StatisticalFunc),
     RelativeTime(f64, Unit, RelativeDirection),

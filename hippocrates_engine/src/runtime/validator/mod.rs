@@ -186,7 +186,8 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
     for def in &plan.definitions {
         if let Definition::Value(vd) = def {
             for prop in &vd.properties {
-                if let Property::Meaning(cases) = prop {
+                if let Property::Meaning(meaning_def) = prop {
+                    let cases = &meaning_def.cases;
                     let line = cases.first().map(|case| case.line).unwrap_or(0);
                     if enum_vars.contains(&vd.name) {
                         let mut valid_strings = Vec::new();
@@ -222,6 +223,15 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
 
                         let decimals = value_precision.get(&vd.name).and_then(|info| info.decimals);
                         coverage::check_coverage(&vd.name, valid_ranges, cases, line, decimals, &mut errors);
+                    }
+
+                    if !meaning_def.valid_meanings.is_empty() {
+                        validate_meaning_labels(
+                            &vd.name,
+                            meaning_def,
+                            line,
+                            &mut errors,
+                        );
                     }
                 }
             }
@@ -1229,8 +1239,8 @@ fn expected_unit_for_value_def(vd: &crate::ast::ValueDef, unit_map: &HashMap<Str
                     return Some(unit);
                 }
             }
-            Property::Meaning(cases) => {
-                if let Some(unit) = unit_from_cases(cases, unit_map) {
+            Property::Meaning(meaning_def) => {
+                if let Some(unit) = unit_from_cases(&meaning_def.cases, unit_map) {
                     return Some(unit);
                 }
             }
@@ -1287,6 +1297,110 @@ fn unit_from_expression(expr: &Expression, unit_map: &HashMap<String, Unit>) -> 
         Expression::Literal(Literal::Quantity(_, unit, _)) => {
             Some(canonicalize_unit(unit, unit_map))
         }
+        _ => None,
+    }
+}
+
+fn validate_meaning_labels(
+    value_name: &str,
+    meaning_def: &crate::ast::MeaningDef,
+    line: usize,
+    errors: &mut Vec<EngineError>,
+) {
+    let mut labels: Vec<(String, usize)> = Vec::new();
+    let mut invalid_expr_lines = Vec::new();
+
+    for case in &meaning_def.cases {
+        collect_meaning_labels_from_block(&case.block, &mut labels, &mut invalid_expr_lines);
+    }
+
+    for line in invalid_expr_lines {
+        errors.push(EngineError {
+            message: format!(
+                "Meaning of '{}' must assign an explicit meaning label (identifier or string literal) when 'valid meanings' are declared.",
+                value_name
+            ),
+            line,
+            column: 0,
+        });
+    }
+
+    let valid_set: HashSet<&str> = meaning_def.valid_meanings.iter().map(|s| s.as_str()).collect();
+    let mut used_set = HashSet::new();
+
+    for (label, label_line) in labels {
+        if !valid_set.contains(label.as_str()) {
+            errors.push(EngineError {
+                message: format!(
+                    "Meaning of '{}' uses invalid meaning '{}'; expected one of: {}.",
+                    value_name,
+                    label,
+                    meaning_def.valid_meanings.join(", ")
+                ),
+                line: label_line,
+                column: 0,
+            });
+            continue;
+        }
+        used_set.insert(label);
+    }
+
+    let missing: Vec<String> = meaning_def
+        .valid_meanings
+        .iter()
+        .filter(|m| !used_set.contains(*m))
+        .cloned()
+        .collect();
+    if !missing.is_empty() {
+        errors.push(EngineError {
+            message: format!(
+                "Meaning of '{}' does not use all valid meanings. Missing: {}.",
+                value_name,
+                missing.join(", ")
+            ),
+            line,
+            column: 0,
+        });
+    }
+}
+
+fn collect_meaning_labels_from_block(
+    block: &[Statement],
+    labels: &mut Vec<(String, usize)>,
+    invalid_expr_lines: &mut Vec<usize>,
+) {
+    for stmt in block {
+        match &stmt.kind {
+            StatementKind::Assignment(assign) if assign.target == "meaning of value" => {
+                if let Some(label) = extract_meaning_label_from_expression(&assign.expression) {
+                    labels.push((label, stmt.line));
+                } else {
+                    invalid_expr_lines.push(stmt.line);
+                }
+            }
+            StatementKind::Action(crate::ast::Action::ListenFor(label)) => {
+                labels.push((label.clone(), stmt.line));
+            }
+            StatementKind::Conditional(cond) => {
+                for case in &cond.cases {
+                    collect_meaning_labels_from_block(&case.block, labels, invalid_expr_lines);
+                }
+            }
+            StatementKind::ContextBlock(cb) => {
+                collect_meaning_labels_from_block(&cb.statements, labels, invalid_expr_lines);
+            }
+            StatementKind::Timeframe(tb) => {
+                collect_meaning_labels_from_block(&tb.block, labels, invalid_expr_lines);
+            }
+            _ => {}
+        }
+    }
+}
+
+fn extract_meaning_label_from_expression(expr: &Expression) -> Option<String> {
+    match expr {
+        Expression::Variable(name) => Some(name.clone()),
+        Expression::Literal(Literal::String(s)) => Some(s.clone()),
         _ => None,
     }
 }
@@ -1547,7 +1661,8 @@ fn check_expression_unit_precision(
                 });
             }
         }
-        Expression::RelativeTime(_, _, _)
+        Expression::MeaningOf(_)
+        | Expression::RelativeTime(_, _, _)
         | Expression::InterpolatedString(_)
         | Expression::FunctionCall(_, _)
         | Expression::Literal(Literal::String(_))

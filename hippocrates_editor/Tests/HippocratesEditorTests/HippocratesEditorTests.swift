@@ -18,13 +18,18 @@ class HippocratesEditorTests: XCTestCase {
     }
     func testMultiErrorValidation() {
         let input = """
+        <point> is a unit:
+            plural is <points>.
+        
         <val> is a number:
-            valid values: 0 points ... 10 points
+            unit is <points>.
+            valid values:
+                0 <points> ... 10 <points>.
         
         <plan> is a plan:
             during plan:
                 assess <val>:
-                    0 points ... 5 points:
+                    0 <points> ... 5 <points>:
                         show message "lower".
         """
         
@@ -33,23 +38,32 @@ class HippocratesEditorTests: XCTestCase {
         
         if let first = errors.first {
             print("Validation Error: \(first.message)")
-            XCTAssertTrue(first.message.contains("end: 6") || first.message.contains("10") || first.message.contains("gap"), "Error should mention missing range. Got: \(first.message)")
+            XCTAssertTrue(first.message.contains("Coverage Error") || first.message.contains("gap") || first.message.contains("Uncovered"), "Error should mention missing coverage. Got: \(first.message)")
         }
         
         let inputMultiple = """
+        <point> is a unit:
+            plural is <points>.
+        
         <val> is a number:
-            valid values: 0 points ... 10 points
+            unit is <points>.
+            valid values:
+                0 <points> ... 10 <points>.
         
         <plan> is a plan:
             during plan:
                 assess <val>:
-                    0 points ... 5 points:
+                    0 <points> ... 5 <points>:
                         show message "lower".
-                    4 points ... 6 points:
+                    4 <points> ... 6 <points>:
                         show message "overlap".
         """
         
         let errors2 = HippocratesParser.validate(input: inputMultiple)
+        let hasOverlap = errors2.contains { $0.message.contains("overlapping ranges") || $0.message.contains("Constraint Violation") }
+        let hasGap = errors2.contains { $0.message.contains("Coverage Error") || $0.message.contains("Uncovered") || $0.message.contains("gap") }
+        XCTAssertTrue(hasOverlap, "Should include overlap error. Got \(errors2.map { $0.message })")
+        XCTAssertTrue(hasGap, "Should include coverage gap error. Got \(errors2.map { $0.message })")
         XCTAssertTrue(errors2.count >= 2, "Should have at least 2 errors (overlap and gap). Got \(errors2.count)")
         for e in errors2 {
             print("Multi Error: \(e.message)")

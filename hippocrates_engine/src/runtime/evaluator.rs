@@ -1,4 +1,4 @@
-use crate::ast::{Expression, Literal, RangeSelector, StatementKind, ContextItem, Definition, Property};
+use crate::ast::{Expression, Literal, RangeSelector, StatementKind, ContextItem, Definition, Property, Statement, ConditionalTarget};
 use crate::domain::{RuntimeValue, Unit};
 use crate::runtime::Environment;
 use crate::runtime::environment::EvaluationContext;
@@ -138,6 +138,7 @@ impl Evaluator {
                 }
                 RuntimeValue::Void
             }
+            Expression::MeaningOf(name) => Self::evaluate_meaning(env, name),
             Expression::Binary(left, op, right) => {
                 let mut l_val = Self::evaluate(env, left);
                 let mut r_val = Self::evaluate(env, right);
@@ -436,6 +437,116 @@ impl Evaluator {
                 }
                 RuntimeValue::String(result)
             }
+        }
+    }
+
+    fn evaluate_meaning(env: &Environment, name: &str) -> RuntimeValue {
+        let value = Self::evaluate(env, &Expression::Variable(name.to_string()));
+        if matches!(value, RuntimeValue::Missing(_)) || matches!(value, RuntimeValue::NotEnoughData) {
+            return value;
+        }
+
+        let meaning_def = match env.definitions.get(name) {
+            Some(Definition::Value(v_def)) => v_def
+                .properties
+                .iter()
+                .find_map(|prop| match prop {
+                    Property::Meaning(def) => Some(def),
+                    _ => None,
+                }),
+            _ => None,
+        };
+
+        let meaning_def = match meaning_def {
+            Some(def) => def,
+            None => return RuntimeValue::Void,
+        };
+
+        Self::evaluate_meaning_cases(env, &meaning_def.cases, &value)
+    }
+
+    fn evaluate_meaning_cases(
+        env: &Environment,
+        cases: &[crate::ast::AssessmentCase],
+        value: &RuntimeValue,
+    ) -> RuntimeValue {
+        for case in cases {
+            if Self::check_condition(env, &case.condition, value) {
+                if let Some(result) = Self::evaluate_meaning_block(env, &case.block) {
+                    return result;
+                }
+                return RuntimeValue::Void;
+            }
+        }
+        RuntimeValue::Void
+    }
+
+    fn evaluate_meaning_block(env: &Environment, block: &[Statement]) -> Option<RuntimeValue> {
+        for stmt in block {
+            match &stmt.kind {
+                StatementKind::Assignment(assign) if assign.target == "meaning of value" => {
+                    return Some(Self::meaning_assignment_value(env, &assign.expression));
+                }
+                StatementKind::Action(crate::ast::Action::ListenFor(label)) => {
+                    return Some(RuntimeValue::String(label.clone()));
+                }
+                StatementKind::Conditional(cond) => {
+                    if let Some(result) = Self::evaluate_meaning_conditional(env, cond) {
+                        return Some(result);
+                    }
+                }
+                StatementKind::ContextBlock(cb) => {
+                    if let Some(result) = Self::evaluate_meaning_block(env, &cb.statements) {
+                        return Some(result);
+                    }
+                }
+                StatementKind::Timeframe(tb) => {
+                    if let Some(result) = Self::evaluate_meaning_block(env, &tb.block) {
+                        return Some(result);
+                    }
+                }
+                _ => {}
+            }
+        }
+        None
+    }
+
+    fn evaluate_meaning_conditional(
+        env: &Environment,
+        cond: &crate::ast::Conditional,
+    ) -> Option<RuntimeValue> {
+        let val = match &cond.condition {
+            ConditionalTarget::Expression(expr) => Self::evaluate(env, expr),
+            ConditionalTarget::Confidence(_ident) => RuntimeValue::Number(100.0),
+        };
+
+        if matches!(val, RuntimeValue::Missing(_)) || matches!(val, RuntimeValue::NotEnoughData) {
+            return Some(val);
+        }
+
+        let val = if let RuntimeValue::String(s) = &val {
+            env.get_value(s).cloned().unwrap_or(val)
+        } else {
+            val
+        };
+
+        for case in &cond.cases {
+            if Self::check_condition(env, &case.condition, &val) {
+                if let Some(result) = Self::evaluate_meaning_block(env, &case.block) {
+                    return Some(result);
+                }
+                return None;
+            }
+        }
+
+        None
+    }
+
+    fn meaning_assignment_value(env: &Environment, expr: &Expression) -> RuntimeValue {
+        match expr {
+            Expression::Variable(name) => RuntimeValue::String(name.clone()),
+            Expression::Literal(Literal::String(s)) => RuntimeValue::String(s.clone()),
+            _ => Self::evaluate(env, expr),
         }
     }
 
