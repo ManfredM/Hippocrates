@@ -20,20 +20,22 @@
 <severity of breathlessness> is a number:
     valid values:
         0 <points> ... 5 <points>.
-    meaning:
+    meaning of <severity of breathlessness>:
+        valid meanings:
+            <None>; <Not at all>; <Mild>; <Moderate>; <Severe>; <Worst possible>; <best value>; <worst value>.
         0 <points>:
-            meaning of value = "None".
+            meaning of value = <None>.
         1 <point>:
-            meaning of value = "Not at all".
+            meaning of value = <Not at all>.
             <best value>.
         2 <points>:
-            meaning of value = "Mild".
+            meaning of value = <Mild>.
         3 <points>:
-            meaning of value = "Moderate".
+            meaning of value = <Moderate>.
         4 <points>:
-            meaning of value = "Severe".
+            meaning of value = <Severe>.
         5 <points>:
-            meaning of value = "Worst possible".
+            meaning of value = <Worst possible>.
             <worst value>.
     question:
         ask "How severe was your breathlessness over the past 24 hours":
@@ -60,7 +62,7 @@
     documentation:
         english: "This value records if the inhaler was used.".
     valid values:
-        "Yes"; "No".
+        <Yes>; <No>.
     question:
         ask "Did you use your inhaler today?":
             validate answer once.
@@ -73,24 +75,27 @@
 <inhaler used in past 5 days> is a number:
     valid values:
         0 <doses> ... 1000 <doses>.
-    meaning:
+    meaning of <inhaler used in past 5 days>:
+        valid meanings:
+            <all doses missed>; <most doses missed>; <many doses missed>; <some doses missed>.
+            <most doses taken>; <all doses taken>; <too many doses taken>.
         0 <doses>:
-            meaning of value = "all doses missed".
+            meaning of value = <all doses missed>.
         1 <dose>:
-            meaning of value = "most doses missed".
+            meaning of value = <most doses missed>.
         2 <doses>:
-            meaning of value = "many doses missed".
+            meaning of value = <many doses missed>.
         3 <doses>:
-            meaning of value = "some doses missed".
+            meaning of value = <some doses missed>.
         4 <doses>:
-            meaning of value = "most doses taken".
+            meaning of value = <most doses taken>.
         5 <doses>:
-            meaning of value = "all doses taken".
+            meaning of value = <all doses taken>.
         6 <doses> ... 1000 <doses>:
-            meaning of value = "too many doses taken".
+            meaning of value = <too many doses taken>.
     calculation:
         timeframe for analysis is between 5 days ago ... now:
-            <value> = count of <inhaler used> is "Yes".
+            <value> = count of <inhaler used> is <Yes>.
     (* reuse:
         reuse period of value is 1 day.
     *)
@@ -98,24 +103,27 @@
 <inhaler used in past 5 days on time> is a number:
     valid values:
         0 <doses> ... 1000 <doses>.
-    meaning:
+    meaning of <inhaler used in past 5 days on time>:
+        valid meanings:
+            <all doses missed>; <most doses missed>; <many doses missed>; <some doses missed>.
+            <most doses taken>; <all doses taken>; <too many doses taken>.
         0 <doses>:
-            meaning of value = "all doses missed".
+            meaning of value = <all doses missed>.
         1 <dose>:
-            meaning of value = "most doses missed".
+            meaning of value = <most doses missed>.
         2 <doses>:
-            meaning of value = "many doses missed".
+            meaning of value = <many doses missed>.
         3 <doses>:
-            meaning of value = "some doses missed".
+            meaning of value = <some doses missed>.
         4 <doses>:
-            meaning of value = "most doses taken".
+            meaning of value = <most doses taken>.
         5 <doses>:
-            meaning of value = "all doses taken".
+            meaning of value = <all doses taken>.
         6 <doses> ... 1000 <doses>:
-            meaning of value = "too many doses taken".
+            meaning of value = <too many doses taken>.
     calculation:
         timeframe for analysis is between 5 days ago ... now during <best inhalation period>:
-            <value> = count of <inhaler used> is "Yes".
+            <value> = count of <inhaler used> is <Yes>.
     (* reuse:
         reuse period of value is 1 day.
     *)
@@ -148,10 +156,10 @@
                     <log> = "Rescue medication usage is stable or decreasing.".
 
         timeframe for analysis is between 5 days ago ... now:
-            <inhaler used in past 5 days> = count of <inhaler used> is "Yes".
+            <inhaler used in past 5 days> = count of <inhaler used> is <Yes>.
 
         timeframe for analysis is between 5 days ago ... now during <best inhalation period>:
-            <inhaler used in past 5 days on time> = count of <inhaler used> is "Yes".
+            <inhaler used in past 5 days on time> = count of <inhaler used> is <Yes>.
 
         assess <inhaler used in past 5 days on time>:
             Not enough data:
@@ -177,7 +185,7 @@
 (* --- PASS: bottles_plan --- *)
 <bottle state> is an enumeration:
     valid values:
-        "empty"; "full".
+        <empty>; <full>.
 
 <bottle> is a unit:
     plural is <bottles>.
@@ -192,12 +200,12 @@
         assess <empty bottles>:
             0 <bottles> ... 97 <bottles>:
                 show message to patient (99 <bottles> - <empty bottles>) + " of beer on the wall.".
-                <bottle state> = "empty".
+                <bottle state> = <empty>.
                 <empty bottles> = <empty bottles> + 1 <bottle>.
             
             98 <bottles>:
                 show message to patient "1 bottle of beer on the wall...".
-                <bottle state> = "empty".
+                <bottle state> = <empty>.
                 <empty bottles> = <empty bottles> + 1 <bottle>.
             
             99 <bottles>:

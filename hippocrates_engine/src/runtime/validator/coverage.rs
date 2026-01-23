@@ -324,6 +324,22 @@ fn extract_strings(sel: &RangeSelector, covered: &mut std::collections::HashSet<
         RangeSelector::Equals(Expression::Literal(Literal::String(s))) => {
             covered.insert(s.clone());
         },
+        RangeSelector::Equals(Expression::Variable(name)) => {
+            covered.insert(name.clone());
+        },
+        RangeSelector::List(items) => {
+            for item in items {
+                match item {
+                    Expression::Literal(Literal::String(s)) => {
+                        covered.insert(s.clone());
+                    }
+                    Expression::Variable(name) => {
+                        covered.insert(name.clone());
+                    }
+                    _ => {}
+                }
+            }
+        }
         // RangeSelector could be just a string literal in some parsing contexts?
         // Actually, parser for "string" usually produces RangeSelector::Equals(Literal::String)
         // Check grammar: range_selector -> expression -> literal -> string

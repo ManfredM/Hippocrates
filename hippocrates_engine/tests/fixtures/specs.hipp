@@ -9,17 +9,21 @@
 <Temperature> is a number:
     valid values:
         35.0 °C ... 42.0 °C.
-    meaning:
+    meaning of <Temperature>:
+        valid meanings:
+            <yes>; <no>.
         38.0 °C ... 42.0 °C:
-            <High Fever> = "yes".
+            meaning of value = <yes>.
+            <High Fever> = <yes>.
         35.0 °C ... 37.9 °C:
-            <High Fever> = "no".
+            meaning of value = <no>.
+            <High Fever> = <no>.
     question:
         ask "What is the patient's temperature?".
 
 <High Fever> is an enumeration:
     valid values:
-        "yes"; "no".
+        <yes>; <no>.
 
 <Pain Level> is a number:
     unit is <count>.
@@ -68,10 +72,10 @@
         assess <Temperature>:
             38.0 °C ... 42.0 °C:
                 show message "Fever detected.".
-                <High Fever> = "yes".
+                <High Fever> = <yes>.
             35.0 °C ... 37.9 °C:
                 show message "Normal temperature.".
-                <High Fever> = "no".
+                <High Fever> = <no>.
 
         show message to <Dr. House> "Assessment complete.".
         send information "Temp Log" <Temperature>.
@@ -101,7 +105,7 @@
 
 <duplicate enums> is an enumeration:
     valid values:
-        "A"; "B"; "A".
+        <A>; <B>; <A>.
 
 <overlapping ranges> is a number:
     valid values:
@@ -111,11 +115,15 @@
 <incomplete meaning> is a number:
     valid values:
         0 kg ... 100 kg.
-    meaning:
+    meaning of <incomplete meaning>:
+        valid meanings:
+            <low>; <high>.
         0 kg ... 50 kg:
-            <status> = "low".
+            meaning of value = <low>.
+            <status> = <low>.
         80 kg ... 100 kg:
-            <status> = "high".
+            meaning of value = <high>.
+            <status> = <high>.
 
 <undefined usage> is a plan:
     during plan:
@@ -141,15 +149,15 @@
 
 <TestEnum> is an enumeration:
     valid values:
-        "A".
-        "B".
-        "C".
+        <A>.
+        <B>.
+        <C>.
 
 <Golden Plan> is a plan:
     during plan:
         <Test Number> = 42 <testpoint>.
         <Test String> = "Hello World".
-        <TestEnum> = "A".
+        <TestEnum> = <A>.
         
         show message "Number is " + <Test Number>.
         
@@ -164,9 +172,9 @@
                 show message "Low Value".
                 
         assess <TestEnum>:
-            "A":
+            <A>:
                 show message "Enum is A".
-            "B"; "C":
+            <B>; <C>:
                 show message "Either B or C".
 
 (* --- FAIL: golden_master --- *)
@@ -183,17 +191,19 @@
     unit is mmHg.
     valid values:
         0 mmHg ... 300 mmHg.
-    meaning:
+    meaning of <BloodPressure>:
+        valid meanings:
+            <Low>; <Normal>.
         0 mmHg ... 90 mmHg:
-            meaning of value = "Low".
+            meaning of value = <Low>.
         91 mmHg ... 120 mmHg:
-            meaning of value = "Normal".
+            meaning of value = <Normal>.
     documentation:
         english: "The force of circulating blood.".
 
 <Status> is an enumeration:
     valid values:
-        "Active"; "Inactive"; "Pending".
+        <Active>; <Inactive>; <Pending>.
     reuse:
         reuse period of value is 1 day.
 

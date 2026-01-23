@@ -846,7 +846,7 @@ fn parse_meaning_prop(pair: pest::iterators::Pair<Rule>) -> Result<Property, Par
     for child in pair.into_inner() {
         match child.as_rule() {
             Rule::identifier => {
-                // Optional "meaning of <id>" target - currently unused.
+                // Required "meaning of <id>" target - currently unused.
             }
             Rule::meaning_item_block => {
                 for inner in child.into_inner() {
@@ -897,7 +897,6 @@ fn parse_valid_meanings(pair: pest::iterators::Pair<Rule>) -> Vec<String> {
     while let Some(node) = stack.pop() {
         match node.as_rule() {
             Rule::identifier => meanings.push(parse_identifier_str(node)),
-            Rule::string_literal => meanings.push(parse_string_literal(node)),
             _ => {
                 for child in node.into_inner() {
                     stack.push(child);
@@ -1222,6 +1221,7 @@ fn parse_action(pair: pest::iterators::Pair<Rule>) -> Result<Action, ParseError>
     let inner = pair.into_inner().next().unwrap();
     match inner.as_rule() {
         Rule::show_message => Ok(parse_show_message(inner.into_inner())?),
+        Rule::say_message => Ok(parse_show_message(inner.into_inner())?),
         Rule::ask_question => Ok(parse_ask_question(inner.into_inner())?),
         Rule::send_info => {
             let mut pairs = inner.into_inner();

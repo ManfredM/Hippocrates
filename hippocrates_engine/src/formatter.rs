@@ -297,7 +297,7 @@ fn format_meaning_prop(pair: Pair<Rule>, source: &str, indent: usize, out: &mut 
 
     let header = match target {
         Some(t) => format!("meaning of {}:", t),
-        None => "meaning:".to_string(),
+        None => "meaning of <value>:".to_string(),
     };
     write_line(out, indent, header);
 
@@ -645,7 +645,7 @@ fn format_action(pair: Pair<Rule>, source: &str, indent: usize, out: &mut String
     }
     let inner = inner.unwrap();
     match inner.as_rule() {
-        Rule::show_message => format_show_message(inner, indent, out),
+        Rule::show_message | Rule::say_message => format_show_message(inner, indent, out),
         Rule::ask_question => format_ask_question(inner, source, indent, out),
         Rule::listen_for => format_listen_for(inner, source, indent, out),
         Rule::question_modifier => format_question_modifier(inner, source, indent, out),

@@ -446,6 +446,16 @@ impl Executor {
                     }
                 }
 
+                if let crate::domain::RuntimeValue::Void = val {
+                    if let crate::ast::Expression::Variable(label) = &assign.expression {
+                        if let Some(crate::ast::Definition::Value(vd)) = env.definitions.get(&assign.target) {
+                            if vd.value_type == crate::domain::ValueType::Enumeration {
+                                val = crate::domain::RuntimeValue::Enumeration(label.clone());
+                            }
+                        }
+                    }
+                }
+
                 if let Some(expected_unit) = env.expected_unit_for_value(&assign.target) {
                     let is_count = matches!(
                         &assign.expression,

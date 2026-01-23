@@ -85,12 +85,12 @@ fn test_current_value_in_calculation() {
     let input = r#"
 <val> is an enumeration:
     valid values:
-        "Yes"; "No".
+        <Yes>; <No>.
 
 <count> is a number:
     calculation:
         timeframe for analysis is 5 days ago ... now:
-            <value> = count of <val> is "Yes".
+            <value> = count of <val> is <Yes>.
 "#;
     let plan = parser::parse_plan(input).expect("Failed to parse");
     let mut env = Environment::new();
@@ -98,7 +98,7 @@ fn test_current_value_in_calculation() {
     let now = chrono::Utc::now().naive_utc();
     env.set_start_time(now - chrono::Duration::days(10));
 
-    env.set_value("val", RuntimeValue::String("Yes".to_string()));
+    env.set_value("val", RuntimeValue::Enumeration("Yes".to_string()));
 
     use hippocrates_engine::ast::{Expression, RelativeDirection, RangeSelector, StatisticalFunc};
     use hippocrates_engine::runtime::Evaluator;
@@ -114,7 +114,7 @@ fn test_current_value_in_calculation() {
 
     env.push_context(ctx);
 
-    let filter_expr = Expression::Literal(hippocrates_engine::ast::Literal::String("Yes".to_string()));
+    let filter_expr = Expression::Variable("Yes".to_string());
     let count_expr = Expression::Statistical(StatisticalFunc::CountOf("val".to_string(), Some(Box::new(filter_expr))));
 
     let result = Evaluator::evaluate(&env, &count_expr);
@@ -134,12 +134,12 @@ fn test_derived_calculation() {
     let input = r#"
 <val> is an enumeration:
     valid values:
-        "Yes".
+        <Yes>.
 
 <derived count> is a number:
     calculation:
         timeframe for analysis is 5 days ago ... now:
-            <value> = count of <val> is "Yes".
+            <value> = count of <val> is <Yes>.
 "#;
     let plan = parser::parse_plan(input).expect("Failed to parse");
     let mut env = Environment::new();
@@ -148,7 +148,7 @@ fn test_derived_calculation() {
     env.set_time(now);
     env.set_start_time(now - chrono::Duration::days(10));
 
-    env.set_value("val", RuntimeValue::String("Yes".to_string()));
+    env.set_value("val", RuntimeValue::Enumeration("Yes".to_string()));
 
     let expr = hippocrates_engine::ast::Expression::Variable("derived count".to_string());
     let result = hippocrates_engine::runtime::Evaluator::evaluate(&env, &expr);

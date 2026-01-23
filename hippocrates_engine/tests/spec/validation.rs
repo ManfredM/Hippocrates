@@ -15,11 +15,13 @@ fn spec_meaning_coverage_gaps_integer() {
     unit is mmHg.
     valid values:
         0 mmHg ... 300 mmHg.
-    meaning:
+    meaning of <BloodPressure>:
+        valid meanings:
+            <Low>; <Normal>.
         0 mmHg ... 90 mmHg:
-            meaning of value = "Low".
+            meaning of value = <Low>.
         91 mmHg ... 120 mmHg:
-            meaning of value = "Normal".
+            meaning of value = <Normal>.
 "#;
 
     let plan = parser::parse_plan(input).expect("Failed to parse plan input");
@@ -42,11 +44,13 @@ fn spec_meaning_coverage_gaps_float() {
     unit is mg.
     valid values:
         0.0 mg ... 1.0 mg.
-    meaning:
+    meaning of <OxygenSat>:
+        valid meanings:
+            <Low>; <Normal>.
         0.0 mg ... 0.5 mg:
-            meaning of value = "Low".
+            meaning of value = <Low>.
         0.7 mg ... 1.0 mg:
-            meaning of value = "Normal".
+            meaning of value = <Normal>.
 "#;
 
     let plan = parser::parse_plan(input).expect("Failed to parse plan input");
@@ -70,11 +74,13 @@ fn spec_meaning_coverage_disjoint_ranges_ok() {
     valid values:
         1 mg ... 3 mg.
         5 mg ... 10 mg.
-    meaning:
+    meaning of <WindowedValue>:
+        valid meanings:
+            <Low>; <High>.
         1 mg ... 3 mg:
-            meaning of value = "Low".
+            meaning of value = <Low>.
         5 mg ... 10 mg:
-            meaning of value = "High".
+            meaning of value = <High>.
 "#;
 
     let plan = parser::parse_plan(input).expect("Failed to parse plan input");
@@ -176,14 +182,14 @@ fn spec_validator_enum_duplicate() {
     let input = r#"
 <val> is an enumeration:
     valid values:
-        "A"; "B".
+        <A>; <B>.
 
 <plan> is a plan:
     during plan:
         assess <val>:
-            "A":
+            <A>:
                 <log> = "A1".
-            "A":
+            <A>:
                 <log> = "A2".
 "#;
     let plan = parser::parse_plan(input).expect("Failed to parse");
@@ -191,6 +197,30 @@ fn spec_validator_enum_duplicate() {
     if result.is_ok() {
         panic!("Validation succeeded but should have failed for duplicate enum values!");
     }
+}
+
+// REQ-3.4-13: enumeration valid values must be identifiers (angle brackets).
+#[test]
+fn spec_enum_valid_values_require_identifiers() {
+    let input = r#"
+<val> is an enumeration:
+    valid values:
+        "Yes"; "No".
+
+<plan> is a plan:
+    during plan:
+        ask <val>.
+"#;
+
+    let plan = parser::parse_plan(input).expect("Failed to parse");
+    let result = validator::validate_file(&plan);
+    assert!(result.is_err(), "Expected validation error for enum string literals");
+    let errors = result.unwrap_err();
+    assert!(
+        errors.iter().any(|e| e.message.contains("identifiers")),
+        "Expected enum identifier error, got {:?}",
+        errors
+    );
 }
 
 // REQ-4.6-01: timeframe calculations require Not enough data handling.
@@ -236,7 +266,7 @@ fn spec_statistical_functions_require_timeframe_context() {
 
 <flag> is an enumeration:
     valid values:
-        "Yes"; "No".
+        <Yes>; <No>.
 
 <count> is a number:
     valid values:
@@ -244,7 +274,7 @@ fn spec_statistical_functions_require_timeframe_context() {
 
 <plan> is a plan:
     during plan:
-        <count> = count of <flag> is "Yes".
+        <count> = count of <flag> is <Yes>.
 "#;
 
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
@@ -781,12 +811,12 @@ fn spec_statistical_functions_do_not_require_local_init() {
     let input = r#"
 <val> is an enumeration:
     valid values:
-        "Yes"; "No".
+        <Yes>; <No>.
 
 <plan> is a plan:
     during plan:
         timeframe for analysis is between 5 days ago ... now:
-            show message count of <val> is "Yes".
+            show message count of <val> is <Yes>.
 "#;
 
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
@@ -802,9 +832,11 @@ fn spec_meaning_of_requires_question_when_uninitialized() {
     unit is kg.
     valid values:
         0 kg ... 10 kg.
-    meaning:
+    meaning of <val>:
+        valid meanings:
+            <ok>.
         0 kg ... 10 kg:
-            meaning of value = "ok".
+            meaning of value = <ok>.
 
 <label> is a string.
 
@@ -836,9 +868,11 @@ fn spec_meaning_of_allows_question_when_uninitialized() {
         0 kg ... 10 kg.
     question:
         ask "What is the value".
-    meaning:
+    meaning of <val>:
+        valid meanings:
+            <ok>.
         0 kg ... 10 kg:
-            meaning of value = "ok".
+            meaning of value = <ok>.
 
 <label> is a string.
 
@@ -858,7 +892,7 @@ fn spec_listen_and_context_initialize_values() {
     let input = r#"
 <signal> is an enumeration:
     valid values:
-        "Yes"; "No".
+        <Yes>; <No>.
 
 <plan> is a plan:
     during plan:

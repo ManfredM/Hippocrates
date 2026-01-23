@@ -14,7 +14,7 @@
 
 <symptom severity> is an enumeration:
     valid values:
-        "mild"; "moderate"; "severe".
+        <mild>; <moderate>; <severe>.
     question:
         ask "How severe are your symptoms?".
 

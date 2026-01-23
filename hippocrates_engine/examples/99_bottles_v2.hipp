@@ -1,6 +1,6 @@
 <bottle state> is an enumeration:
     valid values:
-        "empty"; "full".
+        <empty>; <full>.
 
 <bottle> is a unit:
     plural is <bottles>.
@@ -16,11 +16,11 @@
         assess <empty bottles>:
             0 <bottles> ... 97 <bottles>:
                 show message to patient (99 <bottles> - <empty bottles>) + " of beer on the wall.".
-                <bottle state> = "empty".
+                <bottle state> = <empty>.
                 <empty bottles> = <empty bottles> + 1 <bottle>.
             98 <bottles>:
                 show message to patient "1 bottle of beer on the wall...".
-                <bottle state> = "empty".
+                <bottle state> = <empty>.
                 <empty bottles> = <empty bottles> + 1 <bottle>.
             99 <bottles>:
                 show message to patient "No more bottles of beer on the wall.".

@@ -145,6 +145,10 @@ Requirements:
 - REQ-3.4-07: custom properties parse as generic properties.
 - REQ-3.4-08: date/time value types parse correctly.
 - REQ-3.4-09: meaning assessments are only allowed in value definition blocks.
+- REQ-3.4-10: meaning properties require an explicit target identifier.
+- REQ-3.4-11: meaning properties must declare valid meanings.
+- REQ-3.4-12: meaning labels must be identifiers (angle brackets).
+- REQ-3.4-13: enumeration valid values are identifiers (angle brackets).
 
 
 
@@ -177,12 +181,12 @@ valid_values_prop =
 valid_values_block = { range_selector, [ ";" ], newline };
 
 meaning_prop =
-    "meaning", [ " of ", identifier ], ":", newline, indent,
+    "meaning of ", identifier, ":", newline, indent,
+    valid_meanings_prop,
     { meaning_item_block },
     dedent;
 
 meaning_item_block =
-    valid_meanings_prop |
     meaning_assess_block |
     assessment_case;
 
@@ -190,7 +194,7 @@ valid_meanings_prop =
     "valid meanings:", newline, indent, valid_meanings_line, { valid_meanings_line }, dedent;
 
 valid_meanings_line = meaning_item, { ";", meaning_item }, [ ";" ], ".";
-meaning_item = identifier | string_literal;
+meaning_item = identifier;
 
 meaning_assess_block =
     "assess meaning of ", identifier, ":", newline, indent, { assessment_case }, dedent;
@@ -224,7 +228,10 @@ property_content = { character };
 property_line = { character - newline };
 ```
 
-Informative: `meaning:` blocks and `assess meaning of <value>` blocks are value properties only; they are not valid statements inside plans or other block contexts. (See REQ-3.4-09.)
+Informative: `meaning of <value>:` blocks must include the target identifier; the shorthand `meaning:` is not part of the language. (See REQ-3.4-10.)
+Informative: `meaning of <value>:` blocks must declare `valid meanings:` before meaning assessments. (See REQ-3.4-11.)
+Informative: Meaning labels and `valid meanings` entries are identifiers (angle brackets), not string literals. (See REQ-3.4-12.)
+Informative: `meaning of <value>:` blocks and `assess meaning of <value>` blocks are value properties only; they are not valid statements inside plans or other block contexts. (See REQ-3.4-09.)
 
 ### 3.5. Periods and Plans
 
@@ -283,7 +290,7 @@ statement =
     newline;
 
 assignment = identifier, " = ", expression, ".";
-meaning_assignment = "meaning of value = ", expression, ".";
+meaning_assignment = "meaning of value = ", identifier, ".";
 
 conditional =
     "assess ", ( confidence_target | expression ), ":", newline, indent,
@@ -333,6 +340,7 @@ Requirements:
 - REQ-3.7-05: listen/send/start/simple command actions parse.
 - REQ-3.7-06: question expiration blocks parse with reminder statements.
 - REQ-3.7-07: question expiration supports until event triggers.
+- REQ-3.7-08: say is accepted as a message action keyword.
 
 
 
@@ -340,6 +348,7 @@ Requirements:
 ```ebnf
 action =
     show_message |
+    say_message |
     ask_question |
     listen_for |
     send_info |
@@ -348,6 +357,7 @@ action =
     simple_command;
 
 show_message = show_message_block | show_message_inline;
+say_message = say_message_block | say_message_inline;
 
 show_message_block =
     "show message", [ " to ", ( "patient" | "physician" | identifier ) ],
@@ -355,6 +365,14 @@ show_message_block =
 
 show_message_inline =
     "show message", [ " to ", ( "patient" | "physician" | identifier ) ],
+    message_content_line, ".";
+
+say_message_block =
+    "say", [ " to ", ( "patient" | "physician" | identifier ) ],
+    ( message_block | ( message_content_line, message_property_block ) );
+
+say_message_inline =
+    "say", [ " to ", ( "patient" | "physician" | identifier ) ],
     message_content_line, ".";
 
 message_content_line = expression;
@@ -614,6 +632,7 @@ Requirements:
 * **Numbers**: Informative — a unit is defined (via `unit is ...` or by using quantities in `valid values`). (See REQ-4.2-01, REQ-4.2-03.)
 * **Asking**: Informative — `ask` is only valid when a value has a `question` property. (See REQ-4.2-04.)
 * **Valid Values**: Informative — valid value ranges are non-overlapping (including numeric, date/time, and time-of-day ranges); use disjoint ranges when multiple intervals are needed. (See REQ-4.2-07.)
+* **Enumerations**: Informative — enumeration valid values are identifiers (angle brackets), not string literals. (See REQ-3.4-13.)
 
 ### 4.3. Data Flow and Validity
 
@@ -654,7 +673,7 @@ Requirements:
 
 
 
-Meaning assessments may declare `valid meanings` and use `assess meaning of <value>` blocks. Within a meaning case, a bare identifier statement (e.g., `<light>.`) assigns that meaning label, equivalent to `meaning of value = <light>.`.
+Meaning assessments are declared as `meaning of <value>:` and must include `valid meanings:`; they may include `assess meaning of <value>` blocks. Meaning labels are identifiers (angle brackets). Within a meaning case, a bare identifier statement (e.g., `<light>.`) assigns that meaning label, equivalent to `meaning of value = <light>.`.
 
 * Informative — `assess` blocks, `meaning` cases, and assessments over statistical results fully cover the valid range of the target/output. (See REQ-4.4-01, REQ-4.4-02, REQ-4.4-03.)
 * Informative — for enumerations, all valid values are covered. (See REQ-4.4-05.)
@@ -786,14 +805,14 @@ Informative: When the source value is unknown, the runtime returns `Missing` to 
         0 <doses> ... 1000 <doses>
     calculation:
         timeframe for analysis is between 5 days ago ... now:
-            <inhaler used in past 5 days> = count of <inhaler used> is "Yes".
+            <inhaler used in past 5 days> = count of <inhaler used> is <Yes>.
 
 <inhaler used in past 5 days on time> is a number:
     valid values:
         0 <doses> ... 1000 <doses>
     calculation:
         timeframe for analysis is between 5 days ago ... now during <best inhalation period>:
-            <inhaler used in past 5 days on time> = count of <inhaler used> is "Yes".
+            <inhaler used in past 5 days on time> = count of <inhaler used> is <Yes>.
 ```
 
 ### 6.3. Handling Insufficient Data
@@ -901,6 +920,10 @@ during plan:
 - REQ-3.4-07: custom properties parse as generic properties.
 - REQ-3.4-08: date/time value types parse correctly.
 - REQ-3.4-09: meaning assessments are only allowed in value definition blocks.
+- REQ-3.4-10: meaning properties require an explicit target identifier.
+- REQ-3.4-11: meaning properties must declare valid meanings.
+- REQ-3.4-12: meaning labels must be identifiers (angle brackets).
+- REQ-3.4-13: enumeration valid values are identifiers (angle brackets).
 - REQ-3.5-01: period definitions parse by name.
 - REQ-3.5-02: period timeframe lines parse with range selectors.
 - REQ-3.6-01: timeframe blocks parse with nested statements.
@@ -915,6 +938,7 @@ during plan:
 - REQ-3.7-05: listen/send/start/simple command actions parse.
 - REQ-3.7-06: question expiration blocks parse with reminder statements.
 - REQ-3.7-07: question expiration supports until event triggers.
+- REQ-3.7-08: say is accepted as a message action keyword.
 - REQ-3.8-01: event triggers parse for change/start/periodic.
 - REQ-3.8-02: event blocks attach statements to triggers.
 - REQ-3.8-03: scheduler computes next occurrence for periods.

@@ -144,11 +144,11 @@ valid_values_block = { valid_values_line+ }
 valid_values_line = { safe_range_item ~ (";" ~ safe_range_item)* ~ ";"? ~ "." ~ NEWLINE* }
 inline_valid_values = { safe_range_item ~ ((";" | NEWLINE)? ~ safe_range_item)* ~ "." }
 
-meaning_prop = { "meaning" ~ ("of" ~ identifier)? ~ ":" ~ NEWLINE* ~ INDENT ~ meaning_item_block+ ~ DEDENT }
-meaning_item_block = { valid_meanings_prop | meaning_assess_block | assessment_case }
+meaning_prop = { "meaning" ~ "of" ~ identifier ~ ":" ~ NEWLINE* ~ INDENT ~ valid_meanings_prop ~ meaning_item_block* ~ DEDENT }
+meaning_item_block = { meaning_assess_block | assessment_case }
 valid_meanings_prop = { "valid" ~ "meanings" ~ ":" ~ NEWLINE* ~ INDENT ~ valid_meanings_line+ ~ DEDENT }
 valid_meanings_line = { meaning_item ~ (";" ~ meaning_item)* ~ ";"? ~ "." ~ NEWLINE* }
-meaning_item = { identifier | string_literal }
+meaning_item = { identifier }
 meaning_assess_block = { "assess" ~ "meaning" ~ "of" ~ identifier ~ ":" ~ NEWLINE* ~ INDENT ~ assessment_case+ ~ DEDENT }
 question_prop = { "question" ~ flexible_block } 
 calculation_prop = { "calculation" ~ flexible_block }
@@ -254,10 +254,11 @@ constraint_tail = _{ (constraint_operator ~ timeframe_selector)+ }
 context_block = { "context" ~ ("for" ~ "analysis")? ~ ":" ~ NEWLINE* ~ INDENT ~ (context_item | statement)+ ~ DEDENT } 
 
 assignment = { identifier ~ "=" ~ expression ~ "." }
-meaning_assignment = { "meaning" ~ "of" ~ "value" ~ "=" ~ expression ~ "." }
+meaning_assignment = { "meaning" ~ "of" ~ "value" ~ "=" ~ identifier ~ "." }
 
 action = {
     show_message |
+    say_message |
     ask_question |
     listen_for |
     send_info |
@@ -297,6 +298,7 @@ message_block = { ":" ~ NEWLINE* ~ INDENT ~ message_block_line+ ~ DEDENT }
 message_property_block = { ":" ~ NEWLINE* ~ INDENT ~ message_property+ ~ DEDENT }
 
 show_message = { show_message_block | show_message_inline }
+say_message = { say_message_block | say_message_inline }
 
 show_message_block = _{ 
     "show message" ~ ("to" ~ ("patient" | "physician" | identifier))? ~ (
@@ -307,6 +309,18 @@ show_message_block = _{
 
 show_message_inline = _{
     "show message" ~ ("to" ~ ("patient" | "physician" | identifier))? ~
+    message_content_line ~ "."
+}
+
+say_message_block = _{
+    "say" ~ ("to" ~ ("patient" | "physician" | identifier))? ~ (
+        message_block |
+        (message_content_line ~ message_property_block)
+    )
+}
+
+say_message_inline = _{
+    "say" ~ ("to" ~ ("patient" | "physician" | identifier))? ~
     message_content_line ~ "."
 }
 

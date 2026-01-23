@@ -125,12 +125,14 @@ fn check_expression(
 ) {
     match expr {
         Expression::Variable(name) => {
-             if !state.initialized.contains(name) {
-                 errors.push(EngineError {
-                     message: format!("Data Flow Error: Variable '{}' used before being assigned or asked.", name),
-                     line,
-                     column: 0
-                 });
+             if let Some(Definition::Value(_)) = defs.get(name) {
+                 if !state.initialized.contains(name) {
+                     errors.push(EngineError {
+                         message: format!("Data Flow Error: Variable '{}' used before being assigned or asked.", name),
+                         line,
+                         column: 0
+                     });
+                 }
              }
         },
         Expression::MeaningOf(name) => {

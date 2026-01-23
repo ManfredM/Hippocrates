@@ -12,7 +12,7 @@ fn test_analysis_context_execution() {
 
 <status> is an enumeration:
     valid values:
-        \"low\"; \"high\".
+        <low>; <high>.
 
 <test var> is a number:
     valid values:
@@ -26,9 +26,9 @@ fn test_analysis_context_execution() {
     begin of <period>:
         assess <test var>:
             0 <testunits> ... 10 <testunits>:
-                <status> = \"low\".
+                <status> = <low>.
             11 <testunits> ... 100 <testunits>:
-                <status> = \"high\".
+                <status> = <high>.
 ";
 
     // 1. Parsing Check with assignment
@@ -46,11 +46,11 @@ fn test_analysis_context_execution() {
 
 <status> is an enumeration:
     valid values:
-        \"zero\".
+        <zero>.
 
 <flag> is an enumeration:
     valid values:
-        \"Yes\"; \"No\".
+        <Yes>; <No>.
 
 <val> is a number:
     valid values:
@@ -63,12 +63,12 @@ fn test_analysis_context_execution() {
 <stat plan> is a plan:
     begin of <p>:
         timeframe for analysis is between 5 days ago ... now:
-            <val> = count of <flag> is \"Yes\".
+            <val> = count of <flag> is <Yes>.
         assess <val>:
             Not enough data:
                 show message \"We do not have enough data\".
             0 <valunits> ... 100 <valunits>:
-                <status> = \"zero\".
+                <status> = <zero>.
 ";
     
     let plan_stat = hippocrates_engine::parser::parse_plan(source_stat).expect("Failed to parse stat plan");

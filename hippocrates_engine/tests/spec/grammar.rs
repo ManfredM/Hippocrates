@@ -116,10 +116,62 @@ fn spec_meaning_assessments_not_allowed_in_plans() {
 
 <plan> is a plan:
     during plan:
-        meaning:
+        meaning of <val>:
+            valid meanings:
+                <ok>.
             0 kg ... 10 kg:
-                meaning of value = "ok".
+                meaning of value = <ok>.
 "#;
     let result = parser::parse_plan(input);
     assert!(result.is_err(), "Expected parser error for meaning block inside a plan");
+}
+
+// REQ-3.4-10: meaning properties require an explicit target identifier.
+#[test]
+fn spec_meaning_requires_target_identifier() {
+    let input = r#"
+<val> is a number:
+    unit is kg.
+    valid values:
+        0 kg ... 10 kg.
+    meaning:
+        0 kg ... 10 kg:
+            meaning of value = <ok>.
+"#;
+    let result = parser::parse_plan(input);
+    assert!(result.is_err(), "Expected parser error for missing meaning target");
+}
+
+// REQ-3.4-11: meaning properties must declare valid meanings.
+#[test]
+fn spec_meaning_requires_valid_meanings() {
+    let input = r#"
+<val> is a number:
+    unit is kg.
+    valid values:
+        0 kg ... 10 kg.
+    meaning of <val>:
+        0 kg ... 10 kg:
+            meaning of value = <ok>.
+"#;
+    let result = parser::parse_plan(input);
+    assert!(result.is_err(), "Expected parser error for missing valid meanings");
+}
+
+// REQ-3.4-12: meaning labels must be identifiers (angle brackets).
+#[test]
+fn spec_meaning_labels_require_identifiers() {
+    let input = r#"
+<val> is a number:
+    unit is kg.
+    valid values:
+        0 kg ... 10 kg.
+    meaning of <val>:
+        valid meanings:
+            "ok".
+        0 kg ... 10 kg:
+            meaning of value = <ok>.
+"#;
+    let result = parser::parse_plan(input);
+    assert!(result.is_err(), "Expected parser error for string meaning label");
 }

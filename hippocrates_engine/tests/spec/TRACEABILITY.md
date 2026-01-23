@@ -32,6 +32,10 @@
 - REQ-3.4-07 — `tests/spec/values.rs::spec_generic_property_parsing` — custom properties parse as generic properties.
 - REQ-3.4-08 — `tests/spec/values.rs::spec_value_type_variants_parse` — date/time value type parses.
 - REQ-3.4-09 — `tests/spec/grammar.rs::spec_meaning_assessments_not_allowed_in_plans` — meaning assessments are only allowed in value definition blocks.
+- REQ-3.4-10 — `tests/spec/grammar.rs::spec_meaning_requires_target_identifier` — meaning properties require an explicit target identifier.
+- REQ-3.4-11 — `tests/spec/grammar.rs::spec_meaning_requires_valid_meanings` — meaning properties must declare valid meanings.
+- REQ-3.4-12 — `tests/spec/grammar.rs::spec_meaning_labels_require_identifiers` — meaning labels must be identifiers (angle brackets).
+- REQ-3.4-13 — `tests/spec/validation.rs::spec_enum_valid_values_require_identifiers` — enumeration valid values are identifiers (angle brackets).
 
 ## §3.5 Periods and Plans
 - REQ-3.5-01 — `tests/spec/periods_plans.rs::spec_period_definition_parsing` — period definitions parse by name.
@@ -52,6 +56,7 @@
 - REQ-3.7-05 — `tests/spec/statements_actions.rs::spec_listen_send_start_and_simple_command_parsing` — listen/send/start/simple command actions parse.
 - REQ-3.7-06 — `tests/spec/statements_actions.rs::spec_question_expiration_block_parsing` — question expiration blocks parse with reminder statements.
 - REQ-3.7-07 — `tests/spec/statements_actions.rs::spec_question_expiration_until_event_trigger_parsing` — question expiration supports until event triggers.
+- REQ-3.7-08 — `tests/spec/statements_actions.rs::spec_say_message_parsing` — say is accepted as a message action keyword.
 
 ## §3.8 Events and Timing
 - REQ-3.8-01 — `tests/spec/periods_plans.rs::spec_event_trigger_parsing` — event triggers parse for change/start/periodic.

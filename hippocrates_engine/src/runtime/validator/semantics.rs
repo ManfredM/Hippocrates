@@ -288,7 +288,15 @@ pub fn check_statement_semantics(
              // Wait, previous signature was `defined_values: &HashSet<String>`.
              // I need to change signature to `&HashMap` to inspect properties.
              let defined_keys: HashSet<String> = defined_values.keys().cloned().collect();
-             validate_expression(&assign.expression, enum_vars, &defined_keys, stmt.line, errors);
+             let allow_enum_label = enum_vars.contains(&assign.target);
+             validate_expression(
+                 &assign.expression,
+                 enum_vars,
+                 &defined_keys,
+                 stmt.line,
+                 allow_enum_label,
+                 errors,
+             );
         }
         StatementKind::Action(action) => {
             match action {
@@ -342,7 +350,7 @@ pub fn check_statement_semantics(
                  crate::ast::Action::ShowMessage(parts, _) => {
                      let defined_keys: HashSet<String> = defined_values.keys().cloned().collect();
                      for part in parts {
-                         validate_expression(part, enum_vars, &defined_keys, stmt.line, errors);
+                         validate_expression(part, enum_vars, &defined_keys, stmt.line, false, errors);
                      }
                  },
                  _ => {}
@@ -352,7 +360,7 @@ pub fn check_statement_semantics(
              let defined_keys: HashSet<String> = defined_values.keys().cloned().collect();
              // Basic expression check
              match &cond.condition {
-                 ConditionalTarget::Expression(e) => validate_expression(e, enum_vars, &defined_keys, stmt.line, errors),
+                 ConditionalTarget::Expression(e) => validate_expression(e, enum_vars, &defined_keys, stmt.line, false, errors),
                  _ => {}
              }
              
@@ -444,11 +452,12 @@ fn validate_expression(
     enum_vars: &HashSet<String>,
     defined_values: &HashSet<String>,
     line: usize,
+    allow_undefined_identifiers: bool,
     errors: &mut Vec<EngineError>,
 ) {
     match expr {
         Expression::Variable(name) => {
-             if !defined_values.contains(name) {
+             if !defined_values.contains(name) && !allow_undefined_identifiers {
                  errors.push(EngineError {
                      message: format!("Undefined variable '{}' in expression", name),
                      line,
@@ -466,18 +475,18 @@ fn validate_expression(
              }
         }
         Expression::Binary(left, _, right) => {
-             validate_expression(left, enum_vars, defined_values, line, errors);
-             validate_expression(right, enum_vars, defined_values, line, errors);
+             validate_expression(left, enum_vars, defined_values, line, allow_undefined_identifiers, errors);
+             validate_expression(right, enum_vars, defined_values, line, allow_undefined_identifiers, errors);
         }
         Expression::DateDiff(_, start, end) => {
-             validate_expression(start, enum_vars, defined_values, line, errors);
-             validate_expression(end, enum_vars, defined_values, line, errors);
+             validate_expression(start, enum_vars, defined_values, line, allow_undefined_identifiers, errors);
+             validate_expression(end, enum_vars, defined_values, line, allow_undefined_identifiers, errors);
         }
         Expression::Statistical(func) => match func {
             crate::ast::StatisticalFunc::CountOf(name, filter) => {
                 if enum_vars.contains(name) && filter.is_none() {
                      errors.push(EngineError {
-                         message: format!("Validation Error: 'count of {}' requires a specific value to count (e.g. 'count of {} is \"Yes\"') because it is an Enumeration.", name, name),
+                         message: format!("Validation Error: 'count of {}' requires a specific value to count (e.g. 'count of {} is <Yes>') because it is an Enumeration.", name, name),
                          line,
                          column: 0
                      });

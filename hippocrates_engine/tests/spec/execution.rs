@@ -413,12 +413,12 @@ fn spec_timeframe_filtering() {
     let input = r#"
 <val> is an enumeration:
     valid values:
-        "Yes".
+        <Yes>.
 
 <filtered count> is a number:
     calculation:
         timeframe for analysis is 5 days ago ... now:
-            <value> = count of <val> is "Yes".
+            <value> = count of <val> is <Yes>.
 "#;
     let plan = parser::parse_plan(input).expect("Failed to parse");
     let mut env = Environment::new();
@@ -430,11 +430,11 @@ fn spec_timeframe_filtering() {
 
     let ten_days_ago = now - ChronoDuration::days(10);
     env.set_time(ten_days_ago);
-    env.set_value("val", RuntimeValue::String("Yes".to_string()));
+    env.set_value("val", RuntimeValue::Enumeration("Yes".to_string()));
 
     let one_day_ago = now - ChronoDuration::days(1);
     env.set_time(one_day_ago);
-    env.set_value("val", RuntimeValue::String("Yes".to_string()));
+    env.set_value("val", RuntimeValue::Enumeration("Yes".to_string()));
 
     env.set_time(now);
 
@@ -454,17 +454,17 @@ fn spec_timeframe_variants() {
     let input = r#"
 <val> is an enumeration:
     valid values:
-        "Yes".
+        <Yes>.
 
 <count_old> is a number:
     calculation:
         timeframe for analysis is 15 days ago ... 5 days ago:
-            <value> = count of <val> is "Yes".
+            <value> = count of <val> is <Yes>.
 
 <count_recent> is a number:
     calculation:
         timeframe for analysis is 5 days ago ... now:
-            <value> = count of <val> is "Yes".
+            <value> = count of <val> is <Yes>.
 "#;
     let plan = parser::parse_plan(input).expect("Failed to parse");
     let mut env = Environment::new();
@@ -476,11 +476,11 @@ fn spec_timeframe_variants() {
 
     let ten_days_ago = now - ChronoDuration::days(10);
     env.set_time(ten_days_ago);
-    env.set_value("val", RuntimeValue::String("Yes".to_string()));
+    env.set_value("val", RuntimeValue::Enumeration("Yes".to_string()));
 
     let one_day_ago = now - ChronoDuration::days(1);
     env.set_time(one_day_ago);
-    env.set_value("val", RuntimeValue::String("Yes".to_string()));
+    env.set_value("val", RuntimeValue::Enumeration("Yes".to_string()));
 
     env.set_time(now);
 

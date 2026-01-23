@@ -41,19 +41,27 @@
     valid values:
         35.0 °C ... 42.0 °C.
     unit: °C.
+    question:
+        ask "What is your body temperature?".
 
 <average temperature> is a number:
     valid values:
         35.0 °C ... 42.0 °C.
     unit: °C.
     calculation:
-        value = average of <body temperature> over 1 day.
+        timeframe for analysis is 1 day ago ... now:
+            <average temperature> = average of <body temperature> over 1 day.
 
 <fever monitor> is a plan:
+    during plan:
+        ask for <body temperature>.
+
     every 4 hours:
         ask for <body temperature>.
     
     every 1 day:
+        timeframe for analysis is 1 day ago ... now:
+            <average temperature> = average of <body temperature> over 1 day.
         assess <average temperature>:
             Not enough data:
                  show message "Collecting temperature data...".
@@ -64,9 +72,11 @@
     
     <fever alert> with change of <body temperature>:
         assess <body temperature>:
+            35.0 °C ... 41.0 °C:
+                show message "Temperature within safe range.".
             41.1 °C ... 42.0 °C:
-                 show message "CRITICAL FEVER! Contacting physician immediately.".
-                 show message to <physician> "URGENT: Patient temperature above 41.0°C".
+                show message "CRITICAL FEVER! Contacting physician immediately.".
+                show message to <physician> "URGENT: Patient temperature above 41.0°C".
 
 <symptom severity> is a number:
     valid values:
@@ -81,6 +91,8 @@
 
 <monitoring plan> is a plan:
     during plan:
+        timeframe for analysis is 7 days ago ... now:
+            <weekly symptom average> = average of <symptom severity> over 7 days.
         assess <weekly symptom average>:
             Not enough data:
                 show message "We need a full week of data before analyzing your symptoms.".

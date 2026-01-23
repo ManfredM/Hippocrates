@@ -68,6 +68,44 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
                 enum_vars.insert(vd.name.clone());
             }
 
+            if let crate::domain::ValueType::Enumeration = vd.value_type {
+                for prop in &vd.properties {
+                    if let Property::ValidValues(stmts) = prop {
+                        for stmt in stmts {
+                            match &stmt.kind {
+                                StatementKind::EventProgression(_, cases) => {
+                                    for case in cases {
+                                        if !enum_selector_is_identifier(&case.condition) {
+                                            errors.push(EngineError {
+                                                message: format!(
+                                                    "Enumeration '{}' valid values must be identifiers (angle brackets).",
+                                                    vd.name
+                                                ),
+                                                line: case.line,
+                                                column: 0,
+                                            });
+                                        }
+                                    }
+                                }
+                                StatementKind::Constraint(_, _, sel) => {
+                                    if !enum_selector_is_identifier(sel) {
+                                        errors.push(EngineError {
+                                            message: format!(
+                                                "Enumeration '{}' valid values must be identifiers (angle brackets).",
+                                                vd.name
+                                            ),
+                                            line: stmt.line,
+                                            column: 0,
+                                        });
+                                    }
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+            }
+
             if matches!(vd.value_type, crate::domain::ValueType::Number) {
                 if let Some(unit) = expected_unit_for_value_def(vd, &unit_map) {
                     let normalized = runtime::normalize_identifier(&vd.name);
@@ -1400,7 +1438,6 @@ fn collect_meaning_labels_from_block(
 fn extract_meaning_label_from_expression(expr: &Expression) -> Option<String> {
     match expr {
         Expression::Variable(name) => Some(name.clone()),
-        Expression::Literal(Literal::String(s)) => Some(s.clone()),
         _ => None,
     }
 }
@@ -1683,17 +1720,29 @@ fn check_expression_unit_precision(
 fn extract_defined_strings(sel: &RangeSelector, out: &mut Vec<String>) {
     match sel {
         RangeSelector::Equals(expr) => {
-            if let Expression::Literal(Literal::String(s)) = expr {
-                out.push(s.clone());
+            match expr {
+                Expression::Literal(Literal::String(s)) => out.push(s.clone()),
+                Expression::Variable(name) => out.push(name.clone()),
+                _ => {}
             }
         },
         RangeSelector::List(items) => {
              for item in items {
-                 if let Expression::Literal(Literal::String(s)) = item {
-                     out.push(s.clone());
+                 match item {
+                     Expression::Literal(Literal::String(s)) => out.push(s.clone()),
+                     Expression::Variable(name) => out.push(name.clone()),
+                     _ => {}
                  }
              }
         },
         _ => {}
+    }
+}
+
+fn enum_selector_is_identifier(sel: &RangeSelector) -> bool {
+    match sel {
+        RangeSelector::Equals(expr) => matches!(expr, Expression::Variable(_)),
+        RangeSelector::List(items) => items.iter().all(|item| matches!(item, Expression::Variable(_))),
+        _ => false,
     }
 }

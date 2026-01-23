@@ -111,6 +111,33 @@ fn spec_message_expiration_parsing() {
     assert!(found, "Expected message expiration to be attached to show message");
 }
 
+// REQ-3.7-08: say is accepted as a message action keyword.
+#[test]
+fn spec_say_message_parsing() {
+    let input = r#"
+<plan> is a plan:
+    during plan:
+        say "Hello.".
+"#;
+
+    let plan = parser::parse_plan(input).expect("Failed to parse");
+    let plan_def = plan
+        .definitions
+        .iter()
+        .find_map(|d| if let hippocrates_engine::ast::Definition::Plan(p) = d { Some(p) } else { None })
+        .expect("Plan definition not found");
+
+    let during = match &plan_def.blocks[0] {
+        PlanBlock::DuringPlan(stmts) => stmts,
+        _ => panic!("Expected DuringPlan"),
+    };
+
+    assert!(
+        during.iter().any(|stmt| matches!(stmt.kind, StatementKind::Action(Action::ShowMessage(_, _)))),
+        "Expected say statement to parse as ShowMessage"
+    );
+}
+
 // REQ-3.7-03: question modifiers parse (validate/type/style/expire).
 #[test]
 fn spec_question_modifiers_parsing() {

@@ -11,7 +11,7 @@ fn test_interactive_execution() {
     let input = r#"
 <my var> is an enumeration:
     valid values:
-        "A"; "B".
+        <A>; <B>.
     question:
         ask "Pick one".
 

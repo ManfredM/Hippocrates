@@ -557,7 +557,12 @@ impl Evaluator {
     ) -> bool {
         match selector {
             RangeSelector::Equals(expr) => {
-                let target = Self::evaluate(env, expr);
+                let mut target = Self::evaluate(env, expr);
+                if let RuntimeValue::Void = target {
+                    if let Expression::Variable(name) = expr {
+                        target = RuntimeValue::String(name.clone());
+                    }
+                }
                 if let (Some(value_dt), Some(target_dt)) = (value.as_date(), target.as_date()) {
                     return value_dt == target_dt;
                 }
