@@ -334,21 +334,21 @@ timeframe_block =
 
 Requirements:
 - REQ-3.7-01: question configuration parses and validates references.
-- REQ-3.7-02: message expiration attaches to show message.
+- REQ-3.7-02: message expiration attaches to information, warning, and urgent warning actions.
 - REQ-3.7-03: question modifiers parse (validate/type/style/expire).
 - REQ-3.7-04: validate answer within parsing attaches to ask blocks.
 - REQ-3.7-05: listen/send/start/simple command actions parse.
 - REQ-3.7-06: question expiration blocks parse with reminder statements.
 - REQ-3.7-07: question expiration supports until event triggers.
-- REQ-3.7-08: say is accepted as a message action keyword.
+- REQ-3.7-08: information, warning, and urgent warning are accepted as message action keywords.
+- REQ-3.7-09: message actions accept semicolon-separated addressee lists.
 
 
 
 
 ```ebnf
 action =
-    show_message |
-    say_message |
+    message_action |
     ask_question |
     listen_for |
     send_info |
@@ -356,24 +356,40 @@ action =
     start_period |
     simple_command;
 
-show_message = show_message_block | show_message_inline;
-say_message = say_message_block | say_message_inline;
+message_action =
+    information_message |
+    warning_message |
+    urgent_warning_message;
 
-show_message_block =
-    "show message", [ " to ", ( "patient" | "physician" | identifier ) ],
+information_message = information_message_block | information_message_inline;
+warning_message = warning_message_block | warning_message_inline;
+urgent_warning_message = urgent_warning_message_block | urgent_warning_message_inline;
+
+information_message_block =
+    "information", [ " to ", addressee_list ],
     ( message_block | ( message_content_line, message_property_block ) );
 
-show_message_inline =
-    "show message", [ " to ", ( "patient" | "physician" | identifier ) ],
+information_message_inline =
+    "information", [ " to ", addressee_list ],
     message_content_line, ".";
 
-say_message_block =
-    "say", [ " to ", ( "patient" | "physician" | identifier ) ],
+warning_message_block =
+    "warning", [ " to ", addressee_list ],
     ( message_block | ( message_content_line, message_property_block ) );
 
-say_message_inline =
-    "say", [ " to ", ( "patient" | "physician" | identifier ) ],
+warning_message_inline =
+    "warning", [ " to ", addressee_list ],
     message_content_line, ".";
+
+urgent_warning_message_block =
+    "urgent warning", [ " to ", addressee_list ],
+    ( message_block | ( message_content_line, message_property_block ) );
+
+urgent_warning_message_inline =
+    "urgent warning", [ " to ", addressee_list ],
+    message_content_line, ".";
+
+addressee_list = identifier, { ";", identifier };
 
 message_content_line = expression;
 message_property = message_expiration;
@@ -721,6 +737,7 @@ Requirements:
 Requirements:
 - REQ-5-01: runtime executes assignments and actions in order.
 - REQ-5-02: reuse timeframes prevent re-asking within the validity window.
+- REQ-5-03: runtime emits a warning when a message action executes without a message callback.
 
 
 
@@ -733,7 +750,8 @@ The Hippocrates Runtime functions as a **State Machine**.
     * Check **Timers**: Are there any temporal events (`every 1 day`, `every Monday`)? -> Trigger Event.
     * Check **Inputs**: Did an external API update a value? -> Trigger `change of` Event.
     * Evaluate **Rules**: If an Event triggered, execute the associated `block`.
-    * **Side Effects**: Execute `show`, `ask`, or `send information` commands via API callbacks.
+    * **Side Effects**: Execute `information`, `warning`, `urgent warning`, `ask`, or `send information` commands via API callbacks.
+    * Informative — message delivery uses the message callback; if it is not provided, the runtime logs a warning. (See REQ-5-03.)
 
 ### 5.1 Validation Logic
 
@@ -831,17 +849,17 @@ Informative: When the source value is unknown, the runtime returns `Missing` to 
 during plan:
     assess <weekly average>:
         Not enough data:
-            show message "Please continue tracking pain for a full week.".
+            information "Please continue tracking pain for a full week.".
         0 <points> ... 5 <points>:
-            show message "Your pain levels are within range this week.".
+            information "Your pain levels are within range this week.".
         6 <points> ... 10 <points>:
-            show message "Your pain levels are high this week.".
+            warning "Your pain levels are high this week.".
 ```
 
 ### 6.4. Message Expiration
 
 ```hippocrates
-show message to <patient> "Take your medication now":
+urgent warning to <patient> "Take your medication now":
     message expires after 15 minutes.
 ```
 
@@ -857,7 +875,7 @@ show message to <patient> "Take your medication now":
     question:
         ask "How severe is your pain?":
             question expires after 1 day:
-                show message "We still need your answer for today's pain score.".
+                information "We still need your answer for today's pain score.".
 ```
 
 ### 6.6. Validity Timeframe (Reuse)
@@ -932,13 +950,14 @@ during plan:
 - REQ-3.6-04: statements inside blocks must terminate with a period.
 - REQ-3.6-05: blocks must be introduced with a colon.
 - REQ-3.7-01: question configuration parses and validates references.
-- REQ-3.7-02: message expiration attaches to show message.
+- REQ-3.7-02: message expiration attaches to information, warning, and urgent warning actions.
 - REQ-3.7-03: question modifiers parse (validate/type/style/expire).
 - REQ-3.7-04: validate answer within parsing attaches to ask blocks.
 - REQ-3.7-05: listen/send/start/simple command actions parse.
 - REQ-3.7-06: question expiration blocks parse with reminder statements.
 - REQ-3.7-07: question expiration supports until event triggers.
-- REQ-3.7-08: say is accepted as a message action keyword.
+- REQ-3.7-08: information, warning, and urgent warning are accepted as message action keywords.
+- REQ-3.7-09: message actions accept semicolon-separated addressee lists.
 - REQ-3.8-01: event triggers parse for change/start/periodic.
 - REQ-3.8-02: event blocks attach statements to triggers.
 - REQ-3.8-03: scheduler computes next occurrence for periods.

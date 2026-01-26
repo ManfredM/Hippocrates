@@ -694,8 +694,8 @@ fn check_statistical_functions_require_timeframe(
         }
         StatementKind::Action(action) => {
             match action {
-                crate::ast::Action::ShowMessage(exprs, _) => {
-                    if exprs.iter().any(expression_contains_statistical) && !has_timeframe_context
+                crate::ast::Action::ShowMessage { parts, .. } => {
+                    if parts.iter().any(expression_contains_statistical) && !has_timeframe_context
                     {
                         errors.push(EngineError {
                             message:

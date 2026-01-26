@@ -2,6 +2,7 @@ use crate::ast::{Action, Block, Statement, StatementKind};
 use crate::domain::Unit;
 use crate::runtime::{input_validation, Environment, Evaluator, format_identifier, normalize_identifier, scheduler::Scheduler};
 use chrono::{NaiveDateTime, NaiveTime, Timelike};
+use serde_json::json;
 use std::cmp::Ordering;
 use std::collections::{BinaryHeap, HashMap};
 use std::sync::{Arc, atomic::{AtomicBool, Ordering as AtomicOrdering}};
@@ -57,6 +58,7 @@ pub struct Executor {
     pub on_step: Option<Box<dyn Fn(usize) + Send>>,
     pub on_log: Option<Box<dyn Fn(String, crate::domain::EventType, chrono::NaiveDateTime) + Send>>,
     pub on_ask: Option<Box<dyn Fn(crate::domain::AskRequest) + Send>>,
+    pub on_message: Option<Box<dyn Fn(String, chrono::NaiveDateTime) + Send>>,
     pub mode: ExecutionMode,
     pub input_receiver: Option<std::sync::mpsc::Receiver<crate::domain::InputMessage>>,
     pub stop_signal: Arc<AtomicBool>,
@@ -70,6 +72,7 @@ impl Executor {
             on_step: None,
             on_log: None,
             on_ask: None,
+            on_message: None,
             mode: ExecutionMode::RealTime,
             input_receiver: None,
             stop_signal,
@@ -86,6 +89,7 @@ impl Executor {
             on_step: Some(line_cb),
             on_log: Some(log_cb),
             on_ask: None,
+            on_message: None,
             mode: ExecutionMode::RealTime,
             input_receiver: None,
             stop_signal: Arc::new(AtomicBool::new(false)),
@@ -96,6 +100,10 @@ impl Executor {
 
     pub fn set_input_receiver(&mut self, rx: std::sync::mpsc::Receiver<crate::domain::InputMessage>) {
         self.input_receiver = Some(rx);
+    }
+
+    pub fn set_message_callback(&mut self, cb: Box<dyn Fn(String, chrono::NaiveDateTime) + Send>) {
+        self.on_message = Some(cb);
     }
 
     pub fn set_mode(&mut self, mode: ExecutionMode) {
@@ -1004,7 +1012,7 @@ impl Executor {
 
     fn execute_action(&mut self, env: &mut Environment, action: &Action) {
         match action {
-            Action::ShowMessage(parts, stmts_opt) => {
+            Action::ShowMessage { kind, parts, addressees, block } => {
                 for _ in 0..2 {
                     let mut full_msg = String::new();
                     let mut missing_var = None;
@@ -1032,16 +1040,104 @@ impl Executor {
                     }
 
                     let message = full_msg;
+                    let message_text = message.clone();
+                    let kind_label = match kind {
+                        crate::ast::MessageKind::Information => "information",
+                        crate::ast::MessageKind::Warning => "warning",
+                        crate::ast::MessageKind::UrgentWarning => "urgent warning",
+                    };
+
+                    let addressee_payloads: Vec<_> = addressees
+                        .iter()
+                        .map(|name| {
+                            let key = normalize_identifier(name);
+                            let def = env
+                                .definitions
+                                .get(&key)
+                                .or_else(|| env.definitions.get(name));
+
+                            if let Some(crate::ast::Definition::Addressee(ad)) = def {
+                                let mut contacts = Vec::new();
+                                let mut grouped = Vec::new();
+                                let mut order = None;
+
+                                for prop in &ad.properties {
+                                    match prop {
+                                        crate::ast::Property::ContactInfo(details) => {
+                                            contacts = details
+                                                .iter()
+                                                .map(|detail| match detail {
+                                                    crate::ast::ContactDetail::Email(email) => json!({
+                                                        "type": "email",
+                                                        "value": email,
+                                                    }),
+                                                    crate::ast::ContactDetail::Phone(phone) => json!({
+                                                        "type": "phone",
+                                                        "value": phone,
+                                                    }),
+                                                    crate::ast::ContactDetail::HippocratesId(id) => json!({
+                                                        "type": "hippocrates id",
+                                                        "value": id,
+                                                    }),
+                                                })
+                                                .collect();
+                                        }
+                                        crate::ast::Property::GroupedAddressees(list) => {
+                                            grouped = list.clone();
+                                        }
+                                        crate::ast::Property::ContactOrder(value) => {
+                                            order = Some(value.clone());
+                                        }
+                                        _ => {}
+                                    }
+                                }
+
+                                json!({
+                                    "name": ad.name,
+                                    "is_group": ad.is_group,
+                                    "contacts": contacts,
+                                    "grouped_addressees": grouped,
+                                    "contact_order": order,
+                                })
+                            } else {
+                                json!({ "name": name })
+                            }
+                        })
+                        .collect();
+
+                    let payload = json!({
+                        "kind": kind_label,
+                        "text": message_text,
+                        "addressees": addressee_payloads,
+                    })
+                    .to_string();
+
                     env.log_audit(
                         crate::domain::EventType::Message,
-                        message.clone(),
-                        Some("ShowMessage".to_string()),
+                        payload.clone(),
+                        Some(format!("Message:{}", kind_label)),
                     );
-                    env.log(message.clone());
+                    env.log(message);
 
-                    self.emit_log(message, crate::domain::EventType::Message, env.now);
+                    if let Some(cb) = &self.on_message {
+                        cb(payload.clone(), env.now);
+                    } else {
+                        let target = if addressees.is_empty() {
+                            "no addressees".to_string()
+                        } else {
+                            addressees.join(", ")
+                        };
+                        let warning = format!(
+                            "Warning: message callback not set; unable to deliver {} message to {}.",
+                            kind_label, target
+                        );
+                        env.log(warning.clone());
+                        self.emit_log(warning, crate::domain::EventType::Log, env.now);
+                    }
 
-                    if let Some(stmts) = stmts_opt {
+                    self.emit_log(payload, crate::domain::EventType::Message, env.now);
+
+                    if let Some(stmts) = block {
                         self.execute_block(env, stmts);
                     }
                     return;

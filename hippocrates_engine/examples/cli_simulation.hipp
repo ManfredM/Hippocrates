@@ -23,4 +23,4 @@
         ask <age>.
         ask <weight>.
         ask <symptom severity>.
-        show message "Age: " + <age> + ", Weight: " + <weight> + ", Severity: " + <symptom severity>.
+        information "Age: " + <age> + ", Weight: " + <weight> + ", Severity: " + <symptom severity>.

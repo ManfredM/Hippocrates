@@ -136,7 +136,7 @@
         documentation:
             english: "At the beginning of the inhalation period we show a reminder...".
         
-        show message to <patient> "It's the best time of the day to take your daily shot now":
+        information to <patient> "It's the best time of the day to take your daily shot now":
             message expires after <best inhalation period>.
         ask for <inhaler used>.
 
@@ -151,7 +151,7 @@
             timeframe: 5 days ago ... now.
             assess trend of <use of rescue medication>:
                 "increase":
-                    show message to <physician> "Alert: usage of rescue meds is increasing!".
+                    information to <physician> "Alert: usage of rescue meds is increasing!".
                 "stable"; "decrease":
                     <log> = "Rescue medication usage is stable or decreasing.".
 
@@ -163,24 +163,24 @@
 
         assess <inhaler used in past 5 days on time>:
             Not enough data:
-                show message to <patient> "We are still collecting data for compliance check.".
+                information to <patient> "We are still collecting data for compliance check.".
             4 <doses>; 5 <doses>:
-                show message to <patient> "You are doing a great job in using the inhaler right on time".
+                information to <patient> "You are doing a great job in using the inhaler right on time".
             
             0 <doses> ... 3 <doses>; 6 <doses> ... 1000 <doses>:
                 assess <inhaler used in past 5 days>:
                     Not enough data:
-                        show message to <patient> "We are still collecting the first 5 days of data.".
+                        information to <patient> "We are still collecting the first 5 days of data.".
                     0 <doses>:
-                        show message to <patient> "Not using a medication does not lead to improvement!".
+                        information to <patient> "Not using a medication does not lead to improvement!".
                     1 <dose> ... 2 <doses>:
-                        show message to <patient> "You must use the inhaler more regular".
+                        information to <patient> "You must use the inhaler more regular".
                     3 <doses> ... 6 <doses>:
-                        show message to <patient> "You are using the inhaler frequently enough, but you should also use at the same time every day.".
+                        information to <patient> "You are using the inhaler frequently enough, but you should also use at the same time every day.".
                     7 <doses> ... 10 <doses>:
-                        show message to <patient> "You took between 6 and 10 doses in past 5 days. Please do not use more than one dose per day".
+                        information to <patient> "You took between 6 and 10 doses in past 5 days. Please do not use more than one dose per day".
                     11 <doses> ... 1000 <doses>:
-                        show message to <patient> "We have recorded more than 10 uses of the inhaler. Please contact us to investigate the reason for that.".
+                        information to <patient> "We have recorded more than 10 uses of the inhaler. Please contact us to investigate the reason for that.".
 
 (* --- PASS: bottles_plan --- *)
 <bottle state> is an enumeration:
@@ -199,21 +199,21 @@
 
         assess <empty bottles>:
             0 <bottles> ... 97 <bottles>:
-                show message to patient (99 <bottles> - <empty bottles>) + " of beer on the wall.".
+                information to <patient> (99 <bottles> - <empty bottles>) + " of beer on the wall.".
                 <bottle state> = <empty>.
                 <empty bottles> = <empty bottles> + 1 <bottle>.
             
             98 <bottles>:
-                show message to patient "1 bottle of beer on the wall...".
+                information to <patient> "1 bottle of beer on the wall...".
                 <bottle state> = <empty>.
                 <empty bottles> = <empty bottles> + 1 <bottle>.
             
             99 <bottles>:
-                show message to patient "No more bottles of beer on the wall.".
+                information to <patient> "No more bottles of beer on the wall.".
                 <empty bottles> = 0 <bottles>.
 
             100 <bottles>:
-                 show message to patient "Go to the store and buy some more.".
+                 information to <patient> "Go to the store and buy some more.".
                  <empty bottles> = 0 <bottles>.
 
 (* --- PASS: sing_plan --- *)
@@ -230,21 +230,21 @@
     every 1 second for 101 seconds:
         assess <bottle count>:
             0 <bottles>:
-                show message "No more bottles of beer on the wall, no more bottles of beer.".
-                show message "Go to the store and buy some more, 99 bottles of beer on the wall.".
+                information "No more bottles of beer on the wall, no more bottles of beer.".
+                information "Go to the store and buy some more, 99 bottles of beer on the wall.".
                 <bottle count> = 99 <bottles>.
             1 <bottle>:
-                show message "1 bottle of beer on the wall, 1 bottle of beer.".
-                show message "Take one down and pass it around, no more bottles of beer on the wall.".
+                information "1 bottle of beer on the wall, 1 bottle of beer.".
+                information "Take one down and pass it around, no more bottles of beer on the wall.".
                 <bottle count> = 0 <bottles>.
             2 <bottles>:
-                show message "2 bottles of beer on the wall, 2 bottles of beer.".
+                information "2 bottles of beer on the wall, 2 bottles of beer.".
                 <bottle count> = 1 <bottle>.
-                show message "Take one down and pass it around, 1 bottle of beer on the wall.".
+                information "Take one down and pass it around, 1 bottle of beer on the wall.".
             3 <bottles> ... 100 <bottles>:
-                show message <bottle count> + "s of beer on the wall, " + <bottle count> + "s of beer.".
+                information <bottle count> + "s of beer on the wall, " + <bottle count> + "s of beer.".
                 <bottle count> = <bottle count> - 1 <bottle>.
-                show message "Take one down and pass it around, " + <bottle count> + "s of beer on the wall.".
+                information "Take one down and pass it around, " + <bottle count> + "s of beer on the wall.".
 
 (* --- PASS: implicit_ask --- *)
 <user age> is a number:
@@ -257,11 +257,11 @@
   during plan:
     assess <user age>:
       1 year ... 18 years:
-        show message "Quite young".
+        information "Quite young".
       19 years ... 80 years:
-        show message "Best age".
+        information "Best age".
       81 years ... 130 years:
-        show message "Quite old".
+        information "Quite old".
 
 (* --- FAIL: invalid_plan --- *)
 <unitless value> is a number:
@@ -272,4 +272,4 @@
     during plan:
         assess <unitless value>:
             0 kg ... 5 kg:
-                show message "Partial coverage".
+                information "Partial coverage".

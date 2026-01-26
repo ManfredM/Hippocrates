@@ -126,9 +126,9 @@ fn spec_event_trigger_duration_and_offset_parsing() {
 
 <Plan> is a plan:
     every 2 days for 1 week:
-        show message "A".
+        information "A".
     every Monday after <treatment period> for 2 weeks:
-        show message "B".
+        information "B".
 "#;
 
     let plan = parser::parse_plan(input).expect("Failed to parse plan");
@@ -186,7 +186,7 @@ fn spec_event_block_parsing() {
 
 <My Plan> is a plan:
     <my event> with begin of <my period>:
-        show message "Event".
+        information "Event".
 "#;
 
     let plan = parser::parse_plan(input).expect("Failed to parse plan");

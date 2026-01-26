@@ -11,9 +11,9 @@
         <taken> = 1 <dose>.
         assess <taken>:
             0 <doses>:
-                show message "Missed".
+                information "Missed".
             1 <dose>:
-                show message "On track".
+                information "On track".
 
 (* --- PASS: morning_checkin --- *)
 <morning> is a period:
@@ -22,10 +22,10 @@
 
 <Morning check-in> is a plan:
     during plan:
-        show message "Plan started".
+        information "Plan started".
 
     <check in> with begin of <morning>:
-        show message "Good morning".
+        information "Good morning".
 
 (* --- FAIL: missing_question_property --- *)
 <age> is a number:

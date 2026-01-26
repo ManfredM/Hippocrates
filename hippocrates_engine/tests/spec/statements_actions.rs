@@ -73,13 +73,13 @@ fn spec_question_config_parsing_and_validation() {
     assert!(errors.iter().any(|e| e.message.contains("UnknownVar")), "Errors should contain 'UnknownVar': {:?}", errors);
 }
 
-// REQ-3.7-02: message expiration attaches to show message.
+// REQ-3.7-02: message expiration attaches to information, warning, and urgent warning actions.
 #[test]
 fn spec_message_expiration_parsing() {
     let input = r#"
 <plan> is a plan:
     during plan:
-        show message "Take your medication now":
+        information to <patient>; <caregiver> "Take your medication now":
             message expires after 15 minutes.
 "#;
 
@@ -98,26 +98,30 @@ fn spec_message_expiration_parsing() {
 
     let show_stmt = during
         .iter()
-        .find(|stmt| matches!(stmt.kind, StatementKind::Action(Action::ShowMessage(_, _))))
-        .expect("Expected show message statement to parse");
+        .find(|stmt| matches!(stmt.kind, StatementKind::Action(Action::ShowMessage { .. })))
+        .expect("Expected information statement to parse");
 
     let mut found = false;
-    if let StatementKind::Action(Action::ShowMessage(_, Some(block))) = &show_stmt.kind {
+    if let StatementKind::Action(Action::ShowMessage { kind, addressees, block: Some(block), .. }) = &show_stmt.kind {
+        assert!(matches!(kind, hippocrates_engine::ast::MessageKind::Information));
+        assert_eq!(addressees, &vec!["patient".to_string(), "caregiver".to_string()]);
         found = block
             .iter()
             .any(|stmt| matches!(stmt.kind, StatementKind::Action(Action::MessageExpiration(_))));
     }
 
-    assert!(found, "Expected message expiration to be attached to show message");
+    assert!(found, "Expected message expiration to be attached to information");
 }
 
-// REQ-3.7-08: say is accepted as a message action keyword.
+// REQ-3.7-08: information, warning, and urgent warning are accepted as message action keywords.
 #[test]
-fn spec_say_message_parsing() {
+fn spec_message_action_keyword_parsing() {
     let input = r#"
 <plan> is a plan:
     during plan:
-        say "Hello.".
+        information "Hello.".
+        warning "Check this.".
+        urgent warning "Act now.".
 "#;
 
     let plan = parser::parse_plan(input).expect("Failed to parse");
@@ -132,10 +136,20 @@ fn spec_say_message_parsing() {
         _ => panic!("Expected DuringPlan"),
     };
 
-    assert!(
-        during.iter().any(|stmt| matches!(stmt.kind, StatementKind::Action(Action::ShowMessage(_, _)))),
-        "Expected say statement to parse as ShowMessage"
+    let mut kinds = Vec::new();
+    for stmt in during {
+        if let StatementKind::Action(Action::ShowMessage { kind, .. }) = &stmt.kind {
+            kinds.push(kind);
+        }
+    }
+    let message_count = kinds.len();
+    assert_eq!(
+        message_count, 3,
+        "Expected information/warning/urgent warning statements to parse as ShowMessage"
     );
+    assert!(kinds.iter().any(|k| matches!(k, hippocrates_engine::ast::MessageKind::Information)));
+    assert!(kinds.iter().any(|k| matches!(k, hippocrates_engine::ast::MessageKind::Warning)));
+    assert!(kinds.iter().any(|k| matches!(k, hippocrates_engine::ast::MessageKind::UrgentWarning)));
 }
 
 // REQ-3.7-03: question modifiers parse (validate/type/style/expire).
@@ -223,7 +237,7 @@ fn spec_question_expiration_block_parsing() {
     during plan:
         ask <temp>:
             question expires after 1 day:
-                show message "Reminder".
+                information "Reminder".
 "#;
 
     let plan = parser::parse_plan(input).expect("Failed to parse");
@@ -254,7 +268,7 @@ fn spec_question_expiration_block_parsing() {
                         saw_expire = true;
                     }
                 }
-                StatementKind::Action(Action::ShowMessage(_, _)) => {
+                StatementKind::Action(Action::ShowMessage { .. }) => {
                     saw_reminder = true;
                 }
                 _ => {}
@@ -359,7 +373,7 @@ fn spec_listen_send_start_and_simple_command_parsing() {
 <plan> is a plan:
     during plan:
         listen for <signal>:
-            show message "Listening".
+            information "Listening".
         send information "Info" <signal>.
         start <plan>.
         <do something>.
@@ -415,7 +429,7 @@ fn spec_timeframe_requires_range_selector() {
 <plan> is a plan:
     during plan:
         timeframe for analysis is now:
-            show message "Hi".
+            information "Hi".
 "#;
     let result = parser::parse_plan(input);
     assert!(result.is_err(), "Expected parser error for single time indication timeframe");

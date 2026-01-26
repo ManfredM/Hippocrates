@@ -256,9 +256,8 @@ context_block = { "context" ~ ("for" ~ "analysis")? ~ ":" ~ NEWLINE* ~ INDENT ~ 
 assignment = { identifier ~ "=" ~ expression ~ "." }
 meaning_assignment = { "meaning" ~ "of" ~ "value" ~ "=" ~ identifier ~ "." }
 
-action = {
-    show_message |
-    say_message |
+action = { 
+    message_action |
     ask_question |
     listen_for |
     send_info |
@@ -296,31 +295,47 @@ message_content_line = _{ expression }
 message_block_line = { (message_content_line | message_property) ~ NEWLINE* }
 message_block = { ":" ~ NEWLINE* ~ INDENT ~ message_block_line+ ~ DEDENT }
 message_property_block = { ":" ~ NEWLINE* ~ INDENT ~ message_property+ ~ DEDENT }
+addressee_list = { identifier ~ (";" ~ identifier)* }
 
-show_message = { show_message_block | show_message_inline }
-say_message = { say_message_block | say_message_inline }
+message_action = { information_message | warning_message | urgent_warning_message }
 
-show_message_block = _{ 
-    "show message" ~ ("to" ~ ("patient" | "physician" | identifier))? ~ (
+information_message = { information_message_block | information_message_inline }
+warning_message = { warning_message_block | warning_message_inline }
+urgent_warning_message = { urgent_warning_message_block | urgent_warning_message_inline }
+
+information_message_block = _{ 
+    "information" ~ ("to" ~ addressee_list)? ~ (
         message_block |
         (message_content_line ~ message_property_block)
     )
 }
 
-show_message_inline = _{
-    "show message" ~ ("to" ~ ("patient" | "physician" | identifier))? ~
+information_message_inline = _{
+    "information" ~ ("to" ~ addressee_list)? ~
     message_content_line ~ "."
 }
 
-say_message_block = _{
-    "say" ~ ("to" ~ ("patient" | "physician" | identifier))? ~ (
+warning_message_block = _{
+    "warning" ~ ("to" ~ addressee_list)? ~ (
         message_block |
         (message_content_line ~ message_property_block)
     )
 }
 
-say_message_inline = _{
-    "say" ~ ("to" ~ ("patient" | "physician" | identifier))? ~
+warning_message_inline = _{
+    "warning" ~ ("to" ~ addressee_list)? ~
+    message_content_line ~ "."
+}
+
+urgent_warning_message_block = _{
+    "urgent" ~ "warning" ~ ("to" ~ addressee_list)? ~ (
+        message_block |
+        (message_content_line ~ message_property_block)
+    )
+}
+
+urgent_warning_message_inline = _{
+    "urgent" ~ "warning" ~ ("to" ~ addressee_list)? ~
     message_content_line ~ "."
 }
 

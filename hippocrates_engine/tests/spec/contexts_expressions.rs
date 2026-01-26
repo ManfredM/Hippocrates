@@ -15,7 +15,7 @@ context:
     timeframe: 1 day ago ... now.
     data: <pain>.
     value filter: 0 kg ... 1 kg:
-        show message "ok".
+        information "ok".
 "#;
 
     let plan = parser::parse_plan(input).expect("Failed to parse");
@@ -43,8 +43,8 @@ fn spec_context_block_items_parsing() {
         context for analysis:
             data: <pain>.
             value filter: 0 kg ... 10 kg:
-                show message "ok".
-            show message "done".
+                information "ok".
+            information "done".
 "#;
 
     let plan = parser::parse_plan(input).expect("Failed to parse");

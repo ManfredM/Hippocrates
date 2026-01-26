@@ -15,16 +15,16 @@
     every 1 second for 100 seconds:
         assess <empty bottles>:
             0 <bottles> ... 97 <bottles>:
-                show message to patient (99 <bottles> - <empty bottles>) + " of beer on the wall.".
+                information to <patient> (99 <bottles> - <empty bottles>) + " of beer on the wall.".
                 <bottle state> = <empty>.
                 <empty bottles> = <empty bottles> + 1 <bottle>.
             98 <bottles>:
-                show message to patient "1 bottle of beer on the wall...".
+                information to <patient> "1 bottle of beer on the wall...".
                 <bottle state> = <empty>.
                 <empty bottles> = <empty bottles> + 1 <bottle>.
             99 <bottles>:
-                show message to patient "No more bottles of beer on the wall.".
+                information to <patient> "No more bottles of beer on the wall.".
                 <empty bottles> = 0 <bottles>.
             100 <bottles>:
-                show message to patient "Go to the store and buy some more.".
+                information to <patient> "Go to the store and buy some more.".
                 <empty bottles> = 0 <bottles>.

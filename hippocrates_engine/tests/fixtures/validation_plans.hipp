@@ -11,9 +11,9 @@
         <adherence> = 1 <dose>.
         assess <adherence>:
             0 <doses>:
-                show message "no doses".
+                information "no doses".
             1 <dose> ... 2 <doses>:
-                show message "within range".
+                information "within range".
 
 (* --- PASS: timed_plan --- *)
 <interval> is a unit:
@@ -28,9 +28,9 @@
         <check> = 1 <interval>.
         assess <check>:
             0 <intervals>:
-                show message "missing".
+                information "missing".
             1 <interval> ... 3 <intervals>:
-                show message "ok".
+                information "ok".
 
 (* --- FAIL: incomplete_assessment --- *)
 <unit> is a unit:
@@ -44,4 +44,4 @@
     during plan:
         assess <value>:
             0 <units> ... 5 <units>:
-                show message "partial".
+                information "partial".

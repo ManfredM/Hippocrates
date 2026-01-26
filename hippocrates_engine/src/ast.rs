@@ -198,8 +198,20 @@ pub struct Assignment {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 
+pub enum MessageKind {
+    Information,
+    Warning,
+    UrgentWarning,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Action {
-    ShowMessage(Vec<Expression>, Option<Vec<Statement>>),
+    ShowMessage {
+        kind: MessageKind,
+        parts: Vec<Expression>,
+        addressees: Vec<String>,
+        block: Option<Vec<Statement>>,
+    },
     AskQuestion(String, Option<Vec<Statement>>),
     SendInfo(String, Vec<Expression>),
     ListenFor(String),

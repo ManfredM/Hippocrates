@@ -210,6 +210,11 @@ class HippocratesEngine: Equatable {
     var onStep: ((Int) -> Void)?
     var onLog: ((String, Int, Date) -> Void)?
     var onAsk: ((AskRequest) -> Void)?
+    var onMessage: ((String, Date) -> Void)? {
+        didSet {
+            registerMessageCallback()
+        }
+    }
     
     init() {
         // Pass self as context? Using Unmanaged.passUnretained(self)
@@ -260,6 +265,25 @@ class HippocratesEngine: Equatable {
         }
         
         hippocrates_engine_set_callbacks(ctx, lineCb, logCb, askCb)
+        registerMessageCallback()
+    }
+
+    private func registerMessageCallback() {
+        guard let ctx = ctx else { return }
+        guard onMessage != nil else {
+            hippocrates_engine_set_message_callback(ctx, nil)
+            return
+        }
+
+        let messageCb: MessageCallback = { payloadPtr, ts, userData in
+            guard let userData = userData, let payloadPtr = payloadPtr else { return }
+            let engine = Unmanaged<HippocratesEngine>.fromOpaque(userData).takeUnretainedValue()
+            let payload = String(cString: payloadPtr)
+            let date = Date(timeIntervalSince1970: TimeInterval(ts) / 1000.0)
+            engine.onMessage?(payload, date)
+        }
+
+        hippocrates_engine_set_message_callback(ctx, messageCb)
     }
     
     func load(source: String) -> Bool {

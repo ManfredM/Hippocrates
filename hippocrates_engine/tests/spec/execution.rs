@@ -1,6 +1,6 @@
 // Spec §4.6, §5: execution model behaviors.
 
-use hippocrates_engine::domain::{RuntimeValue, Unit};
+use hippocrates_engine::domain::{EventType, RuntimeValue, Unit};
 use hippocrates_engine::parser;
 use hippocrates_engine::runtime::{Engine, Environment, Executor};
 use chrono::{Utc, TimeZone, Duration as ChronoDuration};
@@ -312,7 +312,7 @@ fn spec_runtime_execution_flow() {
     let input = r#"
 <test plan> is a plan:
     during plan:
-        show message "Hello World".
+        information "Hello World".
         <x> = 10 kg.
         send information "Val is " <x>.
 "#;
@@ -336,6 +336,40 @@ fn spec_runtime_execution_flow() {
     } else {
         panic!("Variable x not found");
     }
+}
+
+// REQ-5-03: runtime emits a warning when a message action executes without a message callback.
+#[test]
+fn spec_message_callback_missing_warns() {
+    let input = r#"
+<plan> is a plan:
+    during plan:
+        information to <patient> "Hello".
+"#;
+
+    let plan = parser::parse_plan(input).expect("Failed to parse plan");
+    let mut env = Environment::new();
+    env.load_plan(plan);
+
+    let logs = Arc::new(Mutex::new(Vec::new()));
+    let logs_clone = logs.clone();
+
+    let line_cb = Box::new(|_line: usize| {});
+    let log_cb = Box::new(move |msg: String, event_type: EventType, _ts| {
+        if event_type == EventType::Log {
+            logs_clone.lock().unwrap().push(msg);
+        }
+    });
+
+    let mut executor = Executor::with_activites(line_cb, log_cb);
+    executor.execute_plan(&mut env, "plan");
+
+    let logs = logs.lock().unwrap();
+    assert!(
+        logs.iter().any(|msg| msg.contains("message callback not set")),
+        "Expected warning when message callback missing, got: {:?}",
+        *logs
+    );
 }
 
 // REQ-5-02: reuse timeframes prevent re-asking within the validity window.
@@ -371,7 +405,7 @@ fn spec_validity_reuse_timeframe() {
 <CheckTemp> is a plan:
     during plan:
         ask <Temp>.
-        show message "Temp is " + <Temp>.
+        information "Temp is " + <Temp>.
 "#;
 
     session.run_script(script.to_string(), "CheckTemp".to_string());

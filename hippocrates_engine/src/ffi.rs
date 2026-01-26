@@ -49,6 +49,7 @@ pub extern "C" fn hippocrates_free_string(s: *mut c_char) {
 pub type LineCallback = extern "C" fn(c_int, *mut std::ffi::c_void);
 pub type LogCallback = extern "C" fn(*const c_char, u8, i64, *mut std::ffi::c_void);
 pub type AskCallback = extern "C" fn(*const c_char, *mut std::ffi::c_void);
+pub type MessageCallback = extern "C" fn(*const c_char, i64, *mut std::ffi::c_void);
 
 struct SendPtr(*mut std::ffi::c_void);
 unsafe impl Send for SendPtr {}
@@ -236,6 +237,26 @@ pub unsafe extern "C" fn hippocrates_engine_set_callbacks(
                  }
             }
         }));
+    }
+}}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hippocrates_engine_set_message_callback(
+    ctx: *mut EngineContext,
+    message_cb: Option<MessageCallback>,
+) { unsafe {
+    if ctx.is_null() { return; }
+    let context = &mut *ctx;
+    let ptr = SendPtr(context.user_data);
+
+    if let Some(cb) = message_cb {
+        context.executor.set_message_callback(Box::new(move |payload, ts| {
+            if let Ok(c_payload) = CString::new(payload) {
+                cb(c_payload.as_ptr(), ts.and_utc().timestamp_millis(), ptr.get());
+            }
+        }));
+    } else {
+        context.executor.on_message = None;
     }
 }}
 

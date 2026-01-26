@@ -46,14 +46,14 @@
         form of administration is "Tablet".
     interactions:
         assess interaction with <Warfarin>:
-            show message "Warning: Risk of bleeding".
+            information "Warning: Risk of bleeding".
 
 <Dr. House> is an addressee:
     contact information:
         email is "house@princeton-plainsboro.com".
         phone is "555-1234".
     after consent has been rejected:
-         show message "Patient rejected consent.".
+         information "Patient rejected consent.".
 
 <Dr. Wilson> is an addressee:
     contact information:
@@ -71,23 +71,23 @@
         
         assess <Temperature>:
             38.0 °C ... 42.0 °C:
-                show message "Fever detected.".
+                information "Fever detected.".
                 <High Fever> = <yes>.
             35.0 °C ... 37.9 °C:
-                show message "Normal temperature.".
+                information "Normal temperature.".
                 <High Fever> = <no>.
 
-        show message to <Dr. House> "Assessment complete.".
+        information to <Dr. House> "Assessment complete.".
         send information "Temp Log" <Temperature>.
 
     every 1 day for 7 days:
         assess trend of <Temperature>:
             "increase":
-                show message "Temperature is rising.".
+                information "Temperature is rising.".
             "decrease":
-                show message "Temperature is falling.".
+                information "Temperature is falling.".
             "stable":
-                show message "Temperature is stable.".
+                information "Temperature is stable.".
 
     change of <Pain Level>:
         context:
@@ -96,7 +96,7 @@
         
         assess count of <Pain Level>:
             3 <counts> ... 100 <counts>:
-                show message "Pain recorded multiple times today.".
+                information "Pain recorded multiple times today.".
 
 (* --- FAIL: full_spec --- *)
 <mismatched unit> is a number:
@@ -128,7 +128,7 @@
 <undefined usage> is a plan:
     during plan:
         <UndefinedVar> = 10 kg.
-        show message to <UnknownPerson> "Hello".
+        information to <UnknownPerson> "Hello".
 
 <unit mismatch assign> is a plan:
     during plan:
@@ -159,23 +159,23 @@
         <Test String> = "Hello World".
         <TestEnum> = <A>.
         
-        show message "Number is " + <Test Number>.
+        information "Number is " + <Test Number>.
         
         assess <Test Number>:
             1 <testpoint>:
-                show message "Single Point".
+                information "Single Point".
             41 <testpoints> ... 100 <testpoints>:
-                show message "High Value".
+                information "High Value".
             0 <testpoints>:
-                show message "Low Value".
+                information "Low Value".
             2 <testpoints> ... 40 <testpoints>:
-                show message "Low Value".
+                information "Low Value".
                 
         assess <TestEnum>:
             <A>:
-                show message "Enum is A".
+                information "Enum is A".
             <B>; <C>:
-                show message "Either B or C".
+                information "Either B or C".
 
 (* --- FAIL: golden_master --- *)
 <BadNumber> is a number:
@@ -219,28 +219,28 @@
 (* --- PASS: event_trigger --- *)
 <TriggerPlan> is a plan:
     change of <Status>:
-        show message "Status changed".
+        information "Status changed".
 
     begin of <Treatment>:
-        show message "Treatment started".
+        information "Treatment started".
 
     every 1 week:
-        show message "Weekly check".
+        information "Weekly check".
 
     every Monday after <Start> for 1 year:
-        show message "Monday check".
+        information "Monday check".
 
 (* --- PASS: timeframe --- *)
 <TimeframePlan> is a plan:
     during plan:
         timeframe for analysis is 1 day ago ... now:
-            show message "Analyzing recent window".
+            information "Analyzing recent window".
 
         timeframe during 08:00 ... 18:00:
-            show message "Working hours".
+            information "Working hours".
             
             timeframe during 12:00 ... 18:00:
-                show message "Afternoon work".
+                information "Afternoon work".
 
 (* --- PASS: addressee_definition --- *)
 <DrHouse> is an addressee:
@@ -272,4 +272,4 @@
             worst value is 10 <counts>.
             text for worst value is "Worst Pain".
 
-        show message "Hello " + <UnknownVar>.
+        information "Hello " + <UnknownVar>.

@@ -12,12 +12,12 @@ fn formatter_inserts_missing_statement_newlines() {
 
 <plan> is a plan:
   during plan:
-    show message "First". show message "Second".
+    information "First". information "Second".
 "#;
 
     let formatted = format_script(input).expect("Formatter failed");
     assert!(
-        formatted.contains("show message \"First\".\n        show message \"Second\"."),
+        formatted.contains("information \"First\".\n        information \"Second\"."),
         "Expected newline between statements, got:\n{}",
         formatted
     );
@@ -39,11 +39,11 @@ fn formatter_normalizes_indentation() {
   during plan:
     assess <value>:
       0 <units> ... 10 <units>:
-        show message "OK".
+        information "OK".
 "#;
 
     let formatted = format_script(input).expect("Formatter failed");
-    let expected_line = "        show message \"OK\".";
+    let expected_line = "        information \"OK\".";
     assert!(
         formatted.contains(expected_line),
         "Expected normalized indentation, got:\n{}",
@@ -58,13 +58,13 @@ fn formatter_preserves_message_recipient() {
     let input = r#"
 <plan> is a plan:
   during plan:
-    show message to <patient> "Hello":
+    information to <patient> "Hello":
       message expires after 1 day.
 "#;
 
     let formatted = format_script(input).expect("Formatter failed");
     assert!(
-        formatted.contains("show message to <patient> \"Hello\":"),
+        formatted.contains("information to <patient> \"Hello\":"),
         "Expected recipient in output, got:\n{}",
         formatted
     );

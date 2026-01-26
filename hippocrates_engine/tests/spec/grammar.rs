@@ -7,7 +7,7 @@ use hippocrates_engine::parser;
 fn spec_block_requires_newline_after_colon() {
     let input = r#"
 <plan> is a plan: during plan:
-    show message "Hi".
+    information "Hi".
 "#;
     let result = parser::parse_plan(input);
     assert!(result.is_err(), "Expected parser error for inline block after ':'");
@@ -42,7 +42,7 @@ fn spec_string_literal_rejects_angle_brackets() {
     let input = r#"
 "test" is a plan:
 《during plan:
-    show message "Hello <world>".
+    information "Hello <world>".
 》
 "#;
     let result = parser::parse_plan(input);
@@ -87,7 +87,7 @@ fn spec_block_statements_require_period() {
     let input = r#"
 <plan> is a plan:
     during plan:
-        show message "Hi"
+        information "Hi"
 "#;
     let result = parser::parse_plan(input);
     assert!(result.is_err(), "Expected parser error for missing period in block statement");
@@ -99,7 +99,7 @@ fn spec_blocks_require_colon() {
     let input = r#"
 <plan> is a plan:
     during plan
-        show message "Hi".
+        information "Hi".
 "#;
     let result = parser::parse_plan(input);
     assert!(result.is_err(), "Expected parser error for missing ':' on block");

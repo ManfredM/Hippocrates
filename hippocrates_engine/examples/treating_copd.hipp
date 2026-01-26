@@ -135,7 +135,7 @@
         documentation:
             english: "At the beginning of the inhalation period we show a reminder...".
         
-        show message to <patient> "It's the best time of the day to take your daily shot now":
+        information to <patient> "It's the best time of the day to take your daily shot now":
             message expires after <best inhalation period>.
         ask for <inhaler used>.
 
@@ -150,9 +150,9 @@
             timeframe: 5 days ago ... now.
             assess trend of <use of rescue medication>:
                 Not enough data:
-                    show message to <physician> "Not enough data to determine rescue medication trend.".
+                    information to <physician> "Not enough data to determine rescue medication trend.".
                 "increase":
-                    show message to <physician> "Alert: usage of rescue meds is increasing!".
+                    information to <physician> "Alert: usage of rescue meds is increasing!".
                 "stable"; "decrease":
                     <log> = "Rescue medication usage is stable or decreasing.".
 
@@ -164,21 +164,21 @@
 
         assess <inhaler used in past 5 days on time>:
             Not enough data:
-                show message to <patient> "We are still collecting data for compliance check.".
+                information to <patient> "We are still collecting data for compliance check.".
             4 <doses>; 5 <doses>:
-                show message to <patient> "You are doing a great job in using the inhaler right on time".
+                information to <patient> "You are doing a great job in using the inhaler right on time".
             
             0 <doses> ... 3 <doses>; 6 <doses> ... 1000 <doses>:
                 assess <inhaler used in past 5 days>:
                     Not enough data:
-                        show message to <patient> "We are still collecting the first 5 days of data.".
+                        information to <patient> "We are still collecting the first 5 days of data.".
                     0 <doses>:
-                        show message to <patient> "Not using a medication does not lead to improvement!".
+                        information to <patient> "Not using a medication does not lead to improvement!".
                     1 <dose> ... 2 <doses>:
-                        show message to <patient> "You must use the inhaler more regular".
+                        information to <patient> "You must use the inhaler more regular".
                     3 <doses> ... 6 <doses>:
-                        show message to <patient> "You are using the inhaler frequently enough, but you should also use at the same time every day.".
+                        information to <patient> "You are using the inhaler frequently enough, but you should also use at the same time every day.".
                     7 <doses> ... 10 <doses>:
-                        show message to <patient> "You took between 6 and 10 doses in past 5 days. Please do not use more than one dose per day".
+                        information to <patient> "You took between 6 and 10 doses in past 5 days. Please do not use more than one dose per day".
                     11 <doses> ... 1000 <doses>:
-                        show message to <patient> "We have recorded more than 10 uses of the inhaler. Please contact us to investigate the reason for that.".
+                        information to <patient> "We have recorded more than 10 uses of the inhaler. Please contact us to investigate the reason for that.".

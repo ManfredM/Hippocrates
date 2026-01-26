@@ -50,13 +50,14 @@
 
 ## §3.7 Actions and Questions
 - REQ-3.7-01 — `tests/spec/statements_actions.rs::spec_question_config_parsing_and_validation` — question configuration parses and validates references.
-- REQ-3.7-02 — `tests/spec/statements_actions.rs::spec_message_expiration_parsing` — message expiration attaches to show message.
+- REQ-3.7-02 — `tests/spec/statements_actions.rs::spec_message_expiration_parsing` — message expiration attaches to information, warning, and urgent warning actions.
 - REQ-3.7-03 — `tests/spec/statements_actions.rs::spec_question_modifiers_parsing` — question modifiers parse (validate/type/style/expire).
 - REQ-3.7-04 — `tests/spec/statements_actions.rs::spec_validate_answer_within_parsing` — validate answer within parsing attaches to ask blocks.
 - REQ-3.7-05 — `tests/spec/statements_actions.rs::spec_listen_send_start_and_simple_command_parsing` — listen/send/start/simple command actions parse.
 - REQ-3.7-06 — `tests/spec/statements_actions.rs::spec_question_expiration_block_parsing` — question expiration blocks parse with reminder statements.
 - REQ-3.7-07 — `tests/spec/statements_actions.rs::spec_question_expiration_until_event_trigger_parsing` — question expiration supports until event triggers.
-- REQ-3.7-08 — `tests/spec/statements_actions.rs::spec_say_message_parsing` — say is accepted as a message action keyword.
+- REQ-3.7-08 — `tests/spec/statements_actions.rs::spec_message_action_keyword_parsing` — information, warning, and urgent warning are accepted as message action keywords.
+- REQ-3.7-09 — `tests/spec/statements_actions.rs::spec_message_expiration_parsing` — message actions accept semicolon-separated addressee lists.
 
 ## §3.8 Events and Timing
 - REQ-3.8-01 — `tests/spec/periods_plans.rs::spec_event_trigger_parsing` — event triggers parse for change/start/periodic.
@@ -143,6 +144,7 @@
 ## §5 Execution Model
 - REQ-5-01 — `tests/spec/execution.rs::spec_runtime_execution_flow` — runtime executes assignments and actions in order.
 - REQ-5-02 — `tests/spec/execution.rs::spec_validity_reuse_timeframe` — reuse timeframes prevent re-asking within the validity window.
+- REQ-5-03 — `tests/spec/execution.rs::spec_message_callback_missing_warns` — runtime emits a warning when a message action executes without a message callback.
 
 ## §5.1 Validation Logic
 - REQ-5.1-01 — `tests/spec/validation.rs::spec_validate_plan_fixture_suite` — full-plan validation passes for a complete plan.

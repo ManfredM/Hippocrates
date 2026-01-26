@@ -645,7 +645,14 @@ fn format_action(pair: Pair<Rule>, source: &str, indent: usize, out: &mut String
     }
     let inner = inner.unwrap();
     match inner.as_rule() {
-        Rule::show_message | Rule::say_message => format_show_message(inner, indent, out),
+        Rule::message_action => {
+            if let Some(msg) = inner.into_inner().next() {
+                format_message_action(msg, indent, out);
+            }
+        }
+        Rule::information_message | Rule::warning_message | Rule::urgent_warning_message => {
+            format_message_action(inner, indent, out)
+        }
         Rule::ask_question => format_ask_question(inner, source, indent, out),
         Rule::listen_for => format_listen_for(inner, source, indent, out),
         Rule::question_modifier => format_question_modifier(inner, source, indent, out),
@@ -656,7 +663,7 @@ fn format_action(pair: Pair<Rule>, source: &str, indent: usize, out: &mut String
     }
 }
 
-fn format_show_message(pair: Pair<Rule>, indent: usize, out: &mut String) {
+fn format_message_action(pair: Pair<Rule>, indent: usize, out: &mut String) {
     let raw = strip_markers(pair.as_str());
     let header = first_non_empty_line(&raw);
 

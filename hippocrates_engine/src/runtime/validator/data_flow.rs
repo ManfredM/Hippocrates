@@ -61,7 +61,7 @@ pub fn analyze_statement(
                         // Undefined variable error handled elsewhere, but good to note
                     }
                 },
-                crate::ast::Action::ShowMessage(parts, _) => {
+                crate::ast::Action::ShowMessage { parts, .. } => {
                      for part in parts {
                          check_expression(part, state, defs, stmt.line, errors);
                      }

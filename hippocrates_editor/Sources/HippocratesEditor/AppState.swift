@@ -19,15 +19,15 @@ class AppState: ObservableObject {
 
     <TreatmentPlan> is a plan:
       during plan:
-        show message to patient "Welcome to the treatment".
+        information to <patient> "Welcome to the treatment".
         ask for <Temperature>.
         
       <Monitor Fever> with change of <Temperature>:
         assess <Temperature>:
           38.0 ... 42.0:
-            show message to patient "Fever detected!".
+            information to <patient> "Fever detected!".
           35.0 ... 38.0:
-            show message to patient "Temperature normal".
+            information to <patient> "Temperature normal".
     """
     
     @Published var parseStatus: String = "Ready"

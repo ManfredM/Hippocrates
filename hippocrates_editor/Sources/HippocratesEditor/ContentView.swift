@@ -20,6 +20,26 @@ func logToFile(_ message: String) {
     }
 }
 
+private struct MessagePayload: Decodable {
+    let kind: String
+    let text: String
+    let addressees: [MessageAddressee]?
+}
+
+private struct MessageAddressee: Decodable {
+    let name: String
+}
+
+private func messageDisplayText(from msg: String, type: Int) -> String {
+    guard type == 1, let data = msg.data(using: .utf8) else { return msg }
+    guard let payload = try? JSONDecoder().decode(MessagePayload.self, from: data) else { return msg }
+    let suffix = (payload.addressees ?? []).map { $0.name }.joined(separator: ", ")
+    if suffix.isEmpty {
+        return payload.text
+    }
+    return "\(payload.text) (to: \(suffix))"
+}
+
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
     
@@ -89,7 +109,8 @@ struct ContentView: View {
                  case 3: category = "Answer"
                  default: category = "Log"
                  }
-                 let event = ExecutionEvent(name: msg, time: date, category: category, type: type)
+                 let displayMsg = messageDisplayText(from: msg, type: type)
+                 let event = ExecutionEvent(name: displayMsg, time: date, category: category, type: type)
                  DispatchQueue.main.async {
                      appState.executionLogs.append(event)
                  }

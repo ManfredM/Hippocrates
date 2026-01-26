@@ -1220,8 +1220,16 @@ fn parse_statement(pair: pest::iterators::Pair<Rule>) -> Result<Statement, Parse
 fn parse_action(pair: pest::iterators::Pair<Rule>) -> Result<Action, ParseError> {
     let inner = pair.into_inner().next().unwrap();
     match inner.as_rule() {
-        Rule::show_message => Ok(parse_show_message(inner.into_inner())?),
-        Rule::say_message => Ok(parse_show_message(inner.into_inner())?),
+        Rule::message_action => {
+            let mut msg_inner = inner.into_inner();
+            let msg_rule = msg_inner
+                .next()
+                .ok_or_else(|| ParseError::UnknownRule("message_action".to_string()))?;
+            Ok(parse_message_action(msg_rule)?)
+        }
+        Rule::information_message | Rule::warning_message | Rule::urgent_warning_message => {
+            Ok(parse_message_action(inner)?)
+        }
         Rule::ask_question => Ok(parse_ask_question(inner.into_inner())?),
         Rule::send_info => {
             let mut pairs = inner.into_inner();
@@ -1330,9 +1338,17 @@ fn parse_action(pair: pest::iterators::Pair<Rule>) -> Result<Action, ParseError>
 // Action Specific Parsers
 // -----------------------------------------------------------------------------
 
-fn parse_show_message(pairs: pest::iterators::Pairs<Rule>) -> Result<Action, ParseError> {
+fn parse_message_action(pair: pest::iterators::Pair<Rule>) -> Result<Action, ParseError> {
+    let kind = match pair.as_rule() {
+        Rule::information_message => crate::ast::MessageKind::Information,
+        Rule::warning_message => crate::ast::MessageKind::Warning,
+        Rule::urgent_warning_message => crate::ast::MessageKind::UrgentWarning,
+        _ => return Err(ParseError::UnknownRule(format!("{:?}", pair.as_rule()))),
+    };
+
     let mut message_parts = Vec::new();
     let mut statements = Vec::new();
+    let mut addressees = Vec::new();
 
     fn push_message_expiration(
         pair: pest::iterators::Pair<Rule>,
@@ -1359,8 +1375,14 @@ fn parse_show_message(pairs: pest::iterators::Pairs<Rule>) -> Result<Action, Par
         pair: pest::iterators::Pair<Rule>,
         message_parts: &mut Vec<Expression>,
         statements: &mut Vec<Statement>,
+        addressees: &mut Vec<String>,
     ) -> Result<(), ParseError> {
         match pair.as_rule() {
+            Rule::addressee_list => {
+                for child in pair.into_inner() {
+                    addressees.push(parse_identifier_str(child));
+                }
+            }
             Rule::expression => {
                 message_parts.push(parse_expression(pair)?);
             }
@@ -1369,12 +1391,12 @@ fn parse_show_message(pairs: pest::iterators::Pairs<Rule>) -> Result<Action, Par
             }
             Rule::message_block | Rule::message_block_line | Rule::message_property_block => {
                 for child in pair.into_inner() {
-                    handle_pair(child, message_parts, statements)?;
+                    handle_pair(child, message_parts, statements, addressees)?;
                 }
             }
             Rule::message_property => {
                 for child in pair.into_inner() {
-                    handle_pair(child, message_parts, statements)?;
+                    handle_pair(child, message_parts, statements, addressees)?;
                 }
             }
             Rule::string_literal => {
@@ -1386,18 +1408,20 @@ fn parse_show_message(pairs: pest::iterators::Pairs<Rule>) -> Result<Action, Par
         Ok(())
     }
 
-    for p in pairs {
-        handle_pair(p, &mut message_parts, &mut statements)?;
+    for p in pair.into_inner() {
+        handle_pair(p, &mut message_parts, &mut statements, &mut addressees)?;
     }
 
-    Ok(Action::ShowMessage(
-        message_parts,
-        if statements.is_empty() {
+    Ok(Action::ShowMessage {
+        kind,
+        parts: message_parts,
+        addressees,
+        block: if statements.is_empty() {
             None
         } else {
             Some(statements)
         },
-    ))
+    })
 }
 
 fn parse_ask_question(pairs: pest::iterators::Pairs<Rule>) -> Result<Action, ParseError> {

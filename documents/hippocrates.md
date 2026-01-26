@@ -71,7 +71,7 @@ As an alternative a decision could be based on the majority of answers.
 Context
 The syntax of Hippocrates is designed in a way that a statement always creates the context for subsequent statements.
 Example:
-A message creates the context for parameters that control the message. show message creates the context for the following two lines.
+A message creates the context for parameters that control the message. information creates the context for the following two lines.
 Where this approach is not possible as the context creation contains more than one statement it can be created explicitly.
 Example:
 There are more complex cases where the context can be created explicitly for a subsequent block. The following shows how a context for an analysis can be created. In this case
@@ -1872,7 +1872,7 @@ How to deal with plural and singular
 Continuous reading of a blood pressure value every second.
 ---
 Limited HTML control of messages
-show message to patient ##&quot;&lt;p&gt;Your dose is: &quot; daily dose with units &lt;/p&gt;&lt;p&gt;Please make sure you take the &quot; unit of daily dose &quot; within next 5 minutes&lt;/p&gt;&quot;.##
+information to <patient> ##&quot;&lt;p&gt;Your dose is: &quot; daily dose with units &lt;/p&gt;&lt;p&gt;Please make sure you take the &quot; unit of daily dose &quot; within next 5 minutes&lt;/p&gt;&quot;.##
 ---
 {drug}::
 "drug" is a drug (
@@ -1911,7 +1911,7 @@ ingredients (
 interactions (
   assess interaction with (
     "ingredient <drug> interacts with" (
-      show message to {addressee} "Message".
+      information to <addressee> "Message".
       [stop plan.]
     ).
   ).

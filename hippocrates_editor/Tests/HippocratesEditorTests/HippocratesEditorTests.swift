@@ -30,7 +30,7 @@ class HippocratesEditorTests: XCTestCase {
             during plan:
                 assess <val>:
                     0 <points> ... 5 <points>:
-                        show message "lower".
+                        information "lower".
         """
         
         let errors = HippocratesParser.validate(input: input)
@@ -54,9 +54,9 @@ class HippocratesEditorTests: XCTestCase {
             during plan:
                 assess <val>:
                     0 <points> ... 5 <points>:
-                        show message "lower".
+                        information "lower".
                     4 <points> ... 6 <points>:
-                        show message "overlap".
+                        information "overlap".
         """
         
         let errors2 = HippocratesParser.validate(input: inputMultiple)

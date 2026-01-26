@@ -347,7 +347,7 @@ pub fn check_statement_semantics(
                          });
                      }
                  },
-                 crate::ast::Action::ShowMessage(parts, _) => {
+                 crate::ast::Action::ShowMessage { parts, .. } => {
                      let defined_keys: HashSet<String> = defined_values.keys().cloned().collect();
                      for part in parts {
                          validate_expression(part, enum_vars, &defined_keys, stmt.line, false, errors);

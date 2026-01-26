@@ -242,7 +242,7 @@ fn spec_validator_requires_not_enough_data_case() {
             <value> = count of <something>.
         assess <value>:
             0 <points> ... 10 <points>:
-                show message "covered".
+                information "covered".
 "#;
 
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
@@ -306,9 +306,9 @@ fn spec_not_enough_data_requires_statistical_target() {
         <value> = 0 <units>.
         assess <value>:
             Not enough data:
-                show message "No data".
+                information "No data".
             0 <units> ... 1 <unit>:
-                show message "OK".
+                information "OK".
 "#;
 
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
@@ -341,9 +341,9 @@ fn spec_validator_passes_with_not_enough_data() {
             <value> = count of <something>.
         assess <value>:
             Not enough data:
-                show message "waiting".
+                information "waiting".
             0 <points> ... 10 <points>:
-                show message "covered".
+                information "covered".
 "#;
 
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
@@ -403,7 +403,7 @@ fn spec_validator_integer_gap_message() {
         <val> = 0 <points>.
         assess <val>:
             0 <points> ... 5 <points>:
-                show message "Lower half".
+                information "Lower half".
 "#;
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
     let result = validator::validate_file(&plan);
@@ -426,7 +426,7 @@ fn spec_validator_float_gap_message() {
         <val> = 0.0 mg.
         assess <val>:
             0.0 mg ... 5.5 mg:
-                show message "Lower part".
+                information "Lower part".
 "#;
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
     let result = validator::validate_file(&plan);
@@ -449,7 +449,7 @@ fn spec_precision_gaps() {
         <val> = 0.0 mm.
         assess <val>:
             0.0 mm ... 5.5 mm:
-                show message "Lower part".
+                information "Lower part".
 "#;
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
     let result = validator::validate_file(&plan);
@@ -467,7 +467,7 @@ fn spec_precision_gaps() {
         <val> = 0 <points>.
         assess <val>:
             0 <points> ... 5 <points>:
-                show message "Lower part".
+                information "Lower part".
 "#;
     let plan2 = parser::parse_plan(input2.trim()).expect("Failed to parse 2");
     let result2 = validator::validate_file(&plan2);
@@ -574,9 +574,9 @@ fn spec_range_overlap() {
         <Temp> = 35.0 °C.
         assess <Temp>:
             38.0 °C ... 42.0 °C:
-                show message "Fever".
+                information "Fever".
             35.0 °C ... 38.0 °C:
-                show message "Normal".
+                information "Normal".
 "#;
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
     let result = validator::validate_file(&plan);
@@ -636,7 +636,7 @@ fn spec_missing_valid_values_fails() {
 
 <plan> is a plan:
     during plan:
-        show message "Hi".
+        information "Hi".
 "#;
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
     let result = validator::validate_file(&plan);
@@ -651,7 +651,7 @@ fn spec_missing_valid_values_fails() {
 
 <plan> is a plan:
     during plan:
-        show message "Hi".
+        information "Hi".
 "#;
     let plan2 = parser::parse_plan(input2.trim()).expect("Failed to parse");
     let result2 = validator::validate_file(&plan2);
@@ -667,7 +667,7 @@ fn spec_timeframe_selector_requires_period_definition() {
 <plan> is a plan:
     during plan:
         timeframe for analysis is <MissingPeriod>:
-            show message "Hi".
+            information "Hi".
 "#;
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
     let result = validator::validate_file(&plan);
@@ -688,7 +688,7 @@ fn spec_reproduce_missing_error() {
     during plan:
         assess <val>:
             0 kg ... 5 kg:
-                show message "Lower half covered".
+                information "Lower half covered".
 "#;
     let plan = parser::parse_plan(input).expect("Failed to parse");
     let result = validator::validate_file(&plan);
@@ -712,7 +712,7 @@ fn spec_unitless_assess_fails() {
         <val> = 0 kg.
         assess <val>:
             0 ... 100:
-                show message "Done".
+                information "Done".
 "#;
     let result = parser::parse_plan(input);
     assert!(result.is_err(), "Expected parser error for unitless assess range");
@@ -772,7 +772,7 @@ fn spec_data_flow_use_before_assignment_fails() {
 
 <plan> is a plan:
     during plan:
-        show message "Value is " + <val>.
+        information "Value is " + <val>.
 "#;
 
     let plan = parser::parse_plan(input).expect("Failed to parse");
@@ -795,7 +795,7 @@ fn spec_calculation_does_not_initialize_value() {
 
 <plan> is a plan:
     during plan:
-        show message "Value is " + <val>.
+        information "Value is " + <val>.
 "#;
 
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
@@ -816,7 +816,7 @@ fn spec_statistical_functions_do_not_require_local_init() {
 <plan> is a plan:
     during plan:
         timeframe for analysis is between 5 days ago ... now:
-            show message count of <val> is <Yes>.
+            information count of <val> is <Yes>.
 "#;
 
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
@@ -897,11 +897,11 @@ fn spec_listen_and_context_initialize_values() {
 <plan> is a plan:
     during plan:
         listen for <signal>:
-            show message "Heard".
-        show message "Value is " + <signal>.
+            information "Heard".
+        information "Value is " + <signal>.
         context for analysis:
             data: <signal>.
-            show message "Ctx " + <signal>.
+            information "Ctx " + <signal>.
 "#;
 
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
@@ -943,7 +943,7 @@ fn spec_trend_requires_full_coverage() {
         timeframe for analysis is between 7 days ago ... now:
             assess trend of <val>:
                 "increase":
-                    show message "Up".
+                    information "Up".
 "#;
 
     let plan = parser::parse_plan(input).expect("Failed to parse");

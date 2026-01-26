@@ -34,6 +34,7 @@ char* hippocrates_engine_load(EngineContext* ctx, const char* source);
 typedef void (*LineCallback)(int, void*);
 typedef void (*LogCallback)(const char*, uint8_t, int64_t, void*);
 typedef void (*AskCallback)(const char*, void*);
+typedef void (*MessageCallback)(const char*, int64_t, void*);
 
 /// Sets callbacks for the engine.
 void hippocrates_engine_set_callbacks(
@@ -41,6 +42,12 @@ void hippocrates_engine_set_callbacks(
     LineCallback line_cb,
     LogCallback log_cb,
     AskCallback ask_cb
+);
+
+/// Sets a dedicated message callback for delivery payloads.
+void hippocrates_engine_set_message_callback(
+    EngineContext* ctx,
+    MessageCallback message_cb
 );
 
 /// Executes a plan by name.

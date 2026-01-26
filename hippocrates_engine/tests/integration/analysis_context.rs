@@ -66,7 +66,7 @@ fn test_analysis_context_execution() {
             <val> = count of <flag> is <Yes>.
         assess <val>:
             Not enough data:
-                show message \"We do not have enough data\".
+                information \"We do not have enough data\".
             0 <valunits> ... 100 <valunits>:
                 <status> = <zero>.
 ";

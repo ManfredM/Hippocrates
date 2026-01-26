@@ -33,7 +33,7 @@ mod tests {
 <Script1> is a plan:
     during plan:
         ask <Age>.
-        show message "Script1: Age is " + <Age>.
+        information "Script1: Age is " + <Age>.
 "#;
 
         let script2 = r#"
@@ -43,7 +43,7 @@ mod tests {
 <Script2> is a plan:
     during plan:
         ask <Age>.
-        show message "Script2: Age is " + <Age>.
+        information "Script2: Age is " + <Age>.
 "#;
 
         session.run_script(script1.to_string(), "Script1".to_string());

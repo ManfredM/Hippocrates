@@ -24,6 +24,8 @@ target/
 DerivedData/
 *.xcodeproj/project.xcworkspace
 *.xcodeproj/xcuserdata
+**/*.xcodeproj/xcuserdata/
+**/*.xcworkspace/xcuserdata/
 HippocratesEditor.app/
 *.d
 *.o
@@ -32,4 +34,3 @@ HippocratesEditor.app/
 
 # Logs
 *.log
-

@@ -127,7 +127,7 @@ Hippocrates examples\
 
 \f3\i \cf5 "simple" is a plan:\
   30 minutes before breakfast, 30 minutes before dinner:\
-     show message to patient "Please take your dose now":\
+     information to <patient> "Please take your dose now":\
        message expires after 30 minutes.\
 \pard\pardeftab720\partightenfactor0
 
@@ -145,28 +145,28 @@ Hippocrates examples\
 \
   "antibiotics" for 9 days, can be extended to 14 days:\
     30 minutes before breakfast, 30 minutes before dinner:\
-      show message to patient "Please take your dose now":\
+      information to <patient> "Please take your dose now":\
         message expires after 30 minutes.\
 \
     every second day with begin of breakfast:\
-      show message to patient "Please take the full dose\
+      information to <patient> "Please take the full dose\
           of antibiotics to avoid creating resistant germs".\
 \
   after antibiotics:\
     ask "How many tablets do you still have?":\
       0 ... 2:\
-        show message "Thank you for taking the full dose of \
+        information "Thank you for taking the full dose of \
           antibiotics".\
       3 ... 20:\
         assess current duration of antibiotics:\
           0 days ... 8 days:\
             do nothing.\
           9 days ... 13 days:\
-            show message to patient "Please take all of the\
+            information to <patient> "Please take all of the\
               antibiotics to avoid creating resistant germs".\
             extend current antibiotics period by 1 day.\
           14 days:\
-            show message to patient "You still seem to have too\
+            information to <patient> "You still seem to have too\
               many tablets remaining. Please see your \
               physician for further consultation."\
             stop plan.\
@@ -466,9 +466,9 @@ The definition of body weight would look like this:\
 \
 \pard\pardeftab720\partightenfactor0
 
-\f4 \cf2 say to patient "Message to Patient".\
-say to caregiver "Message to Caregiver".\
-say to physician "Message to Caregiver".\
+\f4 \cf2 information to <patient> "Message to Patient".\
+information to <caregiver> "Message to Caregiver".\
+information to <physician> "Message to Caregiver".\
 \
 \
 \pard\pardeftab720\partightenfactor0
@@ -598,12 +598,12 @@ diagnosis:\
 \
 \pard\pardeftab720\partightenfactor0
 \cf2 \ulnone A message creates the context for parameters that control the message. 
-\f0\b show message
+\f0\b information
 \f1\b0  creates the context for the following two lines. \
 \
 \pard\pardeftab720\partightenfactor0
 
-\f4 \cf2 show message to patient "This is a message for a patient":\
+\f4 \cf2 information to <patient> "This is a message for a patient":\
   message expires after 30 minutes.\
   color = red.\
 \pard\pardeftab720\partightenfactor0
@@ -2227,7 +2227,7 @@ between (\\lower range\\ ... \\upper range\\) of\
 \pard\pardeftab720\partightenfactor0
 \cf2 \ulnone     \ul 0 ... 1 > no action. <
 \f4\b0 \ulnone \
-    2       > show message to patient\
+    2       > information to <patient>\
                 "Please come an see us.". <<\
   
 \f5\b \ul for all other values of pain in left arm,\
@@ -2268,9 +2268,9 @@ between (\\lower range\\ ... \\upper range\\) of\
 \f4\b0  
 \f5\b number of applying criteria
 \f4\b0  >\ulnone \
-    1       > show message to patient "Don\'b4t worry". <\
-    2 ... 3 > show message to patient "Could be better". <\
-    4       > show message to patient "You should come\
+    1       > information to <patient> "Don\'b4t worry". <\
+    2 ... 3 > information to <patient> "Could be better". <\
+    4       > information to <patient> "You should come\
                 and see us". <<\
   
 \f5\b \ul for all other values of left arm pain, right arm pain,\
@@ -2420,12 +2420,12 @@ Making a decision that changes the dose based on
 \f4\b0 \
 \ulnone     assess age >\
       0 years ... 8 year >\
-        show message to caregiver "Do not use for children".\
+        information to <caregiver> "Do not use for children".\
         single dose = 0 tablets. <\
       9 years ... 150 years >\
         assess weight >\
           0.5 kg ... 15 kg >\
-            show message to patient "For persons under 15 kg this\
+            information to <patient> "For persons under 15 kg this\
               drug should not be used.".\
             single dose = 0 tablets. <\
           16 kg ... 25 kg >\
@@ -2437,7 +2437,7 @@ Making a decision that changes the dose based on
 \f5\b \ul 0% ... 79%
 \f4\b0  >\ulnone \
     single dose = 0 tablets.\
-    show message to patient "The confidence of the data is not\
+    information to <patient> "The confidence of the data is not\
       sufficient to calculate a dose. Please ask your physician\
       for your dose." <$\
 <\
@@ -3010,7 +3010,7 @@ To be a bit more in the safe side one could also check the number of data points
           20 mm/Hg ... 60 mm/Hg > ... <\
           ... <<\
       in all other cases >\
-        show message to patient "The blood pressure reading\
+        information to <patient> "The blood pressure reading\
           did not collect enough data points. Only "\
           count of systolic blood pressure " data points have\
           been collected. We need at least 27 in this 5 minute\
@@ -3098,7 +3098,7 @@ To be a bit more in the safe side one could also check the number of data points
 \ulnone       \ul duration of indoor activity) <\
 \pard\pardeftab720\partightenfactor0
 
-\f4\b0 \cf2 \ulnone   show message to patient "Your total activity\
+\f4\b0 \cf2 \ulnone   information to <patient> "Your total activity\
     in past 7 days was"\
     total of duration of activity in minutes.\
 <\
@@ -3117,7 +3117,7 @@ To be a bit more in the safe side one could also check the number of data points
 \ulnone     \ul data is duration of outdoor activity! <\
 \pard\pardeftab720\partightenfactor0
 
-\f4\b0 \cf2 \ulnone   show message to patient "Your total outdoor activity\
+\f4\b0 \cf2 \ulnone   information to <patient> "Your total outdoor activity\
     in past 7 days was "\
     total of duration of activity in minutes.\
 <\
@@ -3202,7 +3202,7 @@ Each constraint that can be defined will also have to possibility to handle viol
 \f5\b \cf11     \cf11 \ul \ulc11 in case of constraint violation >\cf11 \ulnone  \
 \pard\pardeftab720\partightenfactor0
 
-\f4\b0 \cf11       show message to patient "Your treatment has been extended\
+\f4\b0 \cf11       information to <patient> "Your treatment has been extended\
         to a maximum duration of 15 days. Based on your feedback\
         the symptoms seem still be present. Please make an\
         appointment with us with next 2 days."\
@@ -3213,7 +3213,7 @@ Alternative version\
 \
 "treatment" for 9 days >\
   in case duration of treatment gets shorter than 15 days >\
-    show message to patient "Your treatment has been extended\
+    information to <patient> "Your treatment has been extended\
       to a maximum duration of 15 days. Based on your feedback\
       the symptoms seem still be present. Please make an\
       appointment with us with next 2 days."\
@@ -3516,12 +3516,12 @@ In case a physician would like to get regular feedback on how the patient is doi
       after contacting has failed >\
 \pard\pardeftab720\partightenfactor0
 
-\f4\b0 \cf2         show message to patient "Your physician cannot be \
+\f4\b0 \cf2         information to <patient> "Your physician cannot be \
          contacted via mail.".
 \f5\b  <<<\
   after consent has been rejected by patient >\
     
-\f4\b0 show message to patient "In case no consent to send information\
+\f4\b0 information to <patient> "In case no consent to send information\
       to your physician is given, no or limited remote support\
       will be available.". <
 \f5\b \
@@ -3673,14 +3673,14 @@ The following examples show how to setup a protocol of a contact group that firs
 \pard\pardeftab720\partightenfactor0
 \cf2 \ulnone       \ul has failed
 \f4\b0 \ulnone  >\
-        show message to patient nurse 1 " could not be contacted.\
+        information to <patient nurse 1> " could not be contacted.\
           We will try contacting " nurse 2. <\
     
 \f5\b \ul after confirming contact with nurse 2 within 20 minutes\
 \ulnone       \ul has failed >\
 \pard\pardeftab720\partightenfactor0
 
-\f4\b0 \cf2 \ulnone         show message to patient nurse 2 " could not be contacted.\
+\f4\b0 \cf2 \ulnone         information to <patient nurse 2> " could not be contacted.\
           We will try contacting " family caregiver. <\
     
 \f5\b \ul after confirming contact with family caregiver\
@@ -3688,7 +3688,7 @@ The following examples show how to setup a protocol of a contact group that firs
 \cf2 \ulnone       \ul within 30 minutes has failed >\
 \pard\pardeftab720\partightenfactor0
 
-\f4\b0 \cf2 \ulnone         show message to patient "Nobody of your care team could be\
+\f4\b0 \cf2 \ulnone         information to <patient> "Nobody of your care team could be\
           reached. Please call XXXXXXXX for further assistance." <<\
 <\
 \
@@ -3934,12 +3934,12 @@ Next time the same addressee receives an information the information will sent a
       
 \f5\b \ul after delivery has succeeded >
 \f4\b0 \ulnone \
-        show message to patient "Your weekly inhaler status has\
+        information to <patient> "Your weekly inhaler status has\
           been sent to your physician.". <\
       
 \f5\b \ul after delivery within 10 minutes has failed >
 \f4\b0 \ulnone \
-        show message to patient "Your weekly inhaler status could\
+        information to <patient> "Your weekly inhaler status could\
           not be sent to your physician. It will be sent next\
             time your physician gets a message.". \
           resend message with next contact. <<\
@@ -4978,7 +4978,7 @@ The following example shares all data that is available for a patient with an ad
 \f5\b \ul share all values of all plans >
 \f4\b0 \ulnone \
         after delivery failure >\
-          show message to patient "The weekly data summery\
+          information to <patient> "The weekly data summery\
             could not sent to the clinical data manager.\
             We will get in contact with you shortly to\
             assess the problem.".\
@@ -4987,11 +4987,11 @@ The following example shares all data that is available for a patient with an ad
             Please get in touch with that person within next\
             2 hours.". >\
               after delivery failure. >\
-                show message to patient "We cannot automatically\
+                information to <patient> "We cannot automatically\
                   inform our service provider to assess the data\
                   upload problem. Please call XXX-XXX-XXXXX.". <\
               after delivery success. >\
-                show message to patient "We contacted our service\
+                information to <patient> "We contacted our service\
                   provider. If you do not receive a call within\
                   next 2 hours, please call XXX-XXX-XXXXX.". <<<<<<\
 <\
@@ -5355,7 +5355,7 @@ The last example assumes that the script has been generated out of an EHR system
 \ulnone     \ul duration of treatment can be customized >\
 \ulnone       \ul in case duration of treatment would get shorter than\ulnone \
         \ul 45 minutes >\
-\ulnone           \ul show message to patient "The treatment takes at least\
+\ulnone           \ul information to <patient> "The treatment takes at least\
 \ulnone             \ul 45 minutes.". <<<\
 \pard\pardeftab720\partightenfactor0
 
@@ -5374,7 +5374,7 @@ The last example assumes that the script has been generated out of an EHR system
   1 hour 
 \f5\b \ul before treatment
 \f4\b0 \ulnone  >\
-    show message to patient "Please take XYZ now. Your next \
+    information to <patient> "Please take XYZ now. Your next \
       treatment starts in 1 hour.".\
   ).\
   ...\
@@ -7325,7 +7325,7 @@ To be written (for the moment see "Raising questions").\
       in case confidence of answer is between (0% ... 79%) >\
         validate answer once >\
           before first validation >\
-            show message to patient "Please confirm your age." <<<\
+            information to <patient> "Please confirm your age." <<<\
       for all other values of confidence of value > no action. <<\
 <\
 \
@@ -7342,7 +7342,7 @@ To be written (for the moment see "Raising questions").\
       0% ... 99% >\
         validate value once >\
           before first validation >\
-            show message to patient \
+            information to <patient> \
               "Please confirm your age." <<<<<<\
 \
 \pard\pardeftab720\partightenfactor0
@@ -8570,13 +8570,13 @@ plan (\
     ).\
 \
     30 minutes before administration (\
-      show message to patient "Your next dose is due in 30\
+      information to <patient> "Your next dose is due in 30\
         minutes. Please make sure that you administer Riamet\
         with milky food.".\
     ).\
 \
     with administration (\
-      show message to patient "Please take your next dose now: " \
+      information to <patient> "Please take your next dose now: " \
         single dose.\
     ).\
   ).\
@@ -8680,7 +8680,7 @@ after 5 minute blood pressure reading (\
 \
 \pard\pardeftab720\partightenfactor0
 
-\f3\i \cf2 show message to patient ##"<p>Your dose is: " daily dose with units \
+\f3\i \cf2 information to <patient> ##"<p>Your dose is: " daily dose with units \
   </p><p>Please make sure you take the " unit of daily dose\
   " within next 5 minutes</p>".##\
 \pard\pardeftab720\partightenfactor0
@@ -8790,7 +8790,7 @@ after 5 minute blood pressure reading (\
 \f3\b0 \cf2 interactions (\
   assess interaction with (\
     "ingredient <drug> interacts with" (\
-      show message to \{addressee\} "Message".\
+      information to <addressee> "Message".\
       [stop plan.]\
     ).\
   ).\

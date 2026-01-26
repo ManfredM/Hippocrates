@@ -54,8 +54,8 @@ fn test_execution_callback() {
     let input = r#"
 <callback plan> is a plan:
     during plan:
-        show message "Line 4".
-        show message "Line 5".
+        information "Line 4".
+        information "Line 5".
 "#;
 
     let plan = parser::parse_plan(input).expect("Failed to parse");

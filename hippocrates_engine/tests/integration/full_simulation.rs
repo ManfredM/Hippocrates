@@ -13,7 +13,7 @@ fn test_period_simulation_progression() {
 
 <my plan> is a plan:
     <my event> with begin of <best period>:
-        show message "Event Triggered".
+        information "Event Triggered".
 "#;
 
     // 1. Setup Environment
