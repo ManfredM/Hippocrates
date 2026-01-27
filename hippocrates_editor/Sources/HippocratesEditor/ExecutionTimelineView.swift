@@ -484,6 +484,7 @@ struct ValuesLabelColumn: View {
                     Text(row.display)
                         .font(.caption2.weight(.semibold))
                         .lineLimit(2)
+                        .help(row.display)
                     Spacer(minLength: 0)
                 }
                 .padding(.horizontal, 6)
