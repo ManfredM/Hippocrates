@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(macOS)
+import AppKit
+#endif
 
 extension Calendar {
     static let gmt: Calendar = {
@@ -10,8 +13,19 @@ extension Calendar {
 
 // Config
 private let defaultHourHeight: CGFloat = 60
-private let dayWidth: CGFloat = 350
-private let timeColWidth: CGFloat = 60
+private let dayWidth: CGFloat = 210
+private let timeColWidth: CGFloat = 120
+private let valueRowLineHeight: CGFloat = 16
+private let valueRowPadding: CGFloat = 6
+private let valueSectionHeaderHeight: CGFloat = 24
+private let dividerHeight: CGFloat = 1
+private let headerRowHeight: CGFloat = 50
+private let minTimelineViewportHeight: CGFloat = 140
+private let minValuesRowHeight: CGFloat = valueSectionHeaderHeight + valueRowLineHeight + valueRowPadding * 2 + dividerHeight * 2
+private let headerRowColor = Color(nsColor: .systemYellow).opacity(0.18)
+private let timelineRowColor = Color(nsColor: .textBackgroundColor)
+private let valuesRowColor = Color(nsColor: .systemGreen).opacity(0.12)
+private let timeLabelColor = Color(nsColor: .systemYellow).opacity(0.85)
 
 // MARK: - Models
 
@@ -35,6 +49,28 @@ struct PeriodBand: Identifiable {
     let end: Date
 }
 
+struct ValueRow: Identifiable {
+    let id: String
+    let display: String
+    let entriesByDay: [Date: [EngineValueEntry]]
+    let maxEntries: Int
+}
+
+private func valueRowHeight(for row: ValueRow) -> CGFloat {
+    let lines = max(row.maxEntries, 1)
+    return CGFloat(lines) * valueRowLineHeight + valueRowPadding * 2
+}
+
+private func valuesSectionHeight(for rows: [ValueRow]) -> CGFloat {
+    let rowHeights = rows.reduce(0) { $0 + valueRowHeight(for: $1) }
+    let dividerCount = rows.count + 1
+    return valueSectionHeaderHeight + rowHeights + CGFloat(dividerCount) * dividerHeight
+}
+
+final class HorizontalScrollSyncState: ObservableObject {
+    @Published var offset: CGFloat = 0
+}
+
 // MARK: - Views
 
 struct ExecutionTimelineView: View {
@@ -43,14 +79,17 @@ struct ExecutionTimelineView: View {
     // Zoom State
     @State private var hourHeight: CGFloat = defaultHourHeight
     @State private var lastHourHeight: CGFloat = defaultHourHeight
+    @StateObject private var dayScrollSync = HorizontalScrollSyncState()
     
     @State private var periodBands: [Date: [PeriodBand]] = [:]
+    @State private var valueRows: [ValueRow] = []
     
     // Days to show: Union of days with events AND days with bands
     var visibleDates: [Date] {
         let eventDates = Set(appState.executionLogs.map { Calendar.gmt.startOfDay(for: $0.time) })
         let bandDates = Set(periodBands.keys)
-        let sorted = eventDates.union(bandDates).sorted()
+        let valueDates = Set(valueRows.flatMap { $0.entriesByDay.keys })
+        let sorted = eventDates.union(bandDates).union(valueDates).sorted()
         
         if appState.executionLogs.isEmpty && sorted.count > 7 {
             return Array(sorted.prefix(7))
@@ -74,16 +113,13 @@ struct ExecutionTimelineView: View {
     }
     
     func refreshData() {
-        guard let engine = appState.visualizationEngine ?? appState.currentEngine else { 
+        guard let engine = appState.currentEngine ?? appState.visualizationEngine else { 
             periodBands = [:]
+            valueRows = []
             return 
         }
         
         let periods = engine.getPeriods()
-        guard !periods.isEmpty else { 
-            periodBands = [:]
-            return 
-        }
         
         // Determine window
         // If static (no logs), use Generic Week
@@ -126,6 +162,45 @@ struct ExecutionTimelineView: View {
         }
         
         periodBands = newBands
+        
+        let endDate = calendar.date(byAdding: .day, value: days, to: anchorDate) ?? anchorDate
+        let values = engine.getValues(start: anchorDate, end: endDate)
+        var groupedValues: [Date: [String: [EngineValueEntry]]] = [:]
+        
+        for entry in values {
+            let day = calendar.startOfDay(for: entry.date)
+            groupedValues[day, default: [:]][entry.variable, default: []].append(entry)
+        }
+        
+        struct ValueRowBuilder {
+            var display: String
+            var entriesByDay: [Date: [EngineValueEntry]]
+            var maxEntries: Int
+        }
+        
+        var rowsByVariable: [String: ValueRowBuilder] = [:]
+        for (day, variables) in groupedValues {
+            for (variable, entries) in variables {
+                let sortedEntries = entries.sorted { $0.timestamp < $1.timestamp }
+                let display = sortedEntries.first?.display ?? variable
+                var row = rowsByVariable[variable] ?? ValueRowBuilder(display: display, entriesByDay: [:], maxEntries: 0)
+                if row.display.isEmpty {
+                    row.display = display
+                }
+                row.entriesByDay[day] = sortedEntries
+                row.maxEntries = max(row.maxEntries, sortedEntries.count)
+                rowsByVariable[variable] = row
+            }
+        }
+        
+        var rows: [ValueRow] = []
+        for (variable, row) in rowsByVariable {
+            let display = row.display.isEmpty ? variable : row.display
+            rows.append(ValueRow(id: variable, display: display, entriesByDay: row.entriesByDay, maxEntries: row.maxEntries))
+        }
+        rows.sort { $0.display.localizedCaseInsensitiveCompare($1.display) == .orderedAscending }
+        
+        valueRows = rows
     }
 
     func cluster(events: [ExecutionEvent]) -> [TimelineCluster] {
@@ -164,61 +239,105 @@ struct ExecutionTimelineView: View {
     }
     
     var body: some View {
-        ScrollView(.horizontal) {
+        let displayRows = valueRows.isEmpty
+            ? [ValueRow(id: "no-values", display: "No values", entriesByDay: [:], maxEntries: 1)]
+            : valueRows
+        
+        GeometryReader { geo in
+            let dayViewportWidth = max(0, geo.size.width - timeColWidth - 1)
+            let timelineHeight = hourHeight * 24
+            let valuesContentHeight = valuesSectionHeight(for: displayRows)
+            
             VStack(alignment: .leading, spacing: 0) {
-                // Sticky Header Row (Outside Vertical Scroll)
+                // Top Row: Days
                 HStack(spacing: 1) {
-                    // Placeholder for Time Column (Corner)
-                    Color(nsColor: .controlBackgroundColor)
-                        .frame(width: timeColWidth, height: 50)
-                        .border(Color(nsColor: .separatorColor))
-                        
-                    ForEach(visibleDates, id: \.self) { date in
-                        DayHeader(date: date, width: dayWidth, isStatic: appState.executionLogs.isEmpty)
-                    }
-                }
-                .background(Color(nsColor: .controlBackgroundColor))
-                
-                // Vertically Scrollable Content
-                ScrollView(.vertical) {
-                    HStack(alignment: .top, spacing: 1) {
-                        // Time Labels
-                        TimeLabelsColumn(hourHeight: hourHeight)
-                            .frame(width: timeColWidth)
-                            .background(Color(nsColor: .windowBackgroundColor))
-                        
-                        // Timelines
-                        LazyHStack(alignment: .top, spacing: 1) {
+                    Color.clear
+                        .frame(width: timeColWidth, height: headerRowHeight)
+                    
+                    SyncedHorizontalScrollView(offset: $dayScrollSync.offset, showsIndicators: false) {
+                        HStack(spacing: 1) {
                             ForEach(visibleDates, id: \.self) { date in
-                                DayTimeline(
-                                    clusters: clusters(for: date),
-                                    bands: bands(for: date),
-                                    hourHeight: hourHeight,
-                                    dayWidth: dayWidth
+                                DayHeader(
+                                    date: date,
+                                    width: dayWidth,
+                                    isStatic: appState.executionLogs.isEmpty,
+                                    backgroundColor: headerRowColor
                                 )
                             }
                         }
                     }
+                    .frame(width: dayViewportWidth, height: headerRowHeight, alignment: .leading)
                 }
-                .gesture(zoomGesture) // Apply gesture to the content area
+                .frame(height: headerRowHeight)
+                .background(Color.clear)
+                
+                Divider()
+                
+                VSplitView {
+                    // Middle Row: Timeline
+                    ScrollView(.vertical) {
+                        HStack(alignment: .top, spacing: 1) {
+                            TimeLabelsColumn(hourHeight: hourHeight, labelColor: timeLabelColor)
+                                .frame(width: timeColWidth)
+                            
+                            SyncedHorizontalScrollView(offset: $dayScrollSync.offset) {
+                                LazyHStack(alignment: .top, spacing: 1) {
+                                    ForEach(visibleDates, id: \.self) { date in
+                                        DayTimeline(
+                                            clusters: clusters(for: date),
+                                            bands: bands(for: date),
+                                            hourHeight: hourHeight,
+                                            dayWidth: dayWidth
+                                        )
+                                    }
+                                }
+                                .frame(height: timelineHeight, alignment: .top)
+                            }
+                            .frame(width: dayViewportWidth, height: timelineHeight, alignment: .topLeading)
+                        }
+                        .frame(height: timelineHeight, alignment: .top)
+                    }
+                    .frame(minHeight: minTimelineViewportHeight)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .background(timelineRowColor)
+                    .gesture(zoomGesture)
+                    
+                    // Bottom Row: Values
+                    let valuesContent = HStack(alignment: .top, spacing: 1) {
+                        ValuesLabelColumn(rows: displayRows, width: timeColWidth)
+                        
+                        SyncedHorizontalScrollView(offset: $dayScrollSync.offset) {
+                            ValuesDayColumnsView(rows: displayRows, dates: visibleDates, dayWidth: dayWidth)
+                        }
+                        .frame(width: dayViewportWidth, height: valuesContentHeight, alignment: .topLeading)
+                    }
+                    
+                    ScrollView(.vertical) {
+                        valuesContent
+                            .frame(height: valuesContentHeight, alignment: .topLeading)
+                    }
+                    .frame(minHeight: minValuesRowHeight)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .background(valuesRowColor)
+                }
             }
-        }
-        .background(Color(nsColor: .textBackgroundColor))
-        .onAppear {
-             refreshData()
-        }
-        .onChange(of: appState.executionLogs.count) { 
-             refreshData()
-        }
-        .onChange(of: appState.visualizationEngine) { 
-             refreshData()
-        }
-        .onChange(of: appState.parseStatus) { 
-             if appState.parseStatus == "Ready" || appState.parseStatus.hasPrefix("Valid") {
+            .background(Color(nsColor: .textBackgroundColor))
+            .onAppear {
                  refreshData()
-             }
+            }
+            .onChange(of: appState.executionLogs.count) { 
+                 refreshData()
+            }
+            .onChange(of: appState.visualizationEngine) { 
+                 refreshData()
+            }
+            .onChange(of: appState.parseStatus) { 
+                 if appState.parseStatus == "Ready" || appState.parseStatus.hasPrefix("Valid") {
+                     refreshData()
+                 }
+            }
+            .environment(\.timeZone, TimeZone(secondsFromGMT: 0)!)
         }
-        .environment(\.timeZone, TimeZone(secondsFromGMT: 0)!)
     }
 }
 
@@ -226,32 +345,32 @@ struct DayHeader: View {
     let date: Date
     let width: CGFloat
     let isStatic: Bool
+    let backgroundColor: Color
     
     var body: some View {
         Text(date, format: (isStatic ? .dateTime.weekday(.wide) : .dateTime.weekday().day().month()))
             .font(.headline)
-            .frame(width: width, height: 50)
-            .background(Color(nsColor: .controlBackgroundColor))
+            .frame(width: width, height: headerRowHeight)
+            .background(backgroundColor)
             .border(Color(nsColor: .separatorColor))
     }
 }
 
 struct TimeLabelsColumn: View {
     let hourHeight: CGFloat
+    let labelColor: Color
     
     var body: some View {
         VStack(spacing: 0) {
-            Color.clear.frame(height: 50) 
-            
             ForEach(0..<24) { hour in
                 Text(String(format: "%02d:00", hour))
                     .font(.caption2.monospaced())
-                    .foregroundStyle(.secondary)
-                    .frame(height: hourHeight, alignment: .top)
-                    .offset(y: -5)
+                    .foregroundStyle(labelColor)
+                    .frame(height: hourHeight, alignment: .topTrailing)
+                    .offset(y: hour == 0 ? 0 : -5)
             }
         }
-        .padding(.trailing, 4)
+        .padding(.trailing, 6)
         .border(width: 1, edges: [.trailing], color: Color(nsColor: .separatorColor))
         .frame(height: hourHeight * 24)
     }
@@ -286,8 +405,8 @@ struct DayTimeline: View {
         }
         .frame(width: dayWidth, height: hourHeight * 24)
         .background(Color.white.opacity(0.02))
-        .border(width: 1, edges: [.trailing], color: Color(nsColor: .separatorColor).opacity(0.5))
         .clipped()
+        .border(width: 1, edges: [.trailing], color: Color(nsColor: .separatorColor).opacity(0.5))
     }
     
     func yOffset(for time: Date) -> CGFloat {
@@ -329,6 +448,109 @@ struct PeriodBandView: View {
         let minute = cal.component(.minute, from: time)
         let totalMinutes = hour * 60 + minute
         return CGFloat(totalMinutes) / 60.0 * hourHeight
+    }
+}
+
+struct ValuesDayColumnsView: View {
+    let rows: [ValueRow]
+    let dates: [Date]
+    let dayWidth: CGFloat
+    
+    var body: some View {
+        LazyHStack(alignment: .top, spacing: 1) {
+            ForEach(dates, id: \.self) { date in
+                ValuesDayColumn(date: date, rows: rows, width: dayWidth)
+            }
+        }
+    }
+}
+
+struct ValuesLabelColumn: View {
+    let rows: [ValueRow]
+    let width: CGFloat
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Values")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+                .frame(height: valueSectionHeaderHeight, alignment: .bottomLeading)
+                .padding(.leading, 6)
+            
+            Divider()
+            
+            ForEach(rows) { row in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(row.display)
+                        .font(.caption2.weight(.semibold))
+                        .lineLimit(2)
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 6)
+                .padding(.top, valueRowPadding)
+                .frame(height: valueRowHeight(for: row), alignment: .topLeading)
+                
+                Divider()
+            }
+        }
+        .frame(width: width, alignment: .topLeading)
+        .border(width: 1, edges: [.trailing], color: Color(nsColor: .separatorColor))
+    }
+}
+
+struct ValuesDayColumn: View {
+    let date: Date
+    let rows: [ValueRow]
+    let width: CGFloat
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Rectangle()
+                .fill(Color.clear)
+                .frame(height: valueSectionHeaderHeight)
+            
+            Divider()
+            
+            ForEach(rows) { row in
+                ValuesDayCell(entries: row.entriesByDay[date] ?? [], height: valueRowHeight(for: row))
+                Divider()
+            }
+        }
+        .frame(width: width, alignment: .topLeading)
+        .border(width: 1, edges: [.trailing], color: Color(nsColor: .separatorColor).opacity(0.5))
+    }
+}
+
+struct ValuesDayCell: View {
+    let entries: [EngineValueEntry]
+    let height: CGFloat
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            if entries.isEmpty {
+                Text("—")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(entries.indices, id: \.self) { idx in
+                    let entry = entries[idx]
+                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                        Text(entry.date, format: .dateTime.hour().minute())
+                            .font(.caption2.monospaced())
+                            .foregroundStyle(.secondary)
+                        
+                        Text(entry.value)
+                            .font(.caption2)
+                            .lineLimit(2)
+                        Spacer()
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 6)
+        .padding(.top, valueRowPadding)
+        .frame(height: height, alignment: .topLeading)
     }
 }
 
@@ -468,6 +690,138 @@ struct ClusterDetailView: View {
         }
     }
 }
+
+// MARK: - Synced Horizontal Scroll
+
+#if os(macOS)
+struct SyncedHorizontalScrollView<Content: View>: NSViewRepresentable {
+    @Binding var offset: CGFloat
+    let showsIndicators: Bool
+    let content: Content
+    
+    init(offset: Binding<CGFloat>, showsIndicators: Bool = true, @ViewBuilder content: () -> Content) {
+        _offset = offset
+        self.showsIndicators = showsIndicators
+        self.content = content()
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(offset: $offset)
+    }
+    
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.drawsBackground = false
+        scrollView.hasHorizontalScroller = showsIndicators
+        scrollView.hasVerticalScroller = false
+        scrollView.autohidesScrollers = true
+        scrollView.horizontalScrollElasticity = .allowed
+        scrollView.verticalScrollElasticity = .none
+        
+        let hostingView = NSHostingView(rootView: content)
+        hostingView.translatesAutoresizingMaskIntoConstraints = true
+        scrollView.documentView = hostingView
+        
+        context.coordinator.scrollView = scrollView
+        context.coordinator.hostingView = hostingView
+        
+        scrollView.contentView.postsBoundsChangedNotifications = true
+        NotificationCenter.default.addObserver(
+            context.coordinator,
+            selector: #selector(Coordinator.boundsDidChange(_:)),
+            name: NSView.boundsDidChangeNotification,
+            object: scrollView.contentView
+        )
+        
+        return scrollView
+    }
+    
+    func updateNSView(_ nsView: NSScrollView, context: Context) {
+        nsView.hasHorizontalScroller = showsIndicators
+        
+        if let hostingView = context.coordinator.hostingView {
+            hostingView.rootView = content
+            
+            let fittingSize = hostingView.fittingSize
+            let clipSize = nsView.contentView.bounds.size
+            let targetSize = NSSize(
+                width: max(fittingSize.width, clipSize.width),
+                height: clipSize.height
+            )
+            if hostingView.frame.size != targetSize {
+                hostingView.frame.size = targetSize
+            }
+            
+            let maxOffset = max(0, targetSize.width - clipSize.width)
+            let clampedOffset = min(max(offset, 0), maxOffset)
+            if abs(clampedOffset - offset) > 0.5 {
+                DispatchQueue.main.async {
+                    offset = clampedOffset
+                }
+            }
+            context.coordinator.applyOffset(clampedOffset)
+        }
+    }
+    
+    static func dismantleNSView(_ nsView: NSScrollView, coordinator: Coordinator) {
+        NotificationCenter.default.removeObserver(
+            coordinator,
+            name: NSView.boundsDidChangeNotification,
+            object: nsView.contentView
+        )
+    }
+    
+    final class Coordinator: NSObject {
+        @Binding var offset: CGFloat
+        weak var scrollView: NSScrollView?
+        weak var hostingView: NSHostingView<Content>?
+        private var isApplyingExternalOffset = false
+        
+        init(offset: Binding<CGFloat>) {
+            _offset = offset
+        }
+        
+        @objc func boundsDidChange(_ notification: Notification) {
+            guard let clipView = notification.object as? NSClipView else { return }
+            guard !isApplyingExternalOffset else { return }
+            let newOffset = clipView.bounds.origin.x
+            if abs(newOffset - offset) > 0.5 {
+                offset = newOffset
+            }
+        }
+        
+        func applyOffset(_ newOffset: CGFloat) {
+            guard let scrollView = scrollView else { return }
+            let clipView = scrollView.contentView
+            if abs(clipView.bounds.origin.x - newOffset) < 0.5 { return }
+            isApplyingExternalOffset = true
+            var point = clipView.bounds.origin
+            point.x = newOffset
+            clipView.setBoundsOrigin(point)
+            scrollView.reflectScrolledClipView(clipView)
+            isApplyingExternalOffset = false
+        }
+    }
+}
+#else
+struct SyncedHorizontalScrollView<Content: View>: View {
+    @Binding var offset: CGFloat
+    let showsIndicators: Bool
+    let content: Content
+    
+    init(offset: Binding<CGFloat>, showsIndicators: Bool = true, @ViewBuilder content: () -> Content) {
+        _offset = offset
+        self.showsIndicators = showsIndicators
+        self.content = content()
+    }
+    
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: showsIndicators) {
+            content
+        }
+    }
+}
+#endif
 
 // Helpers
 extension View {
