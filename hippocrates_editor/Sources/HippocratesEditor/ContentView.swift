@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 // Helper for file logging
 func logToFile(_ message: String) {
@@ -40,12 +41,354 @@ private func messageDisplayText(from msg: String, type: Int) -> String {
     return "\(payload.text) (to: \(suffix))"
 }
 
+private struct SimulationAnswerEntry {
+    let valueJson: String
+    let valueDisplay: String
+    let delaySeconds: TimeInterval?
+}
+
+private struct SimulationAnswerFile {
+    let answersByVariable: [String: [SimulationAnswerEntry]]
+    let simulationMinutes: Int
+    let simulationDays: Int
+}
+
+private enum SimulationAnswerError: LocalizedError {
+    case invalidFormat(String)
+    case missingEntries
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidFormat(let message):
+            return message
+        case .missingEntries:
+            return "Simulation answers file does not contain any answers."
+        }
+    }
+}
+
+private final class SimulationAnswerQueue {
+    private var queues: [String: [SimulationAnswerEntry]]
+    private let lock = NSLock()
+
+    init(answersByVariable: [String: [SimulationAnswerEntry]]) {
+        var normalized: [String: [SimulationAnswerEntry]] = [:]
+        for (variable, entries) in answersByVariable {
+            let key = formatVariableName(variable)
+            normalized[key] = entries
+        }
+        self.queues = normalized
+    }
+
+    func nextAnswer(for variable: String) -> SimulationAnswerEntry? {
+        let key = formatVariableName(variable)
+        lock.lock()
+        defer { lock.unlock() }
+        guard var list = queues[key], !list.isEmpty else { return nil }
+        let entry = list.removeFirst()
+        queues[key] = list
+        return entry
+    }
+}
+
+private func formatVariableName(_ name: String) -> String {
+    let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+    if trimmed.hasPrefix("<"), trimmed.hasSuffix(">"), trimmed.count > 2 {
+        return trimmed
+    }
+    return "<\(trimmed)>"
+}
+
+private func promptSimulationAnswersFile() -> URL? {
+    let panel = NSOpenPanel()
+    panel.canChooseFiles = true
+    panel.canChooseDirectories = false
+    panel.allowsMultipleSelection = false
+    panel.allowedContentTypes = [.json]
+    return panel.runModal() == .OK ? panel.url : nil
+}
+
+private func jsonString(from value: Any) -> String? {
+    if JSONSerialization.isValidJSONObject(value) {
+        if let data = try? JSONSerialization.data(withJSONObject: value, options: []) {
+            return String(data: data, encoding: .utf8)
+        }
+        return nil
+    }
+    if JSONSerialization.isValidJSONObject([value]) {
+        if let data = try? JSONSerialization.data(withJSONObject: [value], options: []),
+           let str = String(data: data, encoding: .utf8),
+           str.hasPrefix("["),
+           str.hasSuffix("]") {
+            return String(str.dropFirst().dropLast())
+        }
+    }
+    return nil
+}
+
+private func displayString(from value: Any) -> String {
+    if let s = value as? String { return s }
+    if let n = value as? NSNumber { return n.stringValue }
+    if value is NSNull { return "null" }
+    if let json = jsonString(from: value) { return json }
+    return "\(value)"
+}
+
+private func parseQuantityString(_ input: String) -> (Double, String)? {
+    let trimmed = input.trimmingCharacters(in: .whitespacesAndNewlines)
+    if trimmed.isEmpty { return nil }
+
+    let parts = trimmed.split(separator: " ")
+    if parts.count >= 2, let value = Double(parts[0]) {
+        let unit = parts.dropFirst().joined(separator: " ")
+        return (value, unit)
+    }
+
+    var endIndex = trimmed.startIndex
+    var sawDigit = false
+    for idx in trimmed.indices {
+        let ch = trimmed[idx]
+        if idx == trimmed.startIndex && (ch == "+" || ch == "-") {
+            endIndex = trimmed.index(after: idx)
+            continue
+        }
+        if ch.isNumber || ch == "." {
+            endIndex = trimmed.index(after: idx)
+            if ch.isNumber { sawDigit = true }
+            continue
+        }
+        break
+    }
+
+    guard sawDigit else { return nil }
+    let numStr = String(trimmed[..<endIndex])
+    let unitStr = String(trimmed[endIndex...]).trimmingCharacters(in: .whitespacesAndNewlines)
+    guard let value = Double(numStr), !unitStr.isEmpty else { return nil }
+    return (value, unitStr)
+}
+
+private func secondsForUnit(_ unit: String) -> Double? {
+    let trimmed = unit.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    switch trimmed {
+    case "s", "sec", "secs", "second", "seconds":
+        return 1
+    case "m", "min", "mins", "minute", "minutes":
+        return 60
+    case "h", "hr", "hrs", "hour", "hours":
+        return 3600
+    case "d", "day", "days":
+        return 86400
+    case "w", "week", "weeks":
+        return 604800
+    case "month", "months":
+        return 2592000
+    case "y", "yr", "yrs", "year", "years":
+        return 31536000
+    default:
+        return nil
+    }
+}
+
+private func parseDelaySeconds(_ value: Any) throws -> TimeInterval {
+    if let number = value as? NSNumber {
+        let secs = number.doubleValue
+        if secs <= 0 { throw SimulationAnswerError.invalidFormat("Delay must be greater than zero.") }
+        return secs
+    }
+    if let string = value as? String {
+        let trimmed = string.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let number = Double(trimmed) {
+            if number <= 0 { throw SimulationAnswerError.invalidFormat("Delay must be greater than zero.") }
+            return number
+        }
+        guard let (amount, unit) = parseQuantityString(trimmed) else {
+            throw SimulationAnswerError.invalidFormat("Expected a duration like '30 days' or '12 hours'.")
+        }
+        if amount <= 0 { throw SimulationAnswerError.invalidFormat("Delay must be greater than zero.") }
+        guard let factor = secondsForUnit(unit) else {
+            throw SimulationAnswerError.invalidFormat("Unsupported delay unit '\(unit)'. Use seconds, minutes, hours, days, weeks, months, or years.")
+        }
+        return amount * factor
+    }
+    if let obj = value as? [String: Any] {
+        guard let amountValue = obj["value"] else {
+            throw SimulationAnswerError.invalidFormat("Delay object must include 'value'.")
+        }
+        guard let unitValue = (obj["unit"] ?? obj["units"]) as? String else {
+            throw SimulationAnswerError.invalidFormat("Delay object must include a string 'unit'.")
+        }
+        let amount: Double?
+        if let num = amountValue as? NSNumber {
+            amount = num.doubleValue
+        } else if let str = amountValue as? String {
+            amount = Double(str)
+        } else {
+            amount = nil
+        }
+        guard let amt = amount else {
+            throw SimulationAnswerError.invalidFormat("Delay value must be a valid number.")
+        }
+        if amt <= 0 { throw SimulationAnswerError.invalidFormat("Delay must be greater than zero.") }
+        guard let factor = secondsForUnit(unitValue) else {
+            throw SimulationAnswerError.invalidFormat("Unsupported delay unit '\(unitValue)'. Use seconds, minutes, hours, days, weeks, months, or years.")
+        }
+        return amt * factor
+    }
+    throw SimulationAnswerError.invalidFormat("Delay must be a string or object.")
+}
+
+private func quantityString(from value: Any) -> String? {
+    guard let obj = value as? [String: Any] else { return nil }
+    guard let unit = (obj["unit"] ?? obj["units"]) as? String else { return nil }
+    guard let amountValue = obj["value"] else { return nil }
+    let amount: String
+    if let num = amountValue as? NSNumber {
+        amount = num.stringValue
+    } else if let str = amountValue as? String {
+        amount = str
+    } else {
+        return nil
+    }
+    let trimmedUnit = unit.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedUnit.isEmpty else { return nil }
+    return "\(amount) \(trimmedUnit)"
+}
+
+private func parseAnswerEntry(_ value: Any) throws -> (value: Any, delaySeconds: TimeInterval?) {
+    if var obj = value as? [String: Any] {
+        var delay: TimeInterval? = nil
+        if let delayValue = obj.removeValue(forKey: "delay") {
+            delay = try parseDelaySeconds(delayValue)
+        }
+
+        if obj.keys.contains("value"),
+           obj["unit"] == nil,
+           obj["units"] == nil,
+           obj.count == 1 {
+            let inner = obj["value"] ?? NSNull()
+            return (inner, delay)
+        }
+        return (obj, delay)
+    }
+    return (value, nil)
+}
+
+private func makeSimulationAnswerEntry(value: Any, delaySeconds: TimeInterval?) throws -> SimulationAnswerEntry {
+    if let quantity = quantityString(from: value) {
+        guard let valueJson = jsonString(from: quantity) else {
+            throw SimulationAnswerError.invalidFormat("Unable to encode quantity value.")
+        }
+        return SimulationAnswerEntry(valueJson: valueJson, valueDisplay: quantity, delaySeconds: delaySeconds)
+    }
+    guard let valueJson = jsonString(from: value) else {
+        throw SimulationAnswerError.invalidFormat("Unable to encode answer value.")
+    }
+    return SimulationAnswerEntry(valueJson: valueJson, valueDisplay: displayString(from: value), delaySeconds: delaySeconds)
+}
+
+private func pushAnswer(_ map: inout [String: [SimulationAnswerEntry]], variable: String, value: Any) throws {
+    let parsed = try parseAnswerEntry(value)
+    let entry = try makeSimulationAnswerEntry(value: parsed.value, delaySeconds: parsed.delaySeconds)
+    map[variable, default: []].append(entry)
+}
+
+private func pushAnswerWithDelay(
+    _ map: inout [String: [SimulationAnswerEntry]],
+    variable: String,
+    value: Any,
+    delay: Any?
+) throws {
+    var parsed = try parseAnswerEntry(value)
+    if let delayValue = delay {
+        let extraDelay = try parseDelaySeconds(delayValue)
+        if parsed.delaySeconds != nil {
+            throw SimulationAnswerError.invalidFormat("Delay specified multiple times for an answer.")
+        }
+        parsed.delaySeconds = extraDelay
+    }
+    let entry = try makeSimulationAnswerEntry(value: parsed.value, delaySeconds: parsed.delaySeconds)
+    map[variable, default: []].append(entry)
+}
+
+private func loadSimulationAnswers(from url: URL) throws -> SimulationAnswerFile {
+    let data = try Data(contentsOf: url)
+    let json = try JSONSerialization.jsonObject(with: data, options: [])
+
+    var answersByVariable: [String: [SimulationAnswerEntry]] = [:]
+
+    if let obj = json as? [String: Any] {
+        for (key, value) in obj {
+            let name = formatVariableName(key)
+            if let arr = value as? [Any] {
+                for item in arr {
+                    try pushAnswer(&answersByVariable, variable: name, value: item)
+                }
+            } else {
+                try pushAnswer(&answersByVariable, variable: name, value: value)
+            }
+        }
+    } else if let items = json as? [Any] {
+        for item in items {
+            guard let obj = item as? [String: Any] else {
+                throw SimulationAnswerError.invalidFormat("Answer list items must be objects.")
+            }
+            guard let variable = obj["variable"] as? String else {
+                throw SimulationAnswerError.invalidFormat("Answer items must include a string 'variable' field.")
+            }
+            guard let value = obj["value"] else {
+                throw SimulationAnswerError.invalidFormat("Answer items must include a 'value' field.")
+            }
+            let delay = obj["delay"]
+            let name = formatVariableName(variable)
+            try pushAnswerWithDelay(&answersByVariable, variable: name, value: value, delay: delay)
+        }
+    } else {
+        throw SimulationAnswerError.invalidFormat("Answers file must be a JSON object or array.")
+    }
+
+    guard !answersByVariable.isEmpty else {
+        throw SimulationAnswerError.missingEntries
+    }
+
+    let maxCount = answersByVariable.values.map { $0.count }.max() ?? 0
+    let maxDelay = answersByVariable.values
+        .flatMap { $0.compactMap { $0.delaySeconds } }
+        .max() ?? 0
+    let baseMinutes = max(1, maxCount) * 24 * 60
+    let extraMinutes = Int(ceil(maxDelay / 60.0))
+    let totalMinutes = max(1, baseMinutes + extraMinutes)
+    let totalDays = max(1, Int(ceil(Double(totalMinutes) / 1440.0)))
+
+    return SimulationAnswerFile(
+        answersByVariable: answersByVariable,
+        simulationMinutes: totalMinutes,
+        simulationDays: totalDays
+    )
+}
+
 struct ContentView: View {
     @EnvironmentObject var appState: AppState
     
     @State private var simulationDays: Int = 30
     
     func runPlan(simulate: Bool) {
+        var simulationFile: SimulationAnswerFile?
+        if simulate {
+            guard let url = promptSimulationAnswersFile() else {
+                appState.parseStatus = "Simulation canceled"
+                return
+            }
+            do {
+                simulationFile = try loadSimulationAnswers(from: url)
+                if let days = simulationFile?.simulationDays {
+                    simulationDays = days
+                }
+            } catch {
+                appState.parseStatus = "Simulation Error: \(error.localizedDescription)"
+                return
+            }
+        }
+
         let code = appState.planCode
         appState.parseStatus = simulate ? "Simulating..." : "Running..."
         appState.currentErrors = []
@@ -113,115 +456,46 @@ struct ContentView: View {
                  let event = ExecutionEvent(name: displayMsg, time: date, category: category, type: type)
                  DispatchQueue.main.async {
                      appState.executionLogs.append(event)
-                 }
+                }
             }
+            
+            let answerQueue = simulationFile.map { SimulationAnswerQueue(answersByVariable: $0.answersByVariable) }
+            let simulationDurationMinutes = simulationFile?.simulationMinutes
             
             let onAsk: (AskRequest) -> Void = { request in
                  if simulate {
                      // Auto-answer logic for simulation
-                     let answerVal: String
                      logToFile("Simulate: Auto-answering question for \(request.variable_name). Options: \(request.options), Range: \(String(describing: request.range)), DateRange: \(String(describing: request.dateTimeRange)), TimeRange: \(String(describing: request.timeRange))")
                      
-                     func formatDate(_ date: Date) -> String {
-                         let formatter = DateFormatter()
-                         formatter.locale = Locale(identifier: "en_US_POSIX")
-                         formatter.dateFormat = "yyyy-MM-dd"
-                         return formatter.string(from: date)
+                     guard let entry = answerQueue?.nextAnswer(for: request.variable_name) else {
+                         logToFile("Simulate Error: No answer available for \(request.variable_name)")
+                         DispatchQueue.main.async {
+                             appState.parseStatus = "Simulation Error: No answer for \(request.variable_name)"
+                             appState.currentEngine?.stop()
+                         }
+                         return
                      }
                      
-                     func formatDateTime(_ date: Date) -> String {
-                         let formatter = DateFormatter()
-                         formatter.locale = Locale(identifier: "en_US_POSIX")
-                         formatter.dateFormat = "yyyy-MM-dd HH:mm"
-                         return formatter.string(from: date)
-                     }
+                     let answerVal = entry.valueDisplay
+                     let delayMs = Int64((entry.delaySeconds ?? 0) * 1000.0)
+                     let targetTimestamp = request.timestamp + delayMs
                      
-                     if !request.options.isEmpty {
-                         // Pick random option? Or first? Let's pick random to simulate variation.
-                         answerVal = request.options.randomElement() ?? request.options[0]
-                     } else if let timeRange = request.timeRange, timeRange.count >= 2 {
-                         answerVal = timeRange[0]
-                     } else if let dateRange = request.dateTimeRange, dateRange.count >= 2 {
-                         let start = Date(timeIntervalSince1970: TimeInterval(dateRange[0]) / 1000.0)
-                         if request.dateOnly == true {
-                             answerVal = formatDate(start)
-                         } else {
-                             answerVal = formatDateTime(start)
-                         }
-                     } else if let range = request.range {
-                         // Pick random value in range
-                         // Check style
-                         if request.style == .Numeric || request.style == .Likert || request.style == .VisualAnalogueScale(min: 0, max: 0, min_label: "", max_label: "") { // Case matching is hard here due to associated values
-                            // Just use range
-                            if range.count >= 2 {
-                                let val = Double.random(in: range[0]...range[1])
-                                // Round if it looks integer-ish?
-                                if range[0].truncatingRemainder(dividingBy: 1) == 0 && range[1].truncatingRemainder(dividingBy: 1) == 0 {
-                                    answerVal = String(Int(val))
-                                } else {
-                                    answerVal = String(format: "%.1f", val)
-                                }
-                            } else {
-                                answerVal = "0"
-                            }
-                         } else {
-                             answerVal = "0"
-                         }
-                     } else {
-                         // Fallback
-                         logToFile("Simulate: No options or range found. Fallback to 10.")
-                         if request.style == .Date {
-                             let now = Date()
-                             if request.dateOnly == true {
-                                 answerVal = formatDate(now)
-                             } else {
-                                 answerVal = formatDateTime(now)
-                             }
-                         } else {
-                             answerVal = "10"
-                         }
-                     }
-                     
-                     logToFile("Simulate: Selected answer: \(answerVal)")
-                     
-                     // Delay slightly to mimic user/system latency and ensure loop doesn't spin too tight? 
-                     // Or just answer immediately.
-                     // We need to access engine. 
                      DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                         guard let engine = appState.currentEngine else { 
+                         guard let engine = appState.currentEngine else {
                              logToFile("Simulate Error: Engine not found in appState")
-                             return 
-                         }
-                         // valueJson: wrap strings in quotes, numbers as is?
-                         // The engine expects JSON value string.
-                         // If string, "val". If number, 10.
-                         // My `answer` function does `let json = "\"\(value)\""` which forces string.
-                         // We should fix `answer` function too or do it here.
-                         // For now, let's look at `answer` function. It treats everything as string.
-                         // But `InputMessage` expects `RuntimeValue`. FFI `hippocrates_engine_set_value` takes JSON.
-                         // If we send `"10"`, it parses as String("10").
-                         // If we send `10`, it parses as Number(10).
-                         
-                         // Determine JSON format
-                         let json: String
-                         // Try to parse as number?
-                         if let _ = Double(answerVal) {
-                             json = answerVal
-                         } else {
-                             json = "\"\(answerVal)\""
+                             return
                          }
                          
-                         logToFile("Simulate: Sending value \(json) for \(request.variable_name)")
-                         let success = engine.setValue(name: request.variable_name, valueJson: json)
+                         logToFile("Simulate: Sending value \(entry.valueJson) for \(request.variable_name) at \(targetTimestamp)")
+                         let success = engine.setValueAt(name: request.variable_name, valueJson: entry.valueJson, timestampMs: targetTimestamp)
                          if success {
-                             logToFile("Simulate: setValue successful")
+                             logToFile("Simulate: setValueAt successful")
                          } else {
-                             logToFile("Simulate Error: setValue failed")
+                             logToFile("Simulate Error: setValueAt failed")
                          }
                          
-                         // Log the auto-answer
-                         let timestampDate = Date(timeIntervalSince1970: TimeInterval(request.timestamp) / 1000.0)
-                         let event = ExecutionEvent(name: "Auto-Answer: \(answerVal)", time: timestampDate, category: "Answer", type: 3)
+                         let eventDate = Date(timeIntervalSince1970: TimeInterval(targetTimestamp) / 1000.0)
+                         let event = ExecutionEvent(name: "Auto-Answer: \(answerVal)", time: eventDate, category: "Answer", type: 3)
                          appState.executionLogs.append(event)
                      }
                  } else {
@@ -233,7 +507,10 @@ struct ContentView: View {
             
             // Run/Simulate
             if let engine = HippocratesEditor.HippocratesParser.prepareEngine(code, simulate: simulate, simulationDays: simulationDays, onStep: onStep, onLog: onLog, onAsk: onAsk) {
-                // Set Abstract Local Time to synchronize Engine with Wall Clock
+                if let durationMinutes = simulationDurationMinutes {
+                    engine.setSimulationMode(durationMinutes: durationMinutes)
+                }
+                // Set Abstract Local Time to current wall clock (matches CLI default).
                 engine.setTime(Date())
                 
                 DispatchQueue.main.sync {

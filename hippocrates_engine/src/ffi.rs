@@ -5,7 +5,7 @@ use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
 use serde::Serialize;
 use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime};
 use crate::runtime::scheduler::Scheduler;
-use crate::runtime::normalize_identifier;
+use crate::runtime::{format_identifier, normalize_identifier};
 use crate::runtime::input_validation;
 
 // Parses a Hippocrates plan string and returns the AST as a JSON string.
@@ -147,6 +147,14 @@ struct Occur {
     end: String,
 }
 
+#[derive(Serialize)]
+struct VariableValueSnapshot {
+    variable: String,
+    display: String,
+    value: String,
+    timestamp: i64,
+}
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn hippocrates_simulate_occurrences(
     ctx: *mut EngineContext,
@@ -184,6 +192,61 @@ pub unsafe extern "C" fn hippocrates_simulate_occurrences(
     }
     
     match serde_json::to_string(&occurrences) {
+        Ok(s) => match CString::new(s) {
+            Ok(c) => c.into_raw(),
+            Err(_) => std::ptr::null_mut(),
+        },
+        Err(_) => std::ptr::null_mut(),
+    }
+}}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hippocrates_engine_get_values(
+    ctx: *mut EngineContext,
+    start_ts: i64,
+    end_ts: i64,
+) -> *mut c_char { unsafe {
+    if ctx.is_null() {
+        return std::ptr::null_mut();
+    }
+
+    let context = &mut *ctx;
+    let start_dt = match DateTime::from_timestamp_millis(start_ts) {
+        Some(dt) => dt.naive_utc(),
+        None => return std::ptr::null_mut(),
+    };
+    let end_dt = match DateTime::from_timestamp_millis(end_ts) {
+        Some(dt) => dt.naive_utc(),
+        None => return std::ptr::null_mut(),
+    };
+
+    if end_dt <= start_dt {
+        return CString::new("[]").ok().map(|c| c.into_raw()).unwrap_or(std::ptr::null_mut());
+    }
+
+    let mut snapshots: Vec<VariableValueSnapshot> = Vec::new();
+
+    for (variable, history) in &context.env.values {
+        for entry in history {
+            let ts = entry.timestamp;
+            if ts >= start_dt && ts < end_dt {
+                snapshots.push(VariableValueSnapshot {
+                    variable: variable.clone(),
+                    display: format_identifier(variable),
+                    value: entry.value.to_string(),
+                    timestamp: ts.and_utc().timestamp_millis(),
+                });
+            }
+        }
+    }
+
+    snapshots.sort_by(|a, b| {
+        a.timestamp
+            .cmp(&b.timestamp)
+            .then_with(|| a.variable.cmp(&b.variable))
+    });
+
+    match serde_json::to_string(&snapshots) {
         Ok(s) => match CString::new(s) {
             Ok(c) => c.into_raw(),
             Err(_) => std::ptr::null_mut(),
@@ -294,62 +357,7 @@ pub unsafe extern "C" fn hippocrates_engine_set_value(
         }
     };
 
-    // Determine type from definition
-    let expected_type = context.env.definitions.get(&normalized_name).and_then(|def| {
-        if let crate::ast::Definition::Value(v) = def {
-            Some(v.value_type.clone())
-        } else {
-            None
-        }
-    });
-
-    let runtime_val = match expected_type {
-        Some(crate::domain::ValueType::Number) => {
-             if let Ok(n) = serde_json::from_str::<f64>(json) {
-                 Some(crate::domain::RuntimeValue::Number(n))
-             } else if let Ok(s) = serde_json::from_str::<String>(json) {
-                  let parts: Vec<&str> = s.split_whitespace().collect();
-                  if parts.len() >= 2 {
-                       if let Ok(n) = parts[0].parse::<f64>() {
-                           let unit_str = parts[1].trim_matches(|c| c == ':' || c == ',' || c == ';');
-                           let unit = crate::domain::Unit::Custom(unit_str.to_string());
-                           Some(crate::domain::RuntimeValue::Quantity(n, unit))
-                       } else {
-                           Some(crate::domain::RuntimeValue::String(s))
-                       }
-                  } else {
-                       if let Ok(n) = s.parse::<f64>() {
-                           Some(crate::domain::RuntimeValue::Number(n))
-                       } else {
-                           Some(crate::domain::RuntimeValue::String(s))
-                       }
-                  }
-             } else { None }
-        },
-        Some(crate::domain::ValueType::DateTime) => {
-            if let Ok(s) = serde_json::from_str::<String>(json) {
-                if let Some(dt) = parse_date_time_literal(&s) {
-                    Some(crate::domain::RuntimeValue::Date(dt))
-                } else if parse_time_literal(&s).is_some() {
-                    Some(crate::domain::RuntimeValue::String(s))
-                } else {
-                    None
-                }
-            } else {
-                serde_json::from_str::<crate::domain::RuntimeValue>(json).ok()
-            }
-        }
-        _ => match serde_json::from_str::<crate::domain::RuntimeValue>(json) {
-            Ok(v) => Some(v),
-            Err(_) => {
-                 if let Ok(s) = serde_json::from_str::<String>(json) {
-                     Some(crate::domain::RuntimeValue::String(s))
-                 } else {
-                     None
-                 }
-            }
-        }
-    };
+    let runtime_val = parse_runtime_value(&context.env, &normalized_name, json);
 
     if let Some(val) = runtime_val {
         if input_validation::validate_input_value(&context.env.definitions, &normalized_name, &val)
@@ -360,7 +368,8 @@ pub unsafe extern "C" fn hippocrates_engine_set_value(
         let msg = crate::domain::InputMessage {
             variable: normalized_name,
             value: val,
-            timestamp: chrono::Utc::now().naive_utc(),
+            // Use engine's abstract time so UI queries align with execution logs.
+            timestamp: context.env.now,
         };
         match context.input_sender.send(msg) {
             Ok(_) => 0,
@@ -368,6 +377,59 @@ pub unsafe extern "C" fn hippocrates_engine_set_value(
         }
     } else {
         1 
+    }
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn hippocrates_engine_set_value_at(
+    ctx: *mut EngineContext,
+    name_ptr: *const c_char,
+    json_ptr: *const c_char,
+    timestamp_ms: i64,
+) -> c_int {
+    if ctx.is_null() || name_ptr.is_null() || json_ptr.is_null() {
+        return 1;
+    }
+
+    let context = unsafe { &mut *ctx };
+    let name = unsafe {
+        match CStr::from_ptr(name_ptr).to_str() {
+            Ok(s) => s,
+            Err(_) => return 1,
+        }
+    };
+    let normalized_name = normalize_identifier(name);
+    let json = unsafe {
+        match CStr::from_ptr(json_ptr).to_str() {
+            Ok(s) => s,
+            Err(_) => return 1,
+        }
+    };
+
+    let timestamp = match DateTime::from_timestamp_millis(timestamp_ms) {
+        Some(dt) => dt.naive_utc(),
+        None => return 1,
+    };
+
+    let runtime_val = parse_runtime_value(&context.env, &normalized_name, json);
+
+    if let Some(val) = runtime_val {
+        if input_validation::validate_input_value(&context.env.definitions, &normalized_name, &val)
+            .is_err()
+        {
+            return 1;
+        }
+        let msg = crate::domain::InputMessage {
+            variable: normalized_name,
+            value: val,
+            timestamp,
+        };
+        match context.input_sender.send(msg) {
+            Ok(_) => 0,
+            Err(_) => 1,
+        }
+    } else {
+        1
     }
 }
 
@@ -391,6 +453,70 @@ fn parse_time_literal(value: &str) -> Option<()> {
         return Some(());
     }
     None
+}
+
+fn parse_runtime_value(
+    env: &crate::runtime::Environment,
+    normalized_name: &str,
+    json: &str,
+) -> Option<crate::domain::RuntimeValue> {
+    let expected_type = env.definitions.get(normalized_name).and_then(|def| {
+        if let crate::ast::Definition::Value(v) = def {
+            Some(v.value_type.clone())
+        } else {
+            None
+        }
+    });
+
+    match expected_type {
+        Some(crate::domain::ValueType::Number) => {
+            if let Ok(n) = serde_json::from_str::<f64>(json) {
+                Some(crate::domain::RuntimeValue::Number(n))
+            } else if let Ok(s) = serde_json::from_str::<String>(json) {
+                let parts: Vec<&str> = s.split_whitespace().collect();
+                if parts.len() >= 2 {
+                    if let Ok(n) = parts[0].parse::<f64>() {
+                        let unit_str = parts[1].trim_matches(|c| c == ':' || c == ',' || c == ';');
+                        let unit = crate::domain::Unit::Custom(unit_str.to_string());
+                        Some(crate::domain::RuntimeValue::Quantity(n, unit))
+                    } else {
+                        Some(crate::domain::RuntimeValue::String(s))
+                    }
+                } else {
+                    if let Ok(n) = s.parse::<f64>() {
+                        Some(crate::domain::RuntimeValue::Number(n))
+                    } else {
+                        Some(crate::domain::RuntimeValue::String(s))
+                    }
+                }
+            } else {
+                None
+            }
+        }
+        Some(crate::domain::ValueType::DateTime) => {
+            if let Ok(s) = serde_json::from_str::<String>(json) {
+                if let Some(dt) = parse_date_time_literal(&s) {
+                    Some(crate::domain::RuntimeValue::Date(dt))
+                } else if parse_time_literal(&s).is_some() {
+                    Some(crate::domain::RuntimeValue::String(s))
+                } else {
+                    None
+                }
+            } else {
+                serde_json::from_str::<crate::domain::RuntimeValue>(json).ok()
+            }
+        }
+        _ => match serde_json::from_str::<crate::domain::RuntimeValue>(json) {
+            Ok(v) => Some(v),
+            Err(_) => {
+                if let Ok(s) = serde_json::from_str::<String>(json) {
+                    Some(crate::domain::RuntimeValue::String(s))
+                } else {
+                    None
+                }
+            }
+        },
+    }
 }
 
 #[unsafe(no_mangle)]

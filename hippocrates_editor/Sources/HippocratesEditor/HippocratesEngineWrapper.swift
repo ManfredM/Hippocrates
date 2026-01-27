@@ -110,6 +110,8 @@ struct HippocratesParser {
         engine.onStep = onStep
         engine.onLog = onLog
         engine.onAsk = onAsk
+        // Prevent "message callback not set" warnings from the engine.
+        engine.onMessage = { _, _ in }
         
         if simulate {
              // Use new Simulation mode with timelapse (speed_factor: None -> instant)
@@ -197,6 +199,17 @@ struct AskRequest: Decodable, Identifiable {
         case validation_mode
         case validation_timeout
         case timestamp
+    }
+}
+
+struct EngineValueEntry: Decodable {
+    let variable: String
+    let display: String
+    let value: String
+    let timestamp: Int64
+    
+    var date: Date {
+        Date(timeIntervalSince1970: TimeInterval(timestamp) / 1000.0)
     }
 }
 
@@ -307,6 +320,12 @@ class HippocratesEngine: Equatable {
         let mins = Int32(days * 24 * 60)
         hippocrates_engine_enable_simulation(ctx, mins)
     }
+
+    func setSimulationMode(durationMinutes: Int) {
+        guard let ctx = ctx else { return }
+        let mins = Int32(max(1, durationMinutes))
+        hippocrates_engine_enable_simulation(ctx, mins)
+    }
     
     func execute(planName: String) {
         guard let ctx = ctx, let cName = planName.cString(using: .utf8) else { return }
@@ -373,6 +392,29 @@ class HippocratesEngine: Equatable {
         }
     }
 
+    func getValues(start: Date, end: Date) -> [EngineValueEntry] {
+        guard let ctx = ctx else { return [] }
+        // Convert Wall Clock Time to Abstract Time (GMT-as-Local)
+        let tz = TimeZone.current
+        let startShift = tz.secondsFromGMT(for: start)
+        let endShift = tz.secondsFromGMT(for: end)
+        let abstractStart = start.addingTimeInterval(TimeInterval(startShift))
+        let abstractEnd = end.addingTimeInterval(TimeInterval(endShift))
+        let startTs = Int64(abstractStart.timeIntervalSince1970 * 1000)
+        let endTs = Int64(abstractEnd.timeIntervalSince1970 * 1000)
+        
+        let ptr = hippocrates_engine_get_values(ctx, startTs, endTs)
+        guard let p = ptr else { return [] }
+        defer { hippocrates_free_string(p) }
+        
+        let jsonStr = String(cString: p)
+        if let data = jsonStr.data(using: String.Encoding.utf8),
+           let values = try? JSONDecoder().decode([EngineValueEntry].self, from: data) {
+            return values
+        }
+        return []
+    }
+
     func simulateOccurrences(periodName: String, days: Int, startDate: Date? = nil) -> [PeriodOccurrence] {
         guard let ctx = ctx, let cName = periodName.cString(using: .utf8) else { return [] }
         // Use provided start time or current time
@@ -402,6 +444,13 @@ class HippocratesEngine: Equatable {
               let cName = name.cString(using: .utf8),
               let cVal = valueJson.cString(using: .utf8) else { return false }
         return hippocrates_engine_set_value(ctx, cName, cVal) == 0
+    }
+
+    func setValueAt(name: String, valueJson: String, timestampMs: Int64) -> Bool {
+        guard let ctx = ctx,
+              let cName = name.cString(using: .utf8),
+              let cVal = valueJson.cString(using: .utf8) else { return false }
+        return hippocrates_engine_set_value_at(ctx, cName, cVal, timestampMs) == 0
     }
     
     func setTime(_ date: Date) {

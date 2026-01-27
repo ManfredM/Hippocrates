@@ -57,6 +57,10 @@ void hippocrates_engine_execute(EngineContext* ctx, const char* plan_name);
 /// Returns 0 on success, non-zero on failure.
 int hippocrates_engine_set_value(EngineContext* ctx, const char* var_name, const char* json_val);
 
+/// Sets a variable value in the engine at a specific timestamp (milliseconds).
+/// Returns 0 on success, non-zero on failure.
+int hippocrates_engine_set_value_at(EngineContext* ctx, const char* var_name, const char* json_val, int64_t timestamp_ms);
+
 /// Sets the current abstract time of the engine environment.
 /// Input: timestamp in milliseconds (treated as abstract local time).
 void hippocrates_engine_set_time(EngineContext* ctx, int64_t timestamp_ms);
@@ -80,6 +84,10 @@ char* hippocrates_get_periods(EngineContext* ctx);
 
 /// Returns a JSON string array of occurrence timestamps (ISO 8601).
 char* hippocrates_simulate_occurrences(EngineContext* ctx, const char* period_name, int64_t start_ts, int duration_days);
+
+/// Returns a JSON string array of variable values within the timeframe.
+/// Timeframe uses the engine's abstract time; start is inclusive and end is exclusive.
+char* hippocrates_engine_get_values(EngineContext* ctx, int64_t start_ts, int64_t end_ts);
 
 /// Stops the execution of the engine.
 void hippocrates_engine_stop(EngineContext* ctx);
