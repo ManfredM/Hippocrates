@@ -238,6 +238,7 @@ Verify the complete Hippocrates engine against system requirements. Each REQ-* f
 | ST-5-01  | REQ-5-01  | `tests/spec/execution.rs::spec_runtime_execution_flow`                 | Runtime executes assignments and actions in order.                                   | Test passes         |
 | ST-5-02  | REQ-5-02  | `tests/spec/execution.rs::spec_validity_reuse_timeframe`               | Reuse timeframes prevent re-asking within the validity window.                       | Test passes         |
 | ST-5-03  | REQ-5-03  | `tests/spec/execution.rs::spec_message_callback_missing_warns`         | Runtime emits a warning when a message action executes without a message callback.   | Test passes         |
+| ST-5-04  | REQ-5-04  | `tests/spec/execution.rs::spec_simulation_mode_execution`              | Simulation mode executes without real-time delays.                                   | Test completes in under 10 seconds |
 
 ### 4.22 — §5.1 Validation Logic
 
@@ -263,14 +264,15 @@ Verify the complete Hippocrates engine against system requirements. Each REQ-* f
 
 | Metric                | Count |
 |-----------------------|-------|
-| Total ST-* test cases | 93    |
-| REQ-* entries covered | 91    |
+| Total ST-* test cases | 94    |
+| REQ-* entries covered | 92    |
 | Noted gaps            | 0     |
 
-Two REQ IDs (REQ-4.2-07 and REQ-4.3-05) each map to two distinct test functions, producing 93 test cases from 91 unique requirement IDs. All requirements from the traceability matrix are covered; no gaps are noted.
+Two REQ IDs (REQ-4.2-07 and REQ-4.3-05) each map to two distinct test functions, producing 94 test cases from 92 unique requirement IDs. All requirements from the traceability matrix are covered; no gaps are noted.
 
 ## Revision History
 
 | Rev | Date       | Author | Description            |
 |-----|------------|--------|------------------------|
 | 1.0 | 2026-03-20 | —      | Initial version        |
+| 1.1 | 2026-03-20 | —      | Added ST-5-04 (simulation mode, REQ-5-04). |

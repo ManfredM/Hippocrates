@@ -145,6 +145,7 @@
 - REQ-5-01 — `tests/spec/execution.rs::spec_runtime_execution_flow` — runtime executes assignments and actions in order.
 - REQ-5-02 — `tests/spec/execution.rs::spec_validity_reuse_timeframe` — reuse timeframes prevent re-asking within the validity window.
 - REQ-5-03 — `tests/spec/execution.rs::spec_message_callback_missing_warns` — runtime emits a warning when a message action executes without a message callback.
+- REQ-5-04 — `tests/spec/execution.rs::spec_simulation_mode_execution` — simulation mode executes plans at accelerated speed without real-time delays.
 
 ## §5.1 Validation Logic
 - REQ-5.1-01 — `tests/spec/validation.rs::spec_validate_plan_fixture_suite` — full-plan validation passes for a complete plan.

@@ -37,5 +37,7 @@ mod scheduler_duplication;
 mod scheduler;
 #[path = "integration/simulation.rs"]
 mod simulation;
+#[path = "integration/stop_signal.rs"]
+mod stop_signal;
 #[path = "integration/units_regression.rs"]
 mod units_regression;

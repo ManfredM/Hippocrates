@@ -805,6 +805,7 @@ Requirements:
 - REQ-5-01: runtime executes assignments and actions in order.
 - REQ-5-02: reuse timeframes prevent re-asking within the validity window.
 - REQ-5-03: runtime emits a warning when a message action executes without a message callback.
+- REQ-5-04: simulation mode executes plans at accelerated speed without real-time delays.
 
 
 
@@ -1083,6 +1084,8 @@ during plan:
 - REQ-4.7-02: date diff expressions evaluate to quantities in requested units.
 - REQ-5-01: runtime executes assignments and actions in order.
 - REQ-5-02: reuse timeframes prevent re-asking within the validity window.
+- REQ-5-03: runtime emits a warning when a message action executes without a message callback.
+- REQ-5-04: simulation mode executes plans at accelerated speed without real-time delays.
 - REQ-5.1-01: full-plan validation passes for a complete plan.
 - REQ-5.2-01: numeric answers must respect the decimal precision implied by valid values.
 - REQ-5.3-01: meaning-of expressions evaluate using meaning assessments.
@@ -1096,3 +1099,4 @@ during plan:
 | Rev  | Date       | Author         | Description                                              |
 |------|------------|----------------|----------------------------------------------------------|
 | 1.0  | 2026-03-20 | (auto-adopted) | Initial adoption of Language Specification v1.0 as SYRS-01. V-Model preamble and traceability matrix added. |
+| 1.1  | 2026-03-20 | (auto-adopted) | Added REQ-5-04 (simulation mode). |

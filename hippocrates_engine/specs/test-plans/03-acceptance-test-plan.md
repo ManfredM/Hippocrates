@@ -73,8 +73,8 @@ This plan validates that the Hippocrates engine meets stakeholder needs as defin
 | **Description** | Confirm the engine can be embedded in a host application via its C-compatible FFI, operating correctly within the host process. |
 | **Verification Method** | Automated |
 | **Pass Criteria** | Given a host application linked against the engine's static library, when the host calls the public C API to load and execute a plan, then the engine operates correctly within the host process. |
-| **Status** | Not Started |
-| **Evidence** | Successful integration in the SwiftUI editor (`hippocrates_editor`); IT-\* integration tests for FFI. |
+| **Status** | Evidence Available |
+| **Evidence** | UT-FFI-01..10 (Rust-side FFI unit tests covering parse, validate, engine lifecycle, load, periods, time, simulation, stop); IT-23 (FFI JSON parsing logic); successful integration in the SwiftUI editor (`hippocrates_editor`). |
 
 #### AT-04 — Validation Without Execution
 
@@ -106,8 +106,8 @@ This plan validates that the Hippocrates engine meets stakeholder needs as defin
 | **Description** | Confirm the engine supports accelerated simulation execution for testing and visualization without real-time delays. |
 | **Verification Method** | Automated |
 | **Pass Criteria** | Given a plan with time-based triggers, when simulation mode is enabled, then the plan executes to completion at maximum speed, producing the same logical results as real-time execution. |
-| **Status** | Not Started |
-| **Evidence** | Simulation integration tests; cross-reference ST-\* simulation tests. |
+| **Status** | Evidence Available |
+| **Evidence** | ST-5-04 (simulation mode system test); UT-RT-17 (simulation mode unit test); IT-07..IT-09, IT-20, IT-21 (simulation integration tests). |
 
 ---
 
@@ -187,8 +187,8 @@ This plan validates that the Hippocrates engine meets stakeholder needs as defin
 | **Description** | Confirm that values recorded in the past cannot be changed and the engine maintains a complete, append-only history with timestamps. |
 | **Verification Method** | Automated |
 | **Pass Criteria** | Given a value recorded at time T1, when the same value is updated at time T2, then both T1 and T2 entries exist in the history; the T1 entry is not modified. |
-| **Status** | Not Started |
-| **Evidence** | Execution tests showing value history preservation; `hippocrates_engine_get_values` retrieval tests. |
+| **Status** | Evidence Available |
+| **Evidence** | UT-RT-15 (append-only value history verification); IT-10, IT-14, IT-15 (integration tests exercising value history). |
 
 #### AT-17 — Localization Support
 
@@ -220,8 +220,8 @@ This plan validates that the Hippocrates engine meets stakeholder needs as defin
 | **Description** | Confirm all value changes are automatically stored without explicit save logic, and value history is retrievable after recording. |
 | **Verification Method** | Automated |
 | **Pass Criteria** | Given a running plan that records values, when the engine is queried for value history after recording, then all recorded values are available with their timestamps. |
-| **Status** | Not Started |
-| **Evidence** | Value history retrieval tests (`hippocrates_engine_get_values`). |
+| **Status** | Evidence Available |
+| **Evidence** | UT-RT-16 (value history retrieval with timestamps); IT-10, IT-14 (integration tests exercising value retrieval). |
 
 #### AT-20 — Plan Autonomy
 
@@ -349,20 +349,20 @@ This plan validates that the Hippocrates engine meets stakeholder needs as defin
 |---|---|---|---|
 | STKR-01 | AT-01 | Automated | Not Started |
 | STKR-02 | AT-02 | Manual | Not Started |
-| STKR-03 | AT-03 | Automated | Not Started |
+| STKR-03 | AT-03 | Automated | Evidence Available |
 | STKR-04 | AT-04 | Automated | Not Started |
 | STKR-05 | AT-05 | Automated | Not Started |
-| STKR-06 | AT-06 | Automated | Not Started |
+| STKR-06 | AT-06 | Automated | Evidence Available |
 | STKR-10 | AT-10 | Automated | Not Started |
 | STKR-11 | AT-11 | Automated + Manual | Not Started |
 | STKR-12 | AT-12 | Automated | Not Started |
 | STKR-13 | AT-13 | Manual | Not Started |
 | STKR-14 | AT-14 | Manual | Not Started |
 | STKR-15 | AT-15 | Automated | Not Started |
-| STKR-16 | AT-16 | Automated | Not Started |
+| STKR-16 | AT-16 | Automated | Evidence Available |
 | STKR-17 | AT-17 | Manual | Not Started |
 | STKR-18 | AT-18 | Automated | Not Started |
-| STKR-19 | AT-19 | Automated | Not Started |
+| STKR-19 | AT-19 | Automated | Evidence Available |
 | STKR-20 | AT-20 | Automated | Not Started |
 | STKR-30 | AT-30 | Automated | Not Started |
 | STKR-31 | AT-31 | Automated | Not Started |
@@ -383,3 +383,4 @@ All 26 stakeholder requirements are covered by acceptance test cases.
 | Version | Date | Changes |
 |---|---|---|
 | 1.0 | 2026-03-20 | Initial acceptance test plan |
+| 1.1 | 2026-03-20 | Updated AT-03, AT-06, AT-16, AT-19 with automated evidence references. |

@@ -274,13 +274,13 @@ This section adopts the content from `tests/spec/TRACEABILITY.md` verbatim. All 
 | V-Model Level | Test Plan | Test ID Prefix | # Test Cases | Coverage |
 |---|---|---|---|---|
 | Stakeholder Req (STKR) | `test-plans/03-acceptance-test-plan.md` | AT-\* | 26 | 100% (all 26 STKR covered) |
-| System Req (REQ) | `test-plans/02-system-test-plan.md` | ST-\* | 93 | 100% (91 unique REQ IDs, 93 test cases) |
-| System Design (DES) | `test-plans/01-integration-test-plan.md` | IT-\* | 24 | 13/33 DES elements directly covered (~39%) |
-| Detailed Design (DDR) | `test-plans/00-unit-test-plan.md` | UT-\* | 112 | 20/28 DDR elements covered (~71%) |
+| System Req (REQ) | `test-plans/02-system-test-plan.md` | ST-\* | 94 | 100% (92 unique REQ IDs, 94 test cases) |
+| System Design (DES) | `test-plans/01-integration-test-plan.md` | IT-\* | 25 | 14/33 DES elements directly covered (~42%) |
+| Detailed Design (DDR) | `test-plans/00-unit-test-plan.md` | UT-\* | 127 | 25/28 DDR elements covered (~89%) |
 
-**Notes on DES coverage:** DES elements not covered by integration tests (DES-01, DES-02, DES-03, DES-19, DES-20..DES-26, DES-30, DES-33, DES-34, DES-40, DES-43) are either architectural constraints verified by successful compilation, dependency declarations, or host-side concerns outside the scope of Rust integration tests.
+**Notes on DES coverage:** DES elements not covered by integration tests (DES-01, DES-02, DES-03, DES-19, DES-20..DES-26, DES-30, DES-33, DES-34, DES-40) are either architectural constraints verified by successful compilation, dependency declarations, or host-side concerns outside the scope of Rust integration tests. DES-43 (stop signal) is now covered by IT-25.
 
-**Notes on DDR coverage:** DDR-FFI-01..19 are tested at the integration level via Swift/C bindings rather than Rust unit tests. DDR-RT-02, DDR-RT-08, and DDR-FMT-01 have gaps noted in the unit test plan.
+**Notes on DDR coverage:** DDR-FFI-01..19 are partially covered by UT-FFI-01..10 at the unit level; remaining FFI functions are tested at the integration level via Swift/C bindings. DDR-RT-02, DDR-RT-08, and DDR-FMT-01 gaps have been closed by UT-RT-15..17 and UT-FMT-01..02.
 
 ---
 
@@ -292,20 +292,20 @@ The master matrix traces each stakeholder requirement through all V-Model levels
 |------|--------------|-----|-----|----|----|----|----|----|
 | STKR-01 | §3.7, §3.9, §3.10, §5 | DES-10, DES-13, DES-16, DES-18 | DDR-PARSER-01..04, DDR-RT-01, DDR-RT-03, DDR-RT-04 | UT-PARSER-\*, UT-RT-08, UT-RT-09, UT-ACTIONS-\*, UT-ACTORS-\* | IT-02, IT-07..IT-12 | ST-3.7-\*, ST-3.9-\*, ST-3.10-\*, ST-5-\* | AT-01 | Covered |
 | STKR-02 | §2, §3.1-3.3 | DES-10, DES-11, DES-19 | DDR-PARSER-01..04, DDR-FMT-01 | UT-PARSER-\*, UT-VALUES-\*, UT-FIX-01, UT-CTX-05..08 | IT-03..IT-06 | ST-2-\*, ST-3.1-\*, ST-3.2-\*, ST-3.3-01 | AT-02 | Covered |
-| STKR-03 | _(architectural)_ | DES-01, DES-02, DES-03, DES-18, DES-22, DES-24, DES-30..DES-34 | DDR-FFI-01..19 | _(no UT; FFI tested via IT)_ | IT-23 | _(no ST)_ | AT-03 | Partial |
+| STKR-03 | _(architectural)_ | DES-01, DES-02, DES-03, DES-18, DES-22, DES-24, DES-30..DES-34 | DDR-FFI-01..19 | UT-FFI-01..10 | IT-23 | _(no ST)_ | AT-03 | Covered |
 | STKR-04 | §5.1 | DES-12 | DDR-VAL-01..06 | UT-VAL-01..37 | IT-01, IT-02 | ST-5.1-01 | AT-04 | Covered |
 | STKR-05 | §3.5, §3.7, §3.8, §5 | DES-13, DES-14, DES-17, DES-21, DES-31, DES-40..DES-43 | DDR-RT-01, DDR-RT-03..DDR-RT-06, DDR-RT-08, DDR-PARSER-02 | UT-PERIODS-\*, UT-RT-08, UT-RT-10, UT-RT-14 | IT-07..IT-13, IT-16..IT-22 | ST-3.5-\*, ST-3.7-\*, ST-3.8-\*, ST-5-\* | AT-05 | Covered |
-| STKR-06 | _(architectural)_ | DES-41 | DDR-RT-08 | _(no dedicated UT)_ | IT-07..IT-09, IT-20, IT-21 | _(no ST)_ | AT-06 | Partial |
+| STKR-06 | _(architectural)_ | DES-41 | DDR-RT-08 | UT-RT-17 | IT-07..IT-09, IT-20, IT-21 | ST-5-04 | AT-06 | Covered |
 | STKR-10 | §3.6, §4.4 | DES-10, DES-12 | DDR-VAL-05, DDR-PARSER-01..02 | UT-VAL-01..07, UT-VAL-25, UT-VAL-36, UT-ACTIONS-01..02 | IT-01, IT-02 | ST-3.6-\*, ST-4.4-\* | AT-10 | Covered |
 | STKR-11 | §3.1-3.3, §4.2 | DES-10, DES-12 | DDR-PARSER-01..02, DDR-VAL-02 | UT-PARSER-\*, UT-VAL-21..27, UT-VAL-35 | IT-01, IT-02 | ST-3.1-\*, ST-3.2-\*, ST-3.3-01, ST-4.2-\* | AT-11 | Covered |
 | STKR-12 | §3.4, §5.3 | DES-15, DES-16 | DDR-RT-04, DDR-PARSER-02 | UT-VALUES-\*, UT-RT-04..06 | IT-10, IT-14, IT-15 | ST-3.4-\*, ST-5.3-\* | AT-12 | Covered |
 | STKR-13 | §2, §3.6, §3.11 | DES-10, DES-15, DES-16 | DDR-PARSER-01..02, DDR-RT-04 | UT-CTX-\*, UT-ACTIONS-01 | IT-11 | ST-2-\*, ST-3.6-\*, ST-3.11-\* | AT-13 | Covered |
 | STKR-14 | §2, §3.9 | DES-01, DES-03, DES-10 | DDR-PARSER-01 | UT-PARSER-\* | _(architectural)_ | ST-2-\*, ST-3.9-\* | AT-14 | Covered |
 | STKR-15 | §3.4, §4.2, §4.5 | DES-12, DES-15, DES-42 | DDR-VAL-02..03, DDR-RT-07 | UT-VAL-21..23, UT-VAL-28, UT-VAL-37, UT-RT-07 | IT-02 | ST-3.4-\*, ST-4.2-\*, ST-4.5-\* | AT-15 | Covered |
-| STKR-16 | _(architectural)_ | DES-15, DES-26 | DDR-RT-02 | _(no dedicated UT)_ | IT-10, IT-14, IT-15 | _(no ST)_ | AT-16 | Partial |
+| STKR-16 | _(architectural)_ | DES-15, DES-26 | DDR-RT-02 | UT-RT-15 | IT-10, IT-14, IT-15 | _(no ST)_ | AT-16 | Covered |
 | STKR-17 | _(future)_ | _(none)_ | _(none)_ | _(none)_ | _(none)_ | _(none)_ | AT-17 | Gap |
 | STKR-18 | §3.2, §3.10, §4.1, §4.7 | DES-15, DES-21 | DDR-DOM-02, DDR-PARSER-01..02, DDR-VAL-02 | UT-UNITS-\*, UT-ACTORS-01..05, UT-RT-02..03 | IT-07..IT-10 | ST-3.2-\*, ST-3.10-\*, ST-4.1-\*, ST-4.7-\* | AT-18 | Covered |
-| STKR-19 | _(architectural)_ | DES-15, DES-26 | DDR-RT-02 | _(no dedicated UT)_ | IT-10, IT-14 | _(no ST)_ | AT-19 | Partial |
+| STKR-19 | _(architectural)_ | DES-15, DES-26 | DDR-RT-02 | UT-RT-16 | IT-10, IT-14 | _(no ST)_ | AT-19 | Covered |
 | STKR-20 | §3.5 | DES-13, DES-14 | DDR-PARSER-02, DDR-RT-01 | UT-PERIODS-01..02, UT-RT-08 | IT-02, IT-07 | ST-3.5-\* | AT-20 | Covered |
 | STKR-30 | §2 | DES-10, DES-12 | DDR-PARSER-01 | UT-PARSER-05 | IT-01, IT-02 | ST-2-03 | AT-30 | Covered |
 | STKR-31 | §3.2, §4.1 | DES-12, DES-15 | DDR-VAL-02, DDR-DOM-02 | UT-PARSER-06, UT-UNITS-\*, UT-VAL-21..27 | IT-12, IT-13, IT-16, IT-17 | ST-3.2-05, ST-4.1-\* | AT-31 | Covered |
@@ -328,14 +328,14 @@ The master matrix traces each stakeholder requirement through all V-Model levels
 
 ### 8.1 DDR Elements Without Unit Tests
 
-The following DDR elements are identified as gaps in `00-unit-test-plan.md`:
+The following DDR elements were previously identified as gaps. Most have been closed:
 
-| DDR Element | Description | Severity | Mitigation |
-|-------------|-------------|----------|------------|
-| DDR-FFI-01..19 | FFI C-API functions | Low | Tested at integration level via Swift/C host bindings. Consider adding Rust-side FFI unit tests. |
-| DDR-RT-02 | Environment struct | Low | Exercised indirectly through all RT tests but lacks a dedicated unit test. |
-| DDR-RT-08 | Execution modes (simulation vs. real-time) | Medium | Tested at integration level (IT-07..IT-09, IT-20, IT-21) but no unit-level mode-switching test. |
-| DDR-FMT-01 | Formatter `format_script` | Medium | No test coverage at any level. Recommend adding unit tests. |
+| DDR Element | Description | Severity | Status |
+|-------------|-------------|----------|--------|
+| DDR-FFI-01..19 | FFI C-API functions | Low | **Partially closed.** UT-FFI-01..10 cover DDR-FFI-01, -02, -03, -07, -08, -09, -10, -11. Remaining FFI functions (DDR-FFI-04..06, -12..19) are tested at integration level via Swift/C host bindings. |
+| DDR-RT-02 | Environment struct | Low | **Closed.** UT-RT-15 (append-only history) and UT-RT-16 (value history retrieval) provide dedicated coverage. |
+| DDR-RT-08 | Execution modes (simulation vs. real-time) | Medium | **Closed.** UT-RT-17 verifies simulation mode completes without real-time delays. |
+| DDR-FMT-01 | Formatter `format_script` | Medium | **Closed.** UT-FMT-01 (round-trip parse-format-parse) and UT-FMT-02 (all definition types) provide coverage. |
 
 ### 8.2 DES Elements Without Integration Tests
 
@@ -344,21 +344,21 @@ The following DES elements are not directly covered by integration tests (per `0
 | DES Element | Description | Reason |
 |-------------|-------------|--------|
 | DES-01, DES-02, DES-03 | Language selection, dual crate, C-FFI boundary | Architectural constraints verified by successful compilation and linking. |
-| DES-19 | Formatter | No integration test. Recommend adding a round-trip parse-format-parse test. |
+| DES-19 | Formatter | **Closed at unit level.** UT-FMT-01 provides a round-trip parse-format-parse test. No integration test needed. |
 | DES-20..DES-26 | Dependencies (Pest, Chrono, Serde, etc.) | Dependency declarations; verified by compilation. |
 | DES-30, DES-33, DES-34 | FFI lifecycle, memory management, iOS integration | Host-side concerns; verified by the SwiftUI editor integration. |
 | DES-40 | Real-time execution mode | Not testable in automated CI without wall-clock delays. |
-| DES-43 | Stop signal | Not directly tested in isolation; exercised by executor termination logic. |
+| DES-43 | Stop signal | **Closed.** IT-25 verifies stop signal terminates a long-running simulation early. |
 
 ### 8.3 STKR Without Full Automated Evidence
 
-| STKR | Issue | Recommendation |
-|------|-------|----------------|
-| STKR-03 | FFI/embedding tested only via Swift host; no Rust-level system test. | Consider adding a Rust FFI round-trip system test. |
-| STKR-06 | Simulation mode has no system-level REQ or ST; tested only at integration level. | Consider adding REQ and ST entries for simulation behavior. |
-| STKR-16 | Immutable history is architectural; no dedicated ST or UT. | Consider adding a system test that verifies append-only history semantics. |
-| STKR-17 | Localization support is not implemented. | Accepted as future scope (Priority: May). |
-| STKR-19 | Automatic persistence is architectural; no dedicated ST or UT. | Consider adding a system test for value history retrieval after recording. |
+| STKR | Issue | Status |
+|------|-------|--------|
+| STKR-03 | FFI/embedding tested only via Swift host; no Rust-level unit test. | **Closed.** UT-FFI-01..10 provide Rust-side FFI unit tests covering parse, validate, engine lifecycle, load, periods, time, simulation, and stop. |
+| STKR-06 | Simulation mode has no system-level REQ or ST; tested only at integration level. | **Closed.** ST-5-04 (system test) and UT-RT-17 (unit test) now provide dedicated simulation mode coverage. |
+| STKR-16 | Immutable history is architectural; no dedicated ST or UT. | **Closed.** UT-RT-15 verifies append-only value history semantics. |
+| STKR-17 | Localization support is not implemented. | **Accepted gap.** Future scope (Priority: May). This is the only remaining accepted gap. |
+| STKR-19 | Automatic persistence is architectural; no dedicated ST or UT. | **Closed.** UT-RT-16 verifies value history retrieval with timestamps after recording. |
 
 ---
 
@@ -367,3 +367,4 @@ The following DES elements are not directly covered by integration tests (per `0
 | Version | Date | Changes |
 |---|---|---|
 | 1.0 | 2026-03-20 | Initial traceability matrix. Full V-Model cross-reference of all specifications, design documents, and test plans. |
+| 1.1 | 2026-03-20 | Closed gaps: STKR-03, -06, -16, -19 changed from Partial to Covered. Added REQ-5-04 and ST-5-04. Updated test counts. STKR-17 remains only accepted gap. |

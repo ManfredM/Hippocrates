@@ -2,9 +2,10 @@
 
 use hippocrates_engine::domain::{EventType, RuntimeValue, Unit};
 use hippocrates_engine::parser;
-use hippocrates_engine::runtime::{Engine, Environment, Executor};
+use hippocrates_engine::runtime::{Engine, Environment, Executor, ExecutionMode};
 use chrono::{Utc, TimeZone, Duration as ChronoDuration};
 use std::sync::{Arc, Mutex};
+use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
 // REQ-4.6-03: runtime evaluation returns NotEnoughData when history is insufficient.
@@ -595,4 +596,108 @@ fn spec_scheduler_next_occurrence() {
     let now = Utc.with_ymd_and_hms(2026, 1, 18, 12, 0, 0).unwrap().naive_utc();
     let next = Scheduler::next_occurrence(def, now);
     assert!(next.is_some());
+}
+
+// STKR-16, DDR-RT-02: value history is append-only.
+#[test]
+fn spec_environment_append_only_history() {
+    let mut env = Environment::new();
+    let t1 = Utc.with_ymd_and_hms(2026, 1, 10, 8, 0, 0).unwrap().naive_utc();
+    let t2 = Utc.with_ymd_and_hms(2026, 1, 10, 9, 0, 0).unwrap().naive_utc();
+
+    env.set_start_time(t1 - ChronoDuration::hours(1));
+    env.set_time(t1);
+
+    env.set_value_at("x", RuntimeValue::Quantity(5.0, Unit::Kilogram), t1);
+    env.set_value_at("x", RuntimeValue::Quantity(10.0, Unit::Kilogram), t2);
+
+    let history = env.get_history("x").expect("Expected history for x");
+    assert_eq!(history.len(), 2, "Expected 2 history entries, got {}", history.len());
+
+    assert_eq!(history[0].value, RuntimeValue::Quantity(5.0, Unit::Kilogram));
+    assert_eq!(history[0].timestamp, t1);
+
+    assert_eq!(history[1].value, RuntimeValue::Quantity(10.0, Unit::Kilogram));
+    assert_eq!(history[1].timestamp, t2);
+
+    // Verify original T1 entry is unchanged after adding T2
+    let history_again = env.get_history("x").unwrap();
+    assert_eq!(history_again[0].value, RuntimeValue::Quantity(5.0, Unit::Kilogram));
+    assert_eq!(history_again[0].timestamp, t1);
+}
+
+// STKR-19, DDR-RT-02: value history retrieval across timeframe.
+#[test]
+fn spec_value_history_retrieval() {
+    let mut env = Environment::new();
+    let start = Utc.with_ymd_and_hms(2026, 3, 1, 0, 0, 0).unwrap().naive_utc();
+    env.set_start_time(start);
+    env.set_time(start);
+
+    let t1 = start + ChronoDuration::hours(1);
+    let t2 = start + ChronoDuration::hours(3);
+    let t3 = start + ChronoDuration::hours(5);
+
+    env.set_value_at("bp", RuntimeValue::Number(120.0), t1);
+    env.set_value_at("bp", RuntimeValue::Number(130.0), t2);
+    env.set_value_at("bp", RuntimeValue::Number(125.0), t3);
+
+    let history = env.get_history("bp").expect("Expected history for bp");
+    assert_eq!(history.len(), 3, "Expected 3 entries, got {}", history.len());
+
+    // Verify correct timestamps and ordering
+    assert_eq!(history[0].timestamp, t1);
+    assert_eq!(history[0].value, RuntimeValue::Number(120.0));
+
+    assert_eq!(history[1].timestamp, t2);
+    assert_eq!(history[1].value, RuntimeValue::Number(130.0));
+
+    assert_eq!(history[2].timestamp, t3);
+    assert_eq!(history[2].value, RuntimeValue::Number(125.0));
+}
+
+// STKR-06, DDR-RT-08: simulation mode execution completes without real-time delays.
+#[test]
+fn spec_simulation_mode_execution() {
+    let input = r#"
+<sim plan> is a plan:
+    every 1 hour for 3 hours:
+        information "Hourly check".
+"#;
+
+    let plan = parser::parse_plan(input).expect("Failed to parse plan");
+    let mut env = Environment::new();
+    env.load_plan(plan);
+
+    let logs = Arc::new(Mutex::new(Vec::new()));
+    let logs_clone = logs.clone();
+
+    let stop_signal = Arc::new(AtomicBool::new(false));
+    let mut executor = Executor::new(stop_signal);
+    executor.set_mode(ExecutionMode::Simulation {
+        speed_factor: None,
+        duration: Some(ChronoDuration::hours(4)),
+    });
+
+    executor.on_log = Some(Box::new(move |msg: String, _event_type: EventType, _ts| {
+        logs_clone.lock().unwrap().push(msg);
+    }));
+
+    let start = std::time::Instant::now();
+    executor.execute_plan(&mut env, "sim plan");
+    let elapsed = start.elapsed();
+
+    // Simulation should complete quickly, not take real hours
+    assert!(
+        elapsed < std::time::Duration::from_secs(10),
+        "Simulation took too long: {:?} — expected near-instant execution",
+        elapsed
+    );
+
+    let captured = logs.lock().unwrap();
+    assert!(
+        captured.iter().any(|msg| msg.contains("Hourly check")),
+        "Expected periodic events to fire, got logs: {:?}",
+        *captured
+    );
 }

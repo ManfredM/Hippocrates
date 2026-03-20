@@ -145,6 +145,9 @@ Tests in `tests/spec/execution.rs` verify DDR-RT-* elements (Engine, Environment
 | UT-RT-12   | `tests/spec/execution.rs::spec_timeframe_variants`                        | Timeframe variants resolve counts over different windows.                     | DDR-RT-04     |
 | UT-RT-13   | `tests/spec/execution.rs::spec_trend_analysis_evaluates`                  | Trend analysis evaluates statistical trends over timeframes.                  | DDR-RT-04     |
 | UT-RT-14   | `tests/spec/execution.rs::spec_scheduler_next_occurrence`                 | Scheduler computes next occurrence for periods.                               | DDR-RT-05     |
+| UT-RT-15   | `tests/spec/execution.rs::spec_environment_append_only_history`           | Verifies append-only value history.                                           | DDR-RT-02     |
+| UT-RT-16   | `tests/spec/execution.rs::spec_value_history_retrieval`                   | Verifies value history retrieval with timestamps.                             | DDR-RT-02     |
+| UT-RT-17   | `tests/spec/execution.rs::spec_simulation_mode_execution`                 | Verifies simulation mode completes without delays.                            | DDR-RT-08     |
 
 ### 4.5 UT-VALUES-* --- Value Definition Tests
 
@@ -239,6 +242,32 @@ Tests in `tests/spec/fixtures.rs` verify DDR-PARSER-04 (parser entry point) acro
 |------------|------------------------------------------------------------------------|--------------------------------------------------------------|---------------|
 | UT-FIX-01  | `tests/spec/fixtures.rs::spec_full_fixture_parses_core_definitions`    | Multi-definition fixtures parse core definitions.            | DDR-PARSER-04 |
 
+### 4.12 UT-FFI-* --- FFI Interface Tests
+
+Tests in `tests/ffi.rs` verify DDR-FFI-* elements (C-compatible API functions).
+
+| UT ID | Test Function | Description | DDR Reference |
+|-------|--------------|-------------|---------------|
+| UT-FFI-01 | `tests/ffi.rs::ffi_parse_json_valid` | Verifies parse returns Ok JSON for valid input | DDR-FFI-01 |
+| UT-FFI-02 | `tests/ffi.rs::ffi_parse_json_invalid` | Verifies parse returns Err JSON for invalid input | DDR-FFI-01 |
+| UT-FFI-03 | `tests/ffi.rs::ffi_validate_file_valid_and_invalid` | Verifies validation, error count, and error retrieval | DDR-FFI-08 |
+| UT-FFI-04 | `tests/ffi.rs::ffi_engine_lifecycle` | Verifies engine create/free lifecycle | DDR-FFI-02 |
+| UT-FFI-05 | `tests/ffi.rs::ffi_engine_load_valid` | Verifies loading valid plan | DDR-FFI-03 |
+| UT-FFI-06 | `tests/ffi.rs::ffi_engine_load_invalid` | Verifies loading invalid plan returns error | DDR-FFI-03 |
+| UT-FFI-07 | `tests/ffi.rs::ffi_get_periods` | Verifies period retrieval as JSON | DDR-FFI-09 |
+| UT-FFI-08 | `tests/ffi.rs::ffi_set_time` | Verifies setting engine time | DDR-FFI-07 |
+| UT-FFI-09 | `tests/ffi.rs::ffi_enable_simulation` | Verifies enabling simulation mode | DDR-FFI-10 |
+| UT-FFI-10 | `tests/ffi.rs::ffi_stop` | Verifies stop signal | DDR-FFI-11 |
+
+### 4.13 UT-FMT-* --- Formatter Tests
+
+Tests in `tests/formatter.rs` verify DDR-FMT-01 (formatter `format_script`).
+
+| UT ID | Test Function | Description | DDR Reference |
+|-------|--------------|-------------|---------------|
+| UT-FMT-01 | `tests/formatter.rs::formatter_round_trip_parse_format_parse` | Round-trip parse-format-parse | DDR-FMT-01 |
+| UT-FMT-02 | `tests/formatter.rs::formatter_handles_all_definition_types` | All definition types format correctly | DDR-FMT-01 |
+
 ---
 
 ## 5. Coverage Summary
@@ -248,7 +277,7 @@ Tests in `tests/spec/fixtures.rs` verify DDR-PARSER-04 (parser entry point) acro
 | PARSER       | DDR-PARSER-01, DDR-PARSER-02, DDR-PARSER-03, DDR-PARSER-04 | 12     |
 | DOM          | DDR-DOM-01, DDR-DOM-02, DDR-DOM-06                     | 5          |
 | VAL          | DDR-VAL-01 through DDR-VAL-06                          | 37         |
-| RT           | DDR-RT-01, DDR-RT-03, DDR-RT-04, DDR-RT-05, DDR-RT-06, DDR-RT-07 | 14   |
+| RT           | DDR-RT-01, DDR-RT-02, DDR-RT-03, DDR-RT-04, DDR-RT-05, DDR-RT-06, DDR-RT-07, DDR-RT-08 | 17   |
 | VALUES       | DDR-PARSER-02                                          | 7          |
 | UNITS        | DDR-DOM-02, DDR-PARSER-01, DDR-VAL-02, DDR-VAL-03      | 7          |
 | PERIODS      | DDR-PARSER-02                                          | 5          |
@@ -256,16 +285,18 @@ Tests in `tests/spec/fixtures.rs` verify DDR-PARSER-04 (parser entry point) acro
 | ACTORS       | DDR-PARSER-02, DDR-VAL-02                              | 5          |
 | CTX          | DDR-PARSER-02, DDR-RT-04                               | 9          |
 | FIX          | DDR-PARSER-04                                          | 1          |
-| **Total**    |                                                        | **112**    |
+| FFI          | DDR-FFI-01, DDR-FFI-02, DDR-FFI-03, DDR-FFI-07, DDR-FFI-08, DDR-FFI-09, DDR-FFI-10, DDR-FFI-11 | 10 |
+| FMT          | DDR-FMT-01                                             | 2          |
+| **Total**    |                                                        | **127**    |
 
 ### Gaps
 
 | DDR element     | Status   | Notes                                                                |
 |-----------------|----------|----------------------------------------------------------------------|
-| DDR-FFI-01..19  | No unit tests | FFI functions are tested at the integration level via Swift/C bindings. Consider adding Rust-side FFI tests. |
-| DDR-RT-02       | Partial  | Environment is exercised indirectly through RT tests but has no dedicated unit test. |
-| DDR-RT-08       | No test  | Execution modes (simulation vs. live) lack a dedicated unit test.     |
-| DDR-FMT-01      | No test  | Formatter `format_script` has no unit test.                          |
+| DDR-FFI-01..19  | Partial  | UT-FFI-01..10 cover DDR-FFI-01, -02, -03, -07, -08, -09, -10, -11. Remaining FFI functions (DDR-FFI-04..06, -12..19) are tested at the integration level via Swift/C bindings. |
+| DDR-RT-02       | Covered  | UT-RT-15 and UT-RT-16 verify append-only history and value history retrieval. |
+| DDR-RT-08       | Covered  | UT-RT-17 verifies simulation mode execution without real-time delays. |
+| DDR-FMT-01      | Covered  | UT-FMT-01 and UT-FMT-02 verify round-trip formatting and all definition types. |
 
 ---
 
@@ -274,3 +305,4 @@ Tests in `tests/spec/fixtures.rs` verify DDR-PARSER-04 (parser entry point) acro
 | Version | Date       | Author | Changes         |
 |---------|------------|--------|-----------------|
 | 1.0     | 2026-03-20 | ---    | Initial release |
+| 1.1     | 2026-03-20 | ---    | Added UT-FFI-01..10 (FFI tests), UT-RT-15..17 (environment/history/simulation), UT-FMT-01..02 (formatter). Closed DDR-FFI, DDR-RT-02, DDR-RT-08, DDR-FMT-01 gaps. |

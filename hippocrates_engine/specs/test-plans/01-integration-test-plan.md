@@ -112,6 +112,12 @@ All integration tests are marked `#[ignore]` and require the `--ignored` flag to
 | IT-23  | `reproduce_hang.rs::test_ffi_parsing_logic`                            | Tests the FFI JSON value-parsing function with multiple input formats (bare number, quoted number, quantity with unit, quantity with description suffix) and asserts each produces the expected `RuntimeValue` variant. | DES-18, DES-32       | --       |
 | IT-24  | `reproduce_hang.rs::test_ask_parsing_regression`                       | Parses a plan containing an `ask for` statement and asserts parsing succeeds, verifying the parser handles the ask-for grammar path without regression. | DES-10               | --       |
 
+### 4.12 -- Stop Signal
+
+| ID     | Test function                                                          | Description                                                                                   | DES ref(s)           | Fixtures |
+|--------|------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|----------------------|----------|
+| IT-25  | `stop_signal.rs::test_stop_signal_terminates_execution`                | Verifies stop signal terminates a long-running simulation early.                              | DES-43               | None     |
+
 ## 5. Coverage Summary
 
 | DES ID  | Description                        | Covered by IT-*                      |
@@ -129,12 +135,14 @@ All integration tests are marked `#[ignore]` and require the `--ignored` flag to
 | DES-32  | JSON data exchange                 | IT-23                                |
 | DES-41  | Simulation mode                    | IT-07 .. IT-09, IT-20, IT-21         |
 | DES-42  | Input channel (mpsc)               | IT-07, IT-16, IT-17, IT-22           |
+| DES-43  | Stop signal                        | IT-25                                |
 
 **Not directly covered by integration tests:**
-DES-01 (language selection), DES-02 (dual crate output), DES-03 (C-FFI boundary), DES-19 (formatter), DES-20..DES-26 (dependency choices), DES-30 (lifecycle via FFI), DES-33 (memory management), DES-34 (iOS integration), DES-40 (real-time mode), DES-43 (stop signal). These are either architectural constraints verified by compilation, dependency declarations, or host-side concerns outside the scope of Rust integration tests.
+DES-01 (language selection), DES-02 (dual crate output), DES-03 (C-FFI boundary), DES-19 (formatter), DES-20..DES-26 (dependency choices), DES-30 (lifecycle via FFI), DES-33 (memory management), DES-34 (iOS integration), DES-40 (real-time mode). These are either architectural constraints verified by compilation, dependency declarations, or host-side concerns outside the scope of Rust integration tests.
 
 ## Revision History
 
 | Rev | Date       | Author | Description            |
 |-----|------------|--------|------------------------|
 | 1.0 | 2026-03-20 | --     | Initial version        |
+| 1.1 | 2026-03-20 | --     | Added IT-25 (stop signal). Closed DES-43 gap. |
