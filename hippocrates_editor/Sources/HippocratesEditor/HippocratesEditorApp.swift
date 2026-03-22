@@ -4,7 +4,7 @@ import UniformTypeIdentifiers
 @main
 struct HippocratesEditorApp: App {
     @StateObject private var appState = AppState()
-    
+
     var body: some Scene {
         WindowGroup {
             ContentView()

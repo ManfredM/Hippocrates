@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		1603688875A8FB20FA9AB3A7 /* HippocratesEditorApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 167B8D40D5096754939DA9F2 /* HippocratesEditorApp.swift */; };
 		2262FAD096E6ED839E5CDD13 /* ExecutionTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3AD272C2471F0D89101BF7A8 /* ExecutionTimelineView.swift */; };
+		4CAD682899D2E96E46E57DCC /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 32A340EFBF4C86C6034DCBE6 /* Assets.xcassets */; };
 		506A0A06810C48A4AC508EF0 /* CodeVisualizerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54C4B3DDB94D863D6291DC40 /* CodeVisualizerView.swift */; };
 		6C8B415D7FFE1B00FBD7D2BD /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E98C145FB107AE4B3492E799 /* ContentView.swift */; };
 		6C98584C6E26F4D71CC53531 /* libCHippocratesEngine.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 483F2176F26DAC504C94CAAC /* libCHippocratesEngine.a */; };
@@ -52,6 +53,7 @@
 
 /* Begin PBXFileReference section */
 		167B8D40D5096754939DA9F2 /* HippocratesEditorApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HippocratesEditorApp.swift; sourceTree = "<group>"; };
+		32A340EFBF4C86C6034DCBE6 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		368618305FFA14E04513BB45 /* HippocratesEditor.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = HippocratesEditor.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3AD272C2471F0D89101BF7A8 /* ExecutionTimelineView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExecutionTimelineView.swift; sourceTree = "<group>"; };
 		3F6CB71619B13C63496280A3 /* libhippocrates_engine.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; path = libhippocrates_engine.a; sourceTree = "<group>"; };
@@ -94,6 +96,7 @@
 			isa = PBXGroup;
 			children = (
 				6F7E1D7BE59CDA4EC6C5EAAD /* AppState.swift */,
+				32A340EFBF4C86C6034DCBE6 /* Assets.xcassets */,
 				54C4B3DDB94D863D6291DC40 /* CodeVisualizerView.swift */,
 				E98C145FB107AE4B3492E799 /* ContentView.swift */,
 				3AD272C2471F0D89101BF7A8 /* ExecutionTimelineView.swift */,
@@ -247,6 +250,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				4CAD682899D2E96E46E57DCC /* Assets.xcassets in Resources */,
 				FFA372AB02555CD8591D32E5 /* libhippocrates_engine.a in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600">
+  <defs>
+    <!-- Arterial blood (bright oxygenated red) → Venous blood (dark deoxygenated maroon) -->
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#CF2030"/>
+      <stop offset="100%" stop-color="#4A0E20"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background: rounded square -->
+  <rect x="0" y="0" width="600" height="600" rx="70" ry="70" fill="url(#bgGrad)"/>
+
+  <!--
+    Serpent: 60px metric (stroke=60, radius=60, gap=120).
+    5 bands at y = 60, 180, 300, 420, 540.  Centered at (300, 300).
+
+    Bounding box: x 90–510, y 30–570 → center (300, 300) ✓
+
+    Band widths (strictly decreasing):
+      Band 1: 480–180 = 300px  ← longest
+      Band 2: 180–415 = 235px
+      Band 3: 415–220 = 195px
+      Band 4: 220–362 = 142px
+      Band 5: 362–268 =  94px  ← shortest
+  -->
+  <path d="
+    M 480,60
+    L 180,60
+    A 60 60 0 0 0 180,180
+    L 415,180
+    A 60 60 0 0 1 415,300
+    L 220,300
+    A 60 60 0 0 0 220,420
+    L 362,420
+    A 60 60 0 0 1 362,540
+    L 268,540
+  " stroke="white" stroke-width="60" fill="none"
+    stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Eye: exactly at path start = center of round end-cap -->
+  <circle cx="480" cy="60" r="12" fill="#b51c28"/>
+</svg>

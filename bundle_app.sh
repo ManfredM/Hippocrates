@@ -19,6 +19,3 @@ cp -r "hippocrates_editor/.build/Build/Products/Release/$APP_BUNDLE" "$OUTPUT_DI
 
 echo "Done! App created at $OUTPUT_DIR/$APP_BUNDLE"
 echo "You can run it with: open $OUTPUT_DIR/$APP_BUNDLE"
-
-echo "Done! App created at $OUTPUT_DIR/$APP_BUNDLE"
-echo "You can run it with: open $OUTPUT_DIR/$APP_BUNDLE"

@@ -1,0 +1,27 @@
+{
+  "name": "hippocrates-lang",
+  "displayName": "Hippocrates Language",
+  "description": "Syntax highlighting for the Hippocrates medical care plan DSL",
+  "version": "0.1.0",
+  "publisher": "hippocrates",
+  "license": "GPL-3.0",
+  "engines": { "vscode": "^1.75.0" },
+  "categories": ["Programming Languages"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "hippocrates",
+        "aliases": ["Hippocrates", "hipp"],
+        "extensions": [".hipp"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "hippocrates",
+        "scopeName": "source.hippocrates",
+        "path": "./syntaxes/hippocrates.tmLanguage.json"
+      }
+    ]
+  }
+}

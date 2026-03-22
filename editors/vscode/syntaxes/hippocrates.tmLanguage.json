@@ -1,0 +1,112 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Hippocrates",
+  "scopeName": "source.hippocrates",
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#definition" },
+    { "include": "#keyword" },
+    { "include": "#message-level" },
+    { "include": "#question" },
+    { "include": "#event-trigger" },
+    { "include": "#validation" },
+    { "include": "#range-operator" },
+    { "include": "#quantity" },
+    { "include": "#string" },
+    { "include": "#identifier" },
+    { "include": "#operator" },
+    { "include": "#punctuation" }
+  ],
+  "repository": {
+    "comment": {
+      "name": "comment.block.hippocrates",
+      "begin": "\\(\\*",
+      "end": "\\*\\)"
+    },
+    "definition": {
+      "match": "\\b(is\\s+a\\s+plan|is\\s+a\\s+number|is\\s+an?\\s+enumeration|is\\s+a\\s+string|is\\s+a\\s+time\\s+indication|is\\s+a\\s+date\\/time|is\\s+a\\s+period|is\\s+a\\s+drug|is\\s+an?\\s+addressee|is\\s+an?\\s+addressee\\s+group|is\\s+a\\s+unit)\\b",
+      "name": "keyword.declaration.hippocrates"
+    },
+    "keyword": {
+      "match": "\\b(valid\\s+values?|meaning\\s+of|valid\\s+meanings|meaning\\s+of\\s+value|question|timeframe|documentation|calculation|reuse|customization|context|context\\s+for\\s+analysis|timeframe\\s+for\\s+analysis|plural\\s+is|singular\\s+is|abbreviation\\s+is|definition\\s+is\\s+the\\s+same\\s+as\\s+for|during\\s+plan|begin\\s+of|change\\s+of|Not\\s+enough\\s+data|ingredients|dosage\\s+safety|maximum\\s+single\\s+dose|maximum\\s+daily\\s+dose|minimum\\s+time\\s+between\\s+doses|administration|form\\s+of\\s+administration\\s+is|interactions|assess\\s+interaction\\s+with|contact\\s+information|grouped\\s+addressees\\s+are|unit)\\b",
+      "name": "keyword.control.hippocrates"
+    },
+    "message-level": {
+      "match": "\\b(information|warning|urgent\\s+warning)\\b",
+      "name": "keyword.other.message-level.hippocrates"
+    },
+    "question": {
+      "patterns": [
+        {
+          "match": "\\b(ask\\s+for|ask|listen\\s+for|send\\s+information|start|do\\s+nothing)\\b",
+          "name": "keyword.operator.action.hippocrates"
+        },
+        {
+          "match": "\\b(validate\\s+answer\\s+once|validate\\s+answer\\s+twice|question\\s+expires\\s+after|style\\s+of\\s+question\\s+is|question\\s+style\\s+is\\s+visual\\s+analogue\\s+scale|type\\s+of\\s+question\\s+is|message\\s+expires\\s+after|best\\s+value\\s+is|worst\\s+value\\s+is|text\\s+for\\s+best\\s+value\\s+is|text\\s+for\\s+worst\\s+value\\s+is)\\b",
+          "name": "keyword.other.question-config.hippocrates"
+        }
+      ]
+    },
+    "event-trigger": {
+      "match": "\\b(every|after|for|to|with|between|ago|from\\s+now|now|assess)\\b",
+      "name": "keyword.control.trigger.hippocrates"
+    },
+    "validation": {
+      "match": "\\b(reuse\\s+period\\s+of\\s+value\\s+is|confidence\\s+of)\\b",
+      "name": "keyword.other.validation.hippocrates"
+    },
+    "range-operator": {
+      "match": "\\.\\.\\.",
+      "name": "keyword.operator.range.hippocrates"
+    },
+    "quantity": {
+      "match": "\\b(\\d+\\.?\\d*)\\s*(°F|°C|%|mmHg|mg\\/dL|mmol\\/L|bpm|mg|g|kg|lb|oz|ml|l|fl\\s+oz|gal|cm|mm|km|m|inch|foot|feet|mile|years?|months?|weeks?|days?|hours?|minutes?|seconds?)\\b",
+      "captures": {
+        "1": { "name": "constant.numeric.hippocrates" },
+        "2": { "name": "support.type.unit.hippocrates" }
+      }
+    },
+    "string": {
+      "name": "string.quoted.double.hippocrates",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [
+        {
+          "name": "constant.character.escape.hippocrates",
+          "match": "\\\\."
+        }
+      ]
+    },
+    "identifier": {
+      "name": "variable.other.identifier.hippocrates",
+      "begin": "<",
+      "end": ">",
+      "patterns": [
+        {
+          "match": "[^>]+",
+          "name": "variable.other.identifier.hippocrates"
+        }
+      ]
+    },
+    "operator": {
+      "match": "=|\\+|\\-|\\*|\\/",
+      "name": "keyword.operator.arithmetic.hippocrates"
+    },
+    "punctuation": {
+      "patterns": [
+        {
+          "match": "\\.$",
+          "name": "punctuation.terminator.hippocrates"
+        },
+        {
+          "match": ":",
+          "name": "punctuation.separator.colon.hippocrates"
+        },
+        {
+          "match": ";",
+          "name": "punctuation.separator.semicolon.hippocrates"
+        }
+      ]
+    }
+  }
+}

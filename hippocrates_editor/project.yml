@@ -1,6 +1,19 @@
 name: HippocratesEditor
 options:
   bundleIdPrefix: com.manfred
+schemes:
+  HippocratesEditor:
+    build:
+      targets:
+        HippocratesEditor: all
+        CHippocratesEngine: all
+    run:
+      config: Debug
+      executable: HippocratesEditor
+    profile:
+      config: Release
+    archive:
+      config: Release
 targets:
   HippocratesEditor:
     type: application
@@ -19,6 +32,7 @@ targets:
       OTHER_LDFLAGS:
         - -lhippocrates_engine
       INFOPLIST_FILE: Sources/Info.plist
+      ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     preBuildScripts:
       - script: "${PROJECT_DIR}/../hippocrates_engine/build_for_xcode.sh"
         name: Build Rust Engine

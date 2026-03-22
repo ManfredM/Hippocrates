@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600" width="600" height="600">
+  <defs>
+    <!-- Frosted glass blur for background refraction -->
+    <filter id="glassBlur" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="18"/>
+    </filter>
+
+    <!-- Inner shadow for glass depth -->
+    <filter id="innerShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feComponentTransfer in="SourceAlpha">
+        <feFuncA type="table" tableValues="1 0"/>
+      </feComponentTransfer>
+      <feGaussianBlur stdDeviation="4"/>
+      <feOffset dx="0" dy="2" result="shadow"/>
+      <feFlood flood-color="#000" flood-opacity="0.3" result="color"/>
+      <feComposite in="color" in2="shadow" operator="in" result="innerShadow"/>
+      <feComposite in="SourceGraphic" in2="innerShadow" operator="over"/>
+    </filter>
+
+    <!-- Drop shadow beneath the glass serpent -->
+    <filter id="dropShadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="8" result="blur"/>
+      <feOffset dx="0" dy="6" result="shifted"/>
+      <feFlood flood-color="#1a0510" flood-opacity="0.5" result="color"/>
+      <feComposite in="color" in2="shifted" operator="in" result="shadow"/>
+      <feMerge>
+        <feMergeNode in="shadow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+
+    <!-- Specular highlight gradient (top-left light source) -->
+    <linearGradient id="glassHighlight" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0%" stop-color="white" stop-opacity="0.6"/>
+      <stop offset="40%" stop-color="white" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="white" stop-opacity="0.03"/>
+    </linearGradient>
+
+    <!-- Glass body fill: semi-transparent with depth -->
+    <linearGradient id="glassFill" x1="0" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="white" stop-opacity="0.35"/>
+      <stop offset="50%" stop-color="white" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="white" stop-opacity="0.12"/>
+    </linearGradient>
+
+    <!-- Edge refraction: bright rim light -->
+    <linearGradient id="rimLight" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="white" stop-opacity="0.8"/>
+      <stop offset="50%" stop-color="white" stop-opacity="0.2"/>
+      <stop offset="100%" stop-color="white" stop-opacity="0.5"/>
+    </linearGradient>
+
+    <!-- Arterial → Venous gradient (same as original, for background) -->
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#CF2030"/>
+      <stop offset="100%" stop-color="#4A0E20"/>
+    </linearGradient>
+
+    <!-- Subtle color tint in the glass (picks up background color) -->
+    <linearGradient id="glassTint" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#CF2030" stop-opacity="0.08"/>
+      <stop offset="100%" stop-color="#4A0E20" stop-opacity="0.05"/>
+    </linearGradient>
+
+    <!-- The serpent path as a reusable shape -->
+    <path id="serpentPath" d="
+      M 480,60
+      L 180,60
+      A 60 60 0 0 0 180,180
+      L 415,180
+      A 60 60 0 0 1 415,300
+      L 220,300
+      A 60 60 0 0 0 220,420
+      L 362,420
+      A 60 60 0 0 1 362,540
+      L 268,540
+    "/>
+
+    <!-- Clip mask from the stroked serpent shape -->
+    <clipPath id="serpentClip">
+      <use href="#serpentPath" stroke="white" stroke-width="60"
+           fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </clipPath>
+  </defs>
+
+  <!-- === BACKGROUND === -->
+  <rect x="0" y="0" width="600" height="600" rx="70" ry="70" fill="url(#bgGrad)"/>
+
+  <!-- === GLASS SERPENT === -->
+  <g filter="url(#dropShadow)">
+
+    <!-- Layer 1: Glass body (translucent fill) -->
+    <use href="#serpentPath" stroke="url(#glassFill)" stroke-width="60"
+         fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Layer 2: Color tint picked up from background -->
+    <use href="#serpentPath" stroke="url(#glassTint)" stroke-width="58"
+         fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Layer 3: Specular highlight (narrower, top-biased) -->
+    <use href="#serpentPath" stroke="url(#glassHighlight)" stroke-width="50"
+         fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Layer 4: Bright edge / rim light (thin outer stroke) -->
+    <use href="#serpentPath" stroke="url(#rimLight)" stroke-width="60"
+         fill="none" stroke-linecap="round" stroke-linejoin="round"
+         opacity="0.3"/>
+
+    <!-- Layer 5: Inner bright edge (thin crisp white border) -->
+    <use href="#serpentPath" stroke="rgba(255,255,255,0.5)" stroke-width="61"
+         fill="none" stroke-linecap="round" stroke-linejoin="round"
+         opacity="0.15"/>
+
+    <!-- Layer 6: Central highlight streak (simulates light caustic) -->
+    <use href="#serpentPath" stroke="white" stroke-width="20"
+         fill="none" stroke-linecap="round" stroke-linejoin="round"
+         opacity="0.12" filter="url(#glassBlur)"/>
+  </g>
+
+  <!-- === EYE: glass void with subtle shadow === -->
+  <circle cx="480" cy="60" r="13" fill="url(#bgGrad)" opacity="0.9"/>
+  <circle cx="480" cy="60" r="13" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="1.5"/>
+  <circle cx="479" cy="59" r="4" fill="white" opacity="0.25"/>
+</svg>
