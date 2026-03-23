@@ -9,7 +9,7 @@ cd hippocrates_editor
 # Ensure project is generated
 xcodegen
 # Build
-xcodebuild -scheme HippocratesEditor -configuration Release -derivedDataPath .build build
+xcodebuild -scheme HippocratesEditor -configuration Release -derivedDataPath .build -arch arm64 build
 cd ..
 
 echo "Copying App Bundle..."

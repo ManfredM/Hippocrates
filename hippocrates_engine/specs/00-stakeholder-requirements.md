@@ -65,13 +65,19 @@ The engine shall validate scripts for correctness without executing them, report
 
 ### STKR-05 — Event-Driven Execution
 
-The engine shall support event-driven execution, reacting to scheduled times, value changes, and external triggers according to the plan's defined logic.
+The engine shall support event-driven execution, reacting to scheduled times, value changes, and external triggers according to the plan's defined logic. Periodic triggers shall support pinning to a specific time of day, and period-based triggers shall fire at every occurrence within a duration window.
 
 **Priority:** Must
 **Acceptance criteria:**
 - Given a plan with periodic triggers, change-of-value triggers, and start-of-period triggers,
 - When the engine executes the plan,
 - Then each trigger fires at the correct time and invokes the corresponding actions.
+- Given a periodic trigger with an `at 08:00` clause,
+- When the engine executes the plan,
+- Then the trigger fires at 08:00 each day, not at the plan start time.
+- Given a trigger using `every <period> for <duration>`,
+- When the engine executes the plan,
+- Then the trigger fires at every occurrence of the period within the duration window.
 
 ### STKR-06 — Simulation Mode
 
@@ -263,6 +269,16 @@ The engine shall require explicit handling of insufficient data scenarios in sta
 - When the script does not handle the "Not enough data" case,
 - Then validation fails requiring explicit handling.
 
+### STKR-36 — Plan Completion Actions
+
+Plans shall support defining actions that execute when the plan reaches its natural end, so that patients and care providers receive completion notifications without relying on timing hacks.
+
+**Priority:** Must
+**Acceptance criteria:**
+- Given a plan with an `after plan:` block,
+- When the plan's event loop finishes (all triggers exhausted),
+- Then the statements in the `after plan:` block execute exactly once.
+
 ---
 
 ## 5. Regulatory Requirements
@@ -304,3 +320,5 @@ The engine documentation shall be structured to support Class II medical device 
 | Version | Date | Changes |
 |---|---|---|
 | 1.0 | 2026-03-20 | Initial V-Model adoption from existing project documentation |
+| 1.1 | 2026-03-23 | Extended STKR-05 acceptance criteria for time-of-day pinning and period-based repetition |
+| 1.2 | 2026-03-23 | Added STKR-36 (Plan Completion Actions) for `after plan:` block |

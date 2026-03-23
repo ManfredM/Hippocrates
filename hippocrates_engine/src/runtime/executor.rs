@@ -20,6 +20,10 @@ enum EventKind {
         iteration: u64,
         interval_secs: f64,
         max_duration: Option<chrono::Duration>,
+        time_of_day: Option<chrono::NaiveTime>,
+    },
+    PeriodicByPeriod {
+        block: crate::ast::TriggerBlock,
     },
     StartOf {
         block: crate::ast::EventBlock,
@@ -169,12 +173,17 @@ impl Executor {
                     crate::ast::PlanBlock::DuringPlan(stmts) => {
                         self.execute_block(env, stmts);
                     }
+                    crate::ast::PlanBlock::AfterPlan(_) => {
+                        // AfterPlan blocks execute after the event loop, not during scheduling
+                    }
                     crate::ast::PlanBlock::Trigger(block) => {
                         match &block.trigger {
                             crate::ast::Trigger::Periodic {
                                 interval,
                                 interval_unit,
                                 duration,
+                                offset,
+                                time_of_day,
                                 ..
                             } => {
                                 let interval_secs = match interval_unit {
@@ -204,23 +213,65 @@ impl Executor {
                                     None
                                 };
 
-                                // Schedule first run immediately or after interval?
-                                // "every 1 day" usually triggers after 1 day.
-                                // Assuming after interval.
-                                let first_run = start_time
-                                    + chrono::Duration::milliseconds(
-                                        (interval_secs * 1000.0) as i64,
-                                    );
-
-                                events.push(ScheduledEvent {
-                                    time: first_run,
-                                    kind: EventKind::Periodic {
-                                        block: block.clone(),
-                                        iteration: 0,
-                                        interval_secs,
-                                        max_duration: max_dur,
-                                    },
+                                // Parse time_of_day if present
+                                let tod = time_of_day.as_ref().and_then(|t| {
+                                    chrono::NaiveTime::parse_from_str(t, "%H:%M").ok()
                                 });
+
+                                // REQ-3.8-06: If offset refers to a period, schedule at every occurrence
+                                let is_period_based = offset.as_ref().map_or(false, |name| {
+                                    env.definitions.contains_key(name)
+                                });
+
+                                if is_period_based {
+                                    let period_name = offset.as_ref().unwrap();
+                                    let window_end = if let Some(max) = &max_dur {
+                                        start_time + *max
+                                    } else {
+                                        start_time + chrono::Duration::days(365)
+                                    };
+                                    if let Some(def) = env.definitions.get(period_name).cloned() {
+                                        let occurrences = Scheduler::occurrences_in_range(&def, start_time, window_end);
+                                        for (occ_start, _occ_end) in occurrences {
+                                            let fire_time = if let Some(target_time) = tod {
+                                                occ_start.date().and_time(target_time)
+                                            } else {
+                                                occ_start
+                                            };
+                                            events.push(ScheduledEvent {
+                                                time: fire_time,
+                                                kind: EventKind::PeriodicByPeriod {
+                                                    block: block.clone(),
+                                                },
+                                            });
+                                        }
+                                    }
+                                } else {
+                                    // REQ-5-05: time-pinned scheduling
+                                    let first_run = if let Some(target_time) = tod {
+                                        let today_at_target = start_time.date().and_time(target_time);
+                                        if today_at_target > start_time {
+                                            today_at_target
+                                        } else {
+                                            (start_time.date() + chrono::Duration::days(1)).and_time(target_time)
+                                        }
+                                    } else {
+                                        start_time + chrono::Duration::milliseconds(
+                                            (interval_secs * 1000.0) as i64,
+                                        )
+                                    };
+
+                                    events.push(ScheduledEvent {
+                                        time: first_run,
+                                        kind: EventKind::Periodic {
+                                            block: block.clone(),
+                                            iteration: 0,
+                                            interval_secs,
+                                            max_duration: max_dur,
+                                            time_of_day: tod,
+                                        },
+                                    });
+                                }
                             }
                             crate::ast::Trigger::StartOf(target) => {
                                 if target == plan_name {
@@ -232,6 +283,7 @@ impl Executor {
                                             iteration: 0,
                                             interval_secs: 0.0, // 0.0 means one-shot/no repeat
                                             max_duration: None,
+                                            time_of_day: None,
                                         },
                                     });
                                 } else if let Some(def) = defs.get(target) {
@@ -337,12 +389,17 @@ impl Executor {
                         iteration,
                         interval_secs,
                         max_duration,
+                        time_of_day,
                     } => {
                         self.execute_block(env, &block.statements);
 
-                        // Reschedule
-                        let next_time =
-                            now + chrono::Duration::milliseconds((interval_secs * 1000.0) as i64);
+                        // Reschedule — pin to time_of_day if set (REQ-5-05)
+                        let next_time = if let Some(target_time) = time_of_day {
+                            let next_datetime = now + chrono::Duration::milliseconds((interval_secs * 1000.0) as i64);
+                            next_datetime.date().and_time(target_time)
+                        } else {
+                            now + chrono::Duration::milliseconds((interval_secs * 1000.0) as i64)
+                        };
                         let elapsed = next_time - start_time;
 
                         let stop = if let Some(max) = max_duration {
@@ -359,9 +416,14 @@ impl Executor {
                                     iteration: iteration + 1,
                                     interval_secs,
                                     max_duration,
+                                    time_of_day,
                                 },
                             });
                         }
+                    }
+                    EventKind::PeriodicByPeriod { block } => {
+                        // REQ-3.8-06: Pre-scheduled period occurrence, just execute
+                        self.execute_block(env, &block.statements);
                     }
                     EventKind::StartOf { block, period_name } => {
                         self.execute_block(env, &block.statements);
@@ -394,6 +456,13 @@ impl Executor {
                 }
             }
             self.next_event_time = None;
+
+            // After Plan: execute AfterPlan blocks once the event loop has finished
+            for block in &plan_def.blocks {
+                if let crate::ast::PlanBlock::AfterPlan(stmts) = block {
+                    self.execute_block(env, stmts);
+                }
+            }
         } else {
             println!(
                 "DEBUG: Plan '{}' not found. Available: {:?}",

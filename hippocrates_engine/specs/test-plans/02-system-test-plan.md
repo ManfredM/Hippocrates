@@ -112,6 +112,7 @@ Verify the complete Hippocrates engine against system requirements. Each REQ-* f
 | ST-3.7-07  | REQ-3.7-07  | `tests/spec/statements_actions.rs::spec_question_expiration_until_event_trigger_parsing`  | Question expiration supports until event triggers.                                       | Test passes         |
 | ST-3.7-08  | REQ-3.7-08  | `tests/spec/statements_actions.rs::spec_message_action_keyword_parsing`                   | Information, warning, and urgent warning are accepted as message action keywords.         | Test passes         |
 | ST-3.7-09  | REQ-3.7-09  | `tests/spec/statements_actions.rs::spec_message_expiration_parsing`                       | Message actions accept semicolon-separated addressee lists.                              | Test passes         |
+| ST-3.7-10  | REQ-3.7-10  | `tests/spec/periods_plans.rs::spec_after_plan_block_parsing`                              | `after plan:` block parses into AST and executes after event loop.                       | Test passes         |
 
 ### 4.9 — §3.8 Events and Timing
 
@@ -121,6 +122,8 @@ Verify the complete Hippocrates engine against system requirements. Each REQ-* f
 | ST-3.8-02  | REQ-3.8-02  | `tests/spec/periods_plans.rs::spec_event_block_parsing`                          | Event blocks attach statements to triggers.                      | Test passes         |
 | ST-3.8-03  | REQ-3.8-03  | `tests/spec/execution.rs::spec_scheduler_next_occurrence`                        | Scheduler computes next occurrence for periods.                  | Test passes         |
 | ST-3.8-04  | REQ-3.8-04  | `tests/spec/periods_plans.rs::spec_event_trigger_duration_and_offset_parsing`    | Periodic triggers parse duration and offsets.                    | Test passes         |
+| ST-3.8-05  | REQ-3.8-05  | `tests/spec/periods_plans.rs::spec_event_trigger_time_of_day_parsing`            | Periodic triggers parse `at <time>` clause.                      | Test passes         |
+| ST-3.8-06  | REQ-3.8-06  | `tests/integration/simulation.rs::test_period_based_repetition_within_duration`   | Period-based triggers fire at every occurrence within duration.   | All occurrences fire |
 
 ### 4.10 — §3.9 Communication & Actors
 
@@ -239,6 +242,7 @@ Verify the complete Hippocrates engine against system requirements. Each REQ-* f
 | ST-5-02  | REQ-5-02  | `tests/spec/execution.rs::spec_validity_reuse_timeframe`               | Reuse timeframes prevent re-asking within the validity window.                       | Test passes         |
 | ST-5-03  | REQ-5-03  | `tests/spec/execution.rs::spec_message_callback_missing_warns`         | Runtime emits a warning when a message action executes without a message callback.   | Test passes         |
 | ST-5-04  | REQ-5-04  | `tests/spec/execution.rs::spec_simulation_mode_execution`              | Simulation mode executes without real-time delays.                                   | Test completes in under 10 seconds |
+| ST-5-05  | REQ-5-05  | `tests/integration/simulation.rs::test_time_pinned_periodic_trigger`   | Time-pinned triggers fire at specified time, not plan start time.                    | Events at 08:00     |
 
 ### 4.22 — §5.1 Validation Logic
 
@@ -264,11 +268,11 @@ Verify the complete Hippocrates engine against system requirements. Each REQ-* f
 
 | Metric                | Count |
 |-----------------------|-------|
-| Total ST-* test cases | 94    |
-| REQ-* entries covered | 92    |
+| Total ST-* test cases | 95    |
+| REQ-* entries covered | 93    |
 | Noted gaps            | 0     |
 
-Two REQ IDs (REQ-4.2-07 and REQ-4.3-05) each map to two distinct test functions, producing 94 test cases from 92 unique requirement IDs. All requirements from the traceability matrix are covered; no gaps are noted.
+Two REQ IDs (REQ-4.2-07 and REQ-4.3-05) each map to two distinct test functions, producing 95 test cases from 93 unique requirement IDs. All requirements from the traceability matrix are covered; no gaps are noted.
 
 ## Revision History
 
@@ -276,3 +280,5 @@ Two REQ IDs (REQ-4.2-07 and REQ-4.3-05) each map to two distinct test functions,
 |-----|------------|--------|------------------------|
 | 1.0 | 2026-03-20 | —      | Initial version        |
 | 1.1 | 2026-03-20 | —      | Added ST-5-04 (simulation mode, REQ-5-04). |
+| 1.2 | 2026-03-23 | —      | Added ST-3.8-05, ST-3.8-06, ST-5-05 (time-of-day and period repetition). |
+| 1.3 | 2026-03-23 | —      | Added ST-3.7-10 (`after plan:` block). |

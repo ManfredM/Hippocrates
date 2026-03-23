@@ -91,12 +91,13 @@ Validation produces a `Vec<EngineError>` with source locations. The FFI exposes 
 
 ### DES-13 — Runtime Executor
 
-The executor (`runtime/executor.rs`) is an event-driven engine built on a `BinaryHeap<ScheduledEvent>` (min-heap by time). It supports two event kinds:
+The executor (`runtime/executor.rs`) is an event-driven engine built on a `BinaryHeap<ScheduledEvent>` (min-heap by time). It supports three event kinds:
 
-- **`Periodic`** — recurring triggers with interval, iteration counter, and optional max duration.
+- **`Periodic`** — recurring triggers with interval, iteration counter, optional max duration, and optional time-of-day pinning (REQ-3.8-05, REQ-5-05).
+- **`PeriodicByPeriod`** — pre-scheduled events for each occurrence of a named period within a duration window (REQ-3.8-06). All occurrences are enumerated up front via the Scheduler.
 - **`StartOf`** — period-triggered events scheduled via the Scheduler.
 
-The event loop pops events in chronological order, advances environment time, drains pending inputs, executes statement blocks via AST-walking, and reschedules recurring events. A sliding 30-day window is used for period-based event scheduling.
+The event loop pops events in chronological order, advances environment time, drains pending inputs, executes statement blocks via AST-walking, and reschedules recurring events. A sliding 30-day window is used for period-based event scheduling. When a time-of-day is specified, both initial scheduling and rescheduling pin to the target time. After the event loop exits (all triggers exhausted or simulation time limit reached), the executor iterates plan blocks looking for `AfterPlan` blocks and executes their statements exactly once.
 
 ### DES-14 — Scheduler
 
@@ -332,7 +333,7 @@ These divergences reflect pragmatic design decisions made during implementation.
 | DES-10 | Pest PEG parser | STKR-01, STKR-02 |
 | DES-11 | AST representation | STKR-01 |
 | DES-12 | Multi-layer validator | STKR-04, STKR-10, STKR-30, STKR-31, STKR-32, STKR-33, STKR-34, STKR-35 |
-| DES-13 | Runtime executor | STKR-01, STKR-05 |
+| DES-13 | Runtime executor | STKR-01, STKR-05, STKR-36 |
 | DES-14 | Scheduler | STKR-05 |
 | DES-15 | Environment (state store) | STKR-15, STKR-16, STKR-19 |
 | DES-16 | Evaluator | STKR-01, STKR-12 |
@@ -363,3 +364,5 @@ These divergences reflect pragmatic design decisions made during implementation.
 | Version | Date | Changes |
 |---|---|---|
 | 1.0 | 2026-03-20 | Initial system design document reflecting actual implementation |
+| 1.1 | 2026-03-23 | Updated DES-13: added PeriodicByPeriod event kind and time-of-day pinning |
+| 1.2 | 2026-03-23 | Updated DES-13: added AfterPlan block execution after event loop exit. Added STKR-36 traceability. |

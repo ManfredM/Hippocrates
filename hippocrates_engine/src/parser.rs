@@ -274,6 +274,11 @@ fn parse_plan_block(pair: pest::iterators::Pair<Rule>) -> Result<PlanBlock, Pars
             let stmts = parse_block(block_body)?;
             Ok(PlanBlock::DuringPlan(stmts))
         }
+        Rule::after_plan_block => {
+            let block_body = inner.into_inner().next().unwrap();
+            let stmts = parse_block(block_body)?;
+            Ok(PlanBlock::AfterPlan(stmts))
+        }
         Rule::event_block => {
             let mut e_inner = inner.into_inner();
             let name = parse_identifier_str(e_inner.next().unwrap());
@@ -585,6 +590,7 @@ fn parse_event_trigger(pair: pest::iterators::Pair<Rule>) -> Result<Trigger, Par
         let mut quantities = Vec::new();
         let mut anchor = None;
         let mut specific_day = None;
+        let mut time_of_day = None;
 
         for child in inner {
             match child.as_rule() {
@@ -594,6 +600,9 @@ fn parse_event_trigger(pair: pest::iterators::Pair<Rule>) -> Result<Trigger, Par
                 }
                 Rule::weekday => {
                      specific_day = Some(child.as_str().to_string());
+                }
+                Rule::time_literal => {
+                     time_of_day = Some(child.as_str().to_string());
                 }
                 _ => {}
             }
@@ -613,7 +622,7 @@ fn parse_event_trigger(pair: pest::iterators::Pair<Rule>) -> Result<Trigger, Par
                  duration = Some(quantities[1].clone());
              }
         }
-        
+
         if specific_day.is_some() && !quantities.is_empty() {
              duration = Some(quantities[0].clone());
         }
@@ -624,6 +633,7 @@ fn parse_event_trigger(pair: pest::iterators::Pair<Rule>) -> Result<Trigger, Par
             duration,
             offset: anchor,
             specific_day,
+            time_of_day,
         });
     }
 

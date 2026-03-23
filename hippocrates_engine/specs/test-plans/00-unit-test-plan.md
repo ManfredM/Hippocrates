@@ -188,6 +188,9 @@ Tests in `tests/spec/periods_plans.rs` verify DDR-PARSER-02 (AST node hierarchy 
 | UT-PERIODS-03  | `tests/spec/periods_plans.rs::spec_event_trigger_parsing`                          | Event triggers parse for change/start/periodic.                  | DDR-PARSER-02 |
 | UT-PERIODS-04  | `tests/spec/periods_plans.rs::spec_event_trigger_duration_and_offset_parsing`      | Periodic triggers parse duration and offsets.                    | DDR-PARSER-02 |
 | UT-PERIODS-05  | `tests/spec/periods_plans.rs::spec_event_block_parsing`                            | Event blocks attach statements to triggers.                      | DDR-PARSER-02 |
+| UT-PERIODS-06  | `tests/spec/periods_plans.rs::spec_event_trigger_time_of_day_parsing`              | Periodic triggers parse `at <time>` clause into `time_of_day`.   | DDR-RT-09     |
+| UT-PERIODS-07  | `tests/spec/periods_plans.rs::spec_event_trigger_weekday_with_time_parsing`        | Weekday triggers parse `at <time>` clause.                       | DDR-RT-09     |
+| UT-PLAN-01     | `tests/spec/periods_plans.rs::spec_after_plan_block_parsing`                       | `after plan:` block parses into `PlanBlock::AfterPlan` AST node. | DDR-RT-10     |
 
 ### 4.8 UT-ACTIONS-* --- Action and Statement Tests
 
@@ -280,14 +283,15 @@ Tests in `tests/formatter.rs` verify DDR-FMT-01 (formatter `format_script`).
 | RT           | DDR-RT-01, DDR-RT-02, DDR-RT-03, DDR-RT-04, DDR-RT-05, DDR-RT-06, DDR-RT-07, DDR-RT-08 | 17   |
 | VALUES       | DDR-PARSER-02                                          | 7          |
 | UNITS        | DDR-DOM-02, DDR-PARSER-01, DDR-VAL-02, DDR-VAL-03      | 7          |
-| PERIODS      | DDR-PARSER-02                                          | 5          |
+| PERIODS      | DDR-PARSER-02, DDR-RT-10                               | 5          |
+| PLAN         | DDR-RT-10                                              | 1          |
 | ACTIONS      | DDR-PARSER-01, DDR-PARSER-02                           | 10         |
 | ACTORS       | DDR-PARSER-02, DDR-VAL-02                              | 5          |
 | CTX          | DDR-PARSER-02, DDR-RT-04                               | 9          |
 | FIX          | DDR-PARSER-04                                          | 1          |
 | FFI          | DDR-FFI-01, DDR-FFI-02, DDR-FFI-03, DDR-FFI-07, DDR-FFI-08, DDR-FFI-09, DDR-FFI-10, DDR-FFI-11 | 10 |
 | FMT          | DDR-FMT-01                                             | 2          |
-| **Total**    |                                                        | **127**    |
+| **Total**    |                                                        | **128**    |
 
 ### Gaps
 
@@ -306,3 +310,5 @@ Tests in `tests/formatter.rs` verify DDR-FMT-01 (formatter `format_script`).
 |---------|------------|--------|-----------------|
 | 1.0     | 2026-03-20 | ---    | Initial release |
 | 1.1     | 2026-03-20 | ---    | Added UT-FFI-01..10 (FFI tests), UT-RT-15..17 (environment/history/simulation), UT-FMT-01..02 (formatter). Closed DDR-FFI, DDR-RT-02, DDR-RT-08, DDR-FMT-01 gaps. |
+| 1.2     | 2026-03-23 | ---    | Added UT-PERIODS-06, UT-PERIODS-07 for time-of-day parsing (DDR-RT-09). |
+| 1.3     | 2026-03-23 | ---    | Added UT-PLAN-01 for `after plan:` block parsing (DDR-RT-10). |

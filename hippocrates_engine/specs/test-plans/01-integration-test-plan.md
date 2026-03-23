@@ -117,6 +117,14 @@ All integration tests are marked `#[ignore]` and require the `--ignored` flag to
 | ID     | Test function                                                          | Description                                                                                   | DES ref(s)           | Fixtures |
 |--------|------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|----------------------|----------|
 | IT-25  | `stop_signal.rs::test_stop_signal_terminates_execution`                | Verifies stop signal terminates a long-running simulation early.                              | DES-43               | None     |
+| IT-26  | `simulation.rs::test_time_pinned_periodic_trigger`                    | Simulates a plan with `every 1 day at 08:00 for 3 days` starting at 06:00; asserts events fire at 08:00 each day. | DES-13               | REQ-5-05 |
+| IT-27  | `simulation.rs::test_period_based_repetition_within_duration`          | Simulates `every <period> for 2 weeks` with a Mon-Fri 08:00 period; asserts events fire at every weekday occurrence (10 times). | DES-13, DES-14       | REQ-3.8-06 |
+
+### 4.13 -- After Plan Execution
+
+| ID     | Test function                                                          | Description                                                                                   | DES ref(s)           | Fixtures |
+|--------|------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------|----------------------|----------|
+| IT-28  | `simulation.rs::test_after_plan_block_execution`                       | Simulates a plan with an `after plan:` block; asserts that statements in the block execute exactly once after the event loop finishes. | DES-13               | None     |
 
 ## 5. Coverage Summary
 
@@ -125,7 +133,7 @@ All integration tests are marked `#[ignore]` and require the `--ignored` flag to
 | DES-10  | Parser (Pest PEG)                  | IT-01 .. IT-12, IT-18, IT-24         |
 | DES-11  | AST representation                 | IT-03                                |
 | DES-12  | Multi-layer validator              | IT-01, IT-02                         |
-| DES-13  | Runtime executor                   | IT-02, IT-07 .. IT-13, IT-16, IT-17, IT-20 |
+| DES-13  | Runtime executor                   | IT-02, IT-07 .. IT-13, IT-16, IT-17, IT-20, IT-26, IT-27, IT-28 |
 | DES-14  | Scheduler                          | IT-18, IT-19, IT-20, IT-21           |
 | DES-15  | Environment (state store)          | IT-02, IT-07 .. IT-12, IT-14, IT-15  |
 | DES-16  | Evaluator                          | IT-10 .. IT-12, IT-14, IT-15         |
@@ -146,3 +154,5 @@ DES-01 (language selection), DES-02 (dual crate output), DES-03 (C-FFI boundary)
 |-----|------------|--------|------------------------|
 | 1.0 | 2026-03-20 | --     | Initial version        |
 | 1.1 | 2026-03-20 | --     | Added IT-25 (stop signal). Closed DES-43 gap. |
+| 1.2 | 2026-03-23 | --     | Added IT-26 (time-pinned triggers), IT-27 (period-based repetition). |
+| 1.3 | 2026-03-23 | --     | Added IT-28 (after plan block execution). |

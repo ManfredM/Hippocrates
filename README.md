@@ -105,14 +105,14 @@ In short: **AI is the author. Hippocrates is the safety net.**
 - **Event-Driven Execution** -- Plans react to time windows, value changes, and external triggers. Scheduling is built into the language.
 - **No Comparison Operators** -- Instead of `<`, `>`, `<=`, `>=`, Hippocrates uses ranges (`0 ... 10`). This eliminates off-by-one errors and forces explicit boundary thinking.
 - **Double-Entry Validation** -- Built-in syntax for verifying critical data entry.
-- **Localization Support** -- Scripts can be automatically translated to supported languages.
+- **Localization Support** -- The language is designed to support translation of scripts (not yet implemented).
 - **Platform Agnostic** -- The engine is a Rust library with a C FFI, embeddable in any host application.
 
 ## Language Concepts
 
 ### Definitions
 
-Everything in Hippocrates is a **definition**. A care plan is built from these building blocks:
+Everything in Hippocrates is a **definition**. A care plan is built from these building blocks (shown as syntax fragments — see [`hippocrates_engine/examples/`](hippocrates_engine/examples/) for complete runnable files):
 
 ```ruby
 <body temperature> is a number:           (* a numeric value with units *)
@@ -261,7 +261,7 @@ urgent warning to <physician> "Immediate attention required.".
 </p>
 
 - **Engine**: Rust (edition 2024), using `pest` for PEG parsing, `serde` for serialization, `chrono` for timezone-aware time handling
-- **Editor**: Native macOS app in SwiftUI with Swift Charts for timeline visualization
+- **Editor**: Native macOS app in SwiftUI with timeline visualization
 - **Integration**: C FFI layer for embedding in any platform (iOS, Android, web, server)
 
 ## Getting Started

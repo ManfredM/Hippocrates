@@ -1,0 +1,25 @@
+{
+  "<body temperature>": [
+    { "value": 37.2, "unit": "°C" },
+    { "value": 37.8, "unit": "°C" },
+    { "value": 37.5, "unit": "°C" },
+    { "value": 37.3, "unit": "°C" },
+    { "value": 37.1, "unit": "°C" },
+    { "value": 36.9, "unit": "°C" },
+    { "value": 36.8, "unit": "°C" },
+    { "value": 36.7, "unit": "°C" },
+    { "value": 36.6, "unit": "°C" },
+    { "value": 36.5, "unit": "°C" }
+  ],
+  "<pain level>": [
+    { "value": 6, "unit": "points" },
+    { "value": 5, "unit": "points" },
+    { "value": 5, "unit": "points" },
+    { "value": 4, "unit": "points" },
+    { "value": 3, "unit": "points" },
+    { "value": 3, "unit": "points" },
+    { "value": 2, "unit": "points" },
+    { "value": 2, "unit": "points" },
+    { "value": 1, "unit": "points" }
+  ]
+}

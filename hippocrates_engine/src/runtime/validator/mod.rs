@@ -301,6 +301,7 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
                       if is_plan_start_block(&pd.name, block) {
                            let statements = match block {
                                crate::ast::PlanBlock::DuringPlan(s) => s,
+                               crate::ast::PlanBlock::AfterPlan(s) => s,
                                crate::ast::PlanBlock::Trigger(t) => &t.statements,
                                crate::ast::PlanBlock::Event(e) => &e.statements,
                            };
@@ -315,6 +316,7 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
                  for (block_index, block) in pd.blocks.iter().enumerate() {
                       let statements = match block {
                           crate::ast::PlanBlock::DuringPlan(s) => s,
+                          crate::ast::PlanBlock::AfterPlan(s) => s,
                           crate::ast::PlanBlock::Event(e) => &e.statements,
                           crate::ast::PlanBlock::Trigger(t) => &t.statements,
                       };
@@ -462,6 +464,7 @@ fn collect_statistical_values(plan: &Plan) -> HashSet<String> {
                 for block in &pd.blocks {
                     let statements = match block {
                         crate::ast::PlanBlock::DuringPlan(s) => s,
+                        crate::ast::PlanBlock::AfterPlan(s) => s,
                         crate::ast::PlanBlock::Event(e) => &e.statements,
                         crate::ast::PlanBlock::Trigger(t) => &t.statements,
                     };

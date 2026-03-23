@@ -736,16 +736,17 @@ struct ScheduledEvent {
 Implements reverse `Ord` for min-heap behavior in `BinaryHeap` (earliest event pops first).
 
 **EventKind variants:**
-- `Periodic { block, iteration, interval_secs, max_duration }` -- a repeating trigger block.
+- `Periodic { block, iteration, interval_secs, max_duration, time_of_day }` -- a repeating trigger block. When `time_of_day` is `Some(NaiveTime)`, both initial scheduling and rescheduling pin to that time (REQ-5-05).
+- `PeriodicByPeriod { block }` -- a pre-scheduled event for a single occurrence of a named period within a duration window (REQ-3.8-06). All occurrences are enumerated at plan start via `Scheduler::occurrences_in_range`; no rescheduling.
 - `StartOf { block, period_name }` -- fires at the start of a period.
 
 **Execution flow (`execute_plan`):**
 1. Clone definitions from environment.
 2. Drain initial inputs.
 3. Process `DuringPlan` blocks immediately.
-4. Schedule `Periodic` triggers into the `BinaryHeap` with calculated first-run times (interval converted to seconds).
+4. Schedule `Periodic` triggers into the `BinaryHeap` with calculated first-run times. If `time_of_day` is set, pin first run to that time on the first eligible day. If the trigger references a named period (offset is a defined period name) and has a duration, use `Scheduler::occurrences_in_range` to enumerate all occurrences and schedule each as `PeriodicByPeriod`.
 5. Schedule `StartOf` triggers by querying the scheduler for next period occurrences.
-6. Enter event loop: pop events from the heap, advance `env.now`, execute associated statement blocks, reschedule periodic events, drain input channel between events.
+6. Enter event loop: pop events from the heap, advance `env.now`, execute associated statement blocks, reschedule `Periodic` events (pinning to time_of_day when set), execute `PeriodicByPeriod` events without rescheduling, drain input channel between events.
 7. Exit when: heap is empty, stop signal is set, or simulation duration is exceeded.
 
 **Input handling:**
@@ -890,6 +891,48 @@ pub enum ExecutionMode {
 | `RealTime`    | The executor waits for real time to pass between scheduled events. Input is received via the `mpsc` channel from external sources. The event loop blocks on channel receive with timeout until the next event time. |
 | `Simulation`  | Events are processed as fast as possible without real-time delays. `speed_factor: None` means instant execution. `duration` optionally limits the total simulated time span. The executor advances `env.now` to each event's scheduled time without waiting. |
 
+### DDR-RT-09: Time-of-Day Pinning and Period-Based Repetition
+
+**Traces to:** DES-13, REQ-3.8-05, REQ-3.8-06, REQ-5-05
+
+**AST change** (`src/ast.rs`):
+- `Trigger::Periodic` gains `time_of_day: Option<String>` field (`#[serde(default)]`), storing a `"HH:MM"` literal when the `at` clause is present.
+
+**Grammar change** (`src/grammar.pest`):
+- Both `every` forms in `event_trigger` gain an optional `("at" ~ time_literal)?` clause between the quantity/identifier and the `for` clause.
+
+**Parser change** (`src/parser.rs`):
+- `parse_event_trigger` collects `Rule::time_literal` tokens into the new `time_of_day` field.
+
+**Executor change** (`src/runtime/executor.rs`):
+
+1. **Time-pinned scheduling (REQ-5-05):** When `time_of_day` is `Some`, the first run is scheduled at that time on the current day (or next day if already past). Rescheduling advances by `interval_secs` then pins to the target time on the resulting date.
+
+2. **Period-based repetition (REQ-3.8-06):** When a `Trigger::Periodic` has `offset` referring to a defined period and `duration` is set, the executor uses `Scheduler::occurrences_in_range(def, start_time, start_time + duration)` to enumerate all occurrences and pre-schedules each as `EventKind::PeriodicByPeriod { block }`. These events execute once without rescheduling.
+
+**Formatter change** (`src/formatter.rs`):
+- Periodic trigger formatting emits `at HH:MM` when `time_of_day` is present.
+
+### DDR-RT-10: After Plan Execution
+
+**Traces to:** DES-13, REQ-3.7-10, STKR-36
+
+**AST change** (`src/ast.rs`):
+- `PlanBlock` enum gains an `AfterPlan(Vec<Statement>)` variant, representing the `after plan:` block.
+
+**Grammar change** (`src/grammar.pest`):
+- `plan_block` gains `after_plan_block` as an alternative: `plan_block = { during_plan_block | after_plan_block | trigger_block | event_block }`.
+- `after_plan_block = { "after plan" ~ flexible_block }`.
+
+**Parser change** (`src/parser.rs`):
+- `parse_plan_block` handles `Rule::after_plan_block` by parsing the contained statements and producing `PlanBlock::AfterPlan(stmts)`.
+
+**Executor change** (`src/runtime/executor.rs`):
+- After the event loop in `execute_plan` exits (heap empty or stop signal), the executor iterates `plan_def.blocks` and executes any `PlanBlock::AfterPlan(stmts)` blocks exactly once via the standard statement execution path.
+
+**Formatter change** (`src/formatter.rs`):
+- `format_script` emits `after plan:` with proper indentation when encountering an `AfterPlan` block, mirroring the `during plan:` formatting logic.
+
 ---
 
 ## 7. Formatter
@@ -932,6 +975,8 @@ Defined in `src/formatter.rs`.
 | DDR-RT-06       | DES-17                 | Session |
 | DDR-RT-07       | DES-15                 | Environment (input validation) |
 | DDR-RT-08       | DES-13                 | Executor (modes) |
+| DDR-RT-09       | DES-13                 | Executor (time-of-day pinning, period repetition) |
+| DDR-RT-10       | DES-13                 | Executor (after plan execution) |
 | DDR-FMT-01      | DES-19                 | Formatter |
 
 ---
@@ -941,3 +986,5 @@ Defined in `src/formatter.rs`.
 | Version | Date       | Author | Changes |
 |---------|------------|--------|---------|
 | 1.0     | 2026-03-20 | --     | Initial draft. Full module inventory, C-FFI interface (DDR-FFI-01 through DDR-FFI-19), domain model (DDR-DOM-01 through DDR-DOM-06), parser (DDR-PARSER-01 through DDR-PARSER-04), validator (DDR-VAL-01 through DDR-VAL-06), runtime (DDR-RT-01 through DDR-RT-08), formatter (DDR-FMT-01), and traceability matrix. |
+| 1.1     | 2026-03-23 | V-Model | Added DDR-RT-09 (time-of-day pinning, period repetition). Updated DDR-RT-03 EventKind variants and execution flow. |
+| 1.2     | 2026-03-23 | V-Model | Added DDR-RT-10 (after plan execution). PlanBlock gains AfterPlan variant; executor runs AfterPlan blocks after event loop exit. |

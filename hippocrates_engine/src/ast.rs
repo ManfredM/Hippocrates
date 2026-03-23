@@ -66,6 +66,7 @@ pub struct PlanDef {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PlanBlock {
     DuringPlan(Vec<Statement>),
+    AfterPlan(Vec<Statement>),
     Event(EventBlock),
     Trigger(TriggerBlock),
 }
@@ -91,6 +92,8 @@ pub enum Trigger {
         duration: Option<(f64, Unit)>,
         offset: Option<String>,
         specific_day: Option<String>,
+        #[serde(default)]
+        time_of_day: Option<String>,
     },
     StartOf(String),
     ChangeOf(String),

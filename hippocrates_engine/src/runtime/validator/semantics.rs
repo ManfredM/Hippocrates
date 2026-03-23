@@ -208,7 +208,7 @@ pub fn check_timeframe_period_references(defs: &HashMap<String, Definition>, err
             Definition::Plan(p) => {
                 for block in &p.blocks {
                     match block {
-                        PlanBlock::DuringPlan(stmts) => {
+                        PlanBlock::DuringPlan(stmts) | PlanBlock::AfterPlan(stmts) => {
                             for stmt in stmts {
                                 check_statement_timeframes(stmt, &period_names, errors);
                             }

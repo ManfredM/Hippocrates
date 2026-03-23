@@ -94,9 +94,9 @@ This plan validates that the Hippocrates engine meets stakeholder needs as defin
 | **STKR Reference** | STKR-05 |
 | **Description** | Confirm the engine reacts to scheduled times, value changes, and external triggers according to the plan's defined logic. |
 | **Verification Method** | Automated |
-| **Pass Criteria** | Given a plan with periodic triggers, change-of-value triggers, and start-of-period triggers, when the engine executes the plan, then each trigger fires at the correct time and invokes the corresponding actions. |
-| **Status** | Not Started |
-| **Evidence** | Simulation tests exercising periodic, change, and start triggers; cross-reference ST-\* trigger tests. |
+| **Pass Criteria** | (1) Given a plan with periodic triggers, change-of-value triggers, and start-of-period triggers, when the engine executes the plan, then each trigger fires at the correct time and invokes the corresponding actions. (2) Given a periodic trigger with `at 08:00`, events fire at 08:00 each day. (3) Given `every <period> for <duration>`, events fire at every period occurrence within the window. |
+| **Status** | Evidence Available |
+| **Evidence** | ST-3.8-01..06, ST-5-05; IT-26 (time-pinned), IT-27 (period repetition); UT-PERIODS-06, UT-PERIODS-07. |
 
 #### AT-06 — Simulation Mode
 
@@ -304,6 +304,17 @@ This plan validates that the Hippocrates engine meets stakeholder needs as defin
 | **Status** | Not Started |
 | **Evidence** | REQ-4.6-\* tests. |
 
+#### AT-36 — Plan Completion Actions
+
+| Field | Value |
+|---|---|
+| **STKR Reference** | STKR-36 |
+| **Description** | Confirm that plans support defining actions that execute when the plan reaches its natural end, so that patients and care providers receive completion notifications. |
+| **Verification Method** | Automated |
+| **Pass Criteria** | Given a plan with an `after plan:` block, when the plan's event loop finishes (all triggers exhausted), then the statements in the `after plan:` block execute exactly once. |
+| **Status** | Not Started |
+| **Evidence** | ST-3.7-10 (system test); UT-PLAN-01 (unit test); IT-28 (integration test). |
+
 ---
 
 ### 4.4 Regulatory (STKR-40 through STKR-42)
@@ -370,11 +381,12 @@ This plan validates that the Hippocrates engine meets stakeholder needs as defin
 | STKR-33 | AT-33 | Automated | Not Started |
 | STKR-34 | AT-34 | Automated | Not Started |
 | STKR-35 | AT-35 | Automated | Not Started |
+| STKR-36 | AT-36 | Automated | Not Started |
 | STKR-40 | AT-40 | Documentation | Not Started |
 | STKR-41 | AT-41 | Automated | Not Started |
 | STKR-42 | AT-42 | Documentation | Not Started |
 
-All 26 stakeholder requirements are covered by acceptance test cases.
+All 27 stakeholder requirements are covered by acceptance test cases.
 
 ---
 
@@ -384,3 +396,5 @@ All 26 stakeholder requirements are covered by acceptance test cases.
 |---|---|---|
 | 1.0 | 2026-03-20 | Initial acceptance test plan |
 | 1.1 | 2026-03-20 | Updated AT-03, AT-06, AT-16, AT-19 with automated evidence references. |
+| 1.2 | 2026-03-23 | Updated AT-05 with time-of-day and period repetition acceptance criteria and evidence. |
+| 1.3 | 2026-03-23 | Added AT-36 (Plan Completion Actions) for STKR-36. |

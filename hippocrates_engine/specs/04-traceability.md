@@ -49,6 +49,7 @@ This table inverts the traceability header from `01-system-requirements.md`, sho
 | STKR-33 | §4.3 | Data flow validation |
 | STKR-34 | §5.2 | Input precision validation |
 | STKR-35 | §3.12, §4.6 | Data sufficiency handling |
+| STKR-36 | §3.7 | Plan completion actions (`after plan:` block) |
 | STKR-40 | _(Meta-requirement)_ | Requirements traceability |
 | STKR-41 | _(Meta-requirement)_ | Reproducible verification |
 | STKR-42 | _(Meta-requirement)_ | Class II documentation readiness |
@@ -96,7 +97,7 @@ This table maps DES-* design elements to DDR-* detailed design elements, derived
 | DES-10 | DDR-PARSER-01..04 | Parser (PEG grammar, AST construction, indentation, entry point) |
 | DES-11 | DDR-DOM-01..06, DDR-PARSER-02 | AST representation and domain model types |
 | DES-12 | DDR-VAL-01..06 | Multi-layer validator (pipeline, semantics, intervals, data flow, coverage, error reporting) |
-| DES-13 | DDR-RT-01, DDR-RT-03, DDR-RT-08 | Runtime executor (Engine struct, Executor, execution modes) |
+| DES-13 | DDR-RT-01, DDR-RT-03, DDR-RT-08, DDR-RT-10 | Runtime executor (Engine struct, Executor, execution modes, after plan) |
 | DES-14 | DDR-RT-05 | Scheduler |
 | DES-15 | DDR-DOM-01..06, DDR-RT-02, DDR-RT-07 | Environment (state store, domain types, input validation) |
 | DES-16 | DDR-RT-04 | Evaluator |
@@ -168,12 +169,15 @@ This section adopts the content from `tests/spec/TRACEABILITY.md` verbatim. All 
 - REQ-3.7-07 -- `tests/spec/statements_actions.rs::spec_question_expiration_until_event_trigger_parsing` -- question expiration supports until event triggers.
 - REQ-3.7-08 -- `tests/spec/statements_actions.rs::spec_message_action_keyword_parsing` -- information, warning, and urgent warning are accepted as message action keywords.
 - REQ-3.7-09 -- `tests/spec/statements_actions.rs::spec_message_expiration_parsing` -- message actions accept semicolon-separated addressee lists.
+- REQ-3.7-10 -- `tests/spec/periods_plans.rs::spec_after_plan_block_parsing` -- `after plan:` block parses into `PlanBlock::AfterPlan` AST node.
 
 ### 5.9 -- Section 3.8: Events and Timing
 - REQ-3.8-01 -- `tests/spec/periods_plans.rs::spec_event_trigger_parsing` -- event triggers parse for change/start/periodic.
 - REQ-3.8-02 -- `tests/spec/periods_plans.rs::spec_event_block_parsing` -- event blocks attach statements to triggers.
 - REQ-3.8-03 -- `tests/spec/execution.rs::spec_scheduler_next_occurrence` -- scheduler computes next occurrence for periods.
 - REQ-3.8-04 -- `tests/spec/periods_plans.rs::spec_event_trigger_duration_and_offset_parsing` -- periodic triggers parse duration and offsets.
+- REQ-3.8-05 -- `tests/spec/periods_plans.rs::spec_event_trigger_time_of_day_parsing` -- periodic triggers parse `at <time>` clause.
+- REQ-3.8-06 -- `tests/integration/simulation.rs::test_period_based_repetition_within_duration` -- period-based triggers fire at every occurrence within duration window.
 
 ### 5.10 -- Section 3.9: Communication and Actors
 - REQ-3.9-01 -- `tests/spec/actors_drugs.rs::spec_addressee_group_and_contact_logic_parsing` -- addressee groups and contact logic parse.
@@ -255,6 +259,7 @@ This section adopts the content from `tests/spec/TRACEABILITY.md` verbatim. All 
 - REQ-5-01 -- `tests/spec/execution.rs::spec_runtime_execution_flow` -- runtime executes assignments and actions in order.
 - REQ-5-02 -- `tests/spec/execution.rs::spec_validity_reuse_timeframe` -- reuse timeframes prevent re-asking within the validity window.
 - REQ-5-03 -- `tests/spec/execution.rs::spec_message_callback_missing_warns` -- runtime emits a warning when a message action executes without a message callback.
+- REQ-5-05 -- `tests/integration/simulation.rs::test_time_pinned_periodic_trigger` -- time-pinned triggers fire at specified time, not plan start time.
 
 ### 5.22 -- Section 5.1: Validation Logic
 - REQ-5.1-01 -- `tests/spec/validation.rs::spec_validate_plan_fixture_suite` -- full-plan validation passes for a complete plan.
@@ -273,10 +278,10 @@ This section adopts the content from `tests/spec/TRACEABILITY.md` verbatim. All 
 
 | V-Model Level | Test Plan | Test ID Prefix | # Test Cases | Coverage |
 |---|---|---|---|---|
-| Stakeholder Req (STKR) | `test-plans/03-acceptance-test-plan.md` | AT-\* | 26 | 100% (all 26 STKR covered) |
-| System Req (REQ) | `test-plans/02-system-test-plan.md` | ST-\* | 94 | 100% (92 unique REQ IDs, 94 test cases) |
-| System Design (DES) | `test-plans/01-integration-test-plan.md` | IT-\* | 25 | 14/33 DES elements directly covered (~42%) |
-| Detailed Design (DDR) | `test-plans/00-unit-test-plan.md` | UT-\* | 127 | 25/28 DDR elements covered (~89%) |
+| Stakeholder Req (STKR) | `test-plans/03-acceptance-test-plan.md` | AT-\* | 27 | 100% (all 27 STKR covered) |
+| System Req (REQ) | `test-plans/02-system-test-plan.md` | ST-\* | 95 | 100% (93 unique REQ IDs, 95 test cases) |
+| System Design (DES) | `test-plans/01-integration-test-plan.md` | IT-\* | 28 | 14/33 DES elements directly covered (~42%) |
+| Detailed Design (DDR) | `test-plans/00-unit-test-plan.md` | UT-\* | 128 | 26/29 DDR elements covered (~90%) |
 
 **Notes on DES coverage:** DES elements not covered by integration tests (DES-01, DES-02, DES-03, DES-19, DES-20..DES-26, DES-30, DES-33, DES-34, DES-40) are either architectural constraints verified by successful compilation, dependency declarations, or host-side concerns outside the scope of Rust integration tests. DES-43 (stop signal) is now covered by IT-25.
 
@@ -294,7 +299,7 @@ The master matrix traces each stakeholder requirement through all V-Model levels
 | STKR-02 | §2, §3.1-3.3 | DES-10, DES-11, DES-19 | DDR-PARSER-01..04, DDR-FMT-01 | UT-PARSER-\*, UT-VALUES-\*, UT-FIX-01, UT-CTX-05..08 | IT-03..IT-06 | ST-2-\*, ST-3.1-\*, ST-3.2-\*, ST-3.3-01 | AT-02 | Covered |
 | STKR-03 | _(architectural)_ | DES-01, DES-02, DES-03, DES-18, DES-22, DES-24, DES-30..DES-34 | DDR-FFI-01..19 | UT-FFI-01..10 | IT-23 | _(no ST)_ | AT-03 | Covered |
 | STKR-04 | §5.1 | DES-12 | DDR-VAL-01..06 | UT-VAL-01..37 | IT-01, IT-02 | ST-5.1-01 | AT-04 | Covered |
-| STKR-05 | §3.5, §3.7, §3.8, §5 | DES-13, DES-14, DES-17, DES-21, DES-31, DES-40..DES-43 | DDR-RT-01, DDR-RT-03..DDR-RT-06, DDR-RT-08, DDR-PARSER-02 | UT-PERIODS-\*, UT-RT-08, UT-RT-10, UT-RT-14 | IT-07..IT-13, IT-16..IT-22 | ST-3.5-\*, ST-3.7-\*, ST-3.8-\*, ST-5-\* | AT-05 | Covered |
+| STKR-05 | §3.5, §3.7, §3.8, §5 | DES-13, DES-14, DES-17, DES-21, DES-31, DES-40..DES-43 | DDR-RT-01, DDR-RT-03..DDR-RT-06, DDR-RT-08, DDR-RT-09, DDR-PARSER-02 | UT-PERIODS-\*, UT-RT-08, UT-RT-10, UT-RT-14 | IT-07..IT-13, IT-16..IT-22 | ST-3.5-\*, ST-3.7-\*, ST-3.8-\*, ST-5-\* | AT-05 | Covered |
 | STKR-06 | _(architectural)_ | DES-41 | DDR-RT-08 | UT-RT-17 | IT-07..IT-09, IT-20, IT-21 | ST-5-04 | AT-06 | Covered |
 | STKR-10 | §3.6, §4.4 | DES-10, DES-12 | DDR-VAL-05, DDR-PARSER-01..02 | UT-VAL-01..07, UT-VAL-25, UT-VAL-36, UT-ACTIONS-01..02 | IT-01, IT-02 | ST-3.6-\*, ST-4.4-\* | AT-10 | Covered |
 | STKR-11 | §3.1-3.3, §4.2 | DES-10, DES-12 | DDR-PARSER-01..02, DDR-VAL-02 | UT-PARSER-\*, UT-VAL-21..27, UT-VAL-35 | IT-01, IT-02 | ST-3.1-\*, ST-3.2-\*, ST-3.3-01, ST-4.2-\* | AT-11 | Covered |
@@ -313,6 +318,7 @@ The master matrix traces each stakeholder requirement through all V-Model levels
 | STKR-33 | §4.3 | DES-12 | DDR-VAL-04 | UT-VAL-29..34 | IT-01, IT-02 | ST-4.3-\* | AT-33 | Covered |
 | STKR-34 | §5.2 | DES-15, DES-42 | DDR-RT-07 | UT-RT-07 | IT-16, IT-17 | ST-5.2-01 | AT-34 | Covered |
 | STKR-35 | §3.12, §4.6 | DES-12, DES-16 | DDR-VAL-02, DDR-RT-04 | UT-VAL-09..12, UT-RT-01, UT-CTX-09 | IT-11 | ST-3.12-05, ST-4.6-\* | AT-35 | Covered |
+| STKR-36 | §3.7 | DES-13 | DDR-RT-10 | UT-PLAN-01 | IT-28 | ST-3.7-10 | AT-36 | Covered |
 | STKR-40 | _(meta)_ | _(this document)_ | _(this document)_ | _(N/A)_ | _(N/A)_ | _(N/A)_ | AT-40 | Covered |
 | STKR-41 | _(meta)_ | _(build system)_ | _(build system)_ | _(all tests)_ | _(all tests)_ | _(all tests)_ | AT-41 | Covered |
 | STKR-42 | _(meta)_ | _(doc set)_ | _(doc set)_ | _(N/A)_ | _(N/A)_ | _(N/A)_ | AT-42 | Covered |
@@ -368,3 +374,5 @@ The following DES elements are not directly covered by integration tests (per `0
 |---|---|---|
 | 1.0 | 2026-03-20 | Initial traceability matrix. Full V-Model cross-reference of all specifications, design documents, and test plans. |
 | 1.1 | 2026-03-20 | Closed gaps: STKR-03, -06, -16, -19 changed from Partial to Covered. Added REQ-5-04 and ST-5-04. Updated test counts. STKR-17 remains only accepted gap. |
+| 1.2 | 2026-03-23 | Added REQ-3.8-05, REQ-3.8-06, REQ-5-05, DDR-RT-09. Updated STKR-05 row. |
+| 1.3 | 2026-03-23 | Added STKR-36 chain: REQ-3.7-10, DDR-RT-10, UT-PLAN-01, IT-28, ST-3.7-10, AT-36. |

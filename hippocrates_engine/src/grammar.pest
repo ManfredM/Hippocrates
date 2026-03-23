@@ -190,6 +190,7 @@ plan_definition = { identifier ~ "is a plan" ~ ":" ~ NEWLINE* ~ INDENT ~ plan_bl
 
 plan_block = {
     (during_plan_block |
+    after_plan_block |
     trigger_block |
     event_block) ~ NEWLINE*
 }
@@ -198,6 +199,7 @@ flexible_block = _{ ":" ~ NEWLINE* ~ INDENT ~ block_body ~ DEDENT }
 block_body = { statement+ }
 
 during_plan_block = { "during plan" ~ flexible_block }
+after_plan_block = { "after plan" ~ flexible_block }
 event_block = { identifier ~ "with" ~ event_trigger ~ flexible_block } 
 trigger_block = { event_trigger ~ flexible_block }
 
@@ -205,8 +207,8 @@ trigger_block = { event_trigger ~ flexible_block }
 event_trigger = {
     "change of" ~ identifier |
     "begin of" ~ identifier |
-    "every" ~ quantity ~ identifier? ~ ("for" ~ quantity)? | 
-    "every" ~ (identifier | weekday) ~ ( "after" ~ identifier)? ~ ("for" ~ quantity)?
+    "every" ~ quantity ~ identifier? ~ ("at" ~ time_literal)? ~ ("for" ~ quantity)? |
+    "every" ~ (identifier | weekday) ~ ("at" ~ time_literal)? ~ ( "after" ~ identifier)? ~ ("for" ~ quantity)?
 }
 
 assessment_case = { 

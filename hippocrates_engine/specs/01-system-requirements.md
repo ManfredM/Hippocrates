@@ -322,10 +322,13 @@ plan_definition =
 
 plan_block =
     during_plan_block |
+    after_plan_block |
     trigger_block |
     event_block;
 
 during_plan_block = "during plan:", newline, indent, { statement }, dedent;
+
+after_plan_block = "after plan:", newline, indent, { statement }, dedent;
 
 trigger_block = event_trigger, ":", newline, indent, { statement }, dedent;
 
@@ -409,6 +412,7 @@ Requirements:
 - REQ-3.7-07: question expiration supports until event triggers.
 - REQ-3.7-08: information, warning, and urgent warning are accepted as message action keywords.
 - REQ-3.7-09: message actions accept semicolon-separated addressee lists.
+- REQ-3.7-10: `after plan:` block syntax and semantics. The `after plan:` block is a plan block that executes its statements exactly once when the event loop terminates (all triggers exhausted or simulation time limit reached).
 
 
 
@@ -518,16 +522,16 @@ Requirements:
 - REQ-3.8-02: event blocks attach statements to triggers.
 - REQ-3.8-03: scheduler computes next occurrence for periods.
 - REQ-3.8-04: periodic triggers parse duration and offsets.
-
-
+- REQ-3.8-05: periodic triggers accept an optional `at <time_literal>` clause to pin execution to a specific time of day.
+- REQ-3.8-06: periodic triggers using a named period identifier with a `for` duration fire at every occurrence of that period within the duration window.
 
 
 ```ebnf
 event_trigger =
     "change of ", identifier |
     "begin of ", identifier |
-    "every ", quantity, [ identifier ], [ " for ", quantity ] |
-    "every ", ( identifier | weekday ), [ " after ", identifier ], [ " for ", quantity ];
+    "every ", quantity, [ identifier ], [ " at ", time_literal ], [ " for ", quantity ] |
+    "every ", ( identifier | weekday ), [ " at ", time_literal ], [ " after ", identifier ], [ " for ", quantity ];
 
 period_expr = quantity | "until ", event_trigger;
 ```
@@ -806,6 +810,7 @@ Requirements:
 - REQ-5-02: reuse timeframes prevent re-asking within the validity window.
 - REQ-5-03: runtime emits a warning when a message action executes without a message callback.
 - REQ-5-04: simulation mode executes plans at accelerated speed without real-time delays.
+- REQ-5-05: when a periodic trigger includes an `at` time, the first execution is scheduled at that time on the first eligible day, and subsequent executions recur at that same time each interval.
 
 
 
@@ -1026,10 +1031,13 @@ during plan:
 - REQ-3.7-07: question expiration supports until event triggers.
 - REQ-3.7-08: information, warning, and urgent warning are accepted as message action keywords.
 - REQ-3.7-09: message actions accept semicolon-separated addressee lists.
+- REQ-3.7-10: `after plan:` block syntax and semantics. The `after plan:` block is a plan block that executes its statements exactly once when the event loop terminates.
 - REQ-3.8-01: event triggers parse for change/start/periodic.
 - REQ-3.8-02: event blocks attach statements to triggers.
 - REQ-3.8-03: scheduler computes next occurrence for periods.
 - REQ-3.8-04: periodic triggers parse duration and offsets.
+- REQ-3.8-05: periodic triggers accept an optional `at <time_literal>` clause to pin execution to a specific time of day.
+- REQ-3.8-06: periodic triggers using a named period identifier with a `for` duration fire at every occurrence of that period within the duration window.
 - REQ-3.9-01: addressee groups and contact logic parse.
 - REQ-3.9-02: contact details and sequence ordering parse.
 - REQ-3.10-01: drug definition validation rejects undefined units.
@@ -1086,6 +1094,7 @@ during plan:
 - REQ-5-02: reuse timeframes prevent re-asking within the validity window.
 - REQ-5-03: runtime emits a warning when a message action executes without a message callback.
 - REQ-5-04: simulation mode executes plans at accelerated speed without real-time delays.
+- REQ-5-05: when a periodic trigger includes an `at` time, the first execution is scheduled at that time on the first eligible day, and subsequent executions recur at that same time each interval.
 - REQ-5.1-01: full-plan validation passes for a complete plan.
 - REQ-5.2-01: numeric answers must respect the decimal precision implied by valid values.
 - REQ-5.3-01: meaning-of expressions evaluate using meaning assessments.
@@ -1100,3 +1109,5 @@ during plan:
 |------|------------|----------------|----------------------------------------------------------|
 | 1.0  | 2026-03-20 | (auto-adopted) | Initial adoption of Language Specification v1.0 as SYRS-01. V-Model preamble and traceability matrix added. |
 | 1.1  | 2026-03-20 | (auto-adopted) | Added REQ-5-04 (simulation mode). |
+| 1.2  | 2026-03-23 | V-Model | Added REQ-3.8-05 (at time clause), REQ-3.8-06 (period repetition), REQ-5-05 (time-pinned scheduling). Updated EBNF grammar. |
+| 1.3  | 2026-03-23 | V-Model | Added REQ-3.7-10 (`after plan:` block). Updated EBNF: `plan_block` gains `after_plan_block` alternative. |

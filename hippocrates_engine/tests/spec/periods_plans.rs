@@ -151,6 +151,7 @@ fn spec_event_trigger_duration_and_offset_parsing() {
                     duration,
                     offset,
                     specific_day,
+                    ..
                 } => {
                     if *interval == 2.0 && matches!(interval_unit, hippocrates_engine::domain::Unit::Day) {
                         assert_eq!(duration.as_ref().map(|(v, _)| *v), Some(1.0));
@@ -204,4 +205,132 @@ fn spec_event_block_parsing() {
         .expect("Event block not found");
 
     assert_eq!(event_block.name, "my event");
+}
+
+// UT-PERIODS-06: periodic trigger with `at <time>` parses time_of_day.
+#[test]
+fn spec_event_trigger_time_of_day_parsing() {
+    let input = r#"
+<Plan> is a plan:
+    every 1 day at 08:00 for 9 days:
+        information "Morning check".
+"#;
+
+    let plan = parser::parse_plan(input).expect("Failed to parse plan");
+
+    let plan_def = plan
+        .definitions
+        .iter()
+        .find_map(|d| if let Definition::Plan(p) = d { Some(p) } else { None })
+        .expect("Plan definition not found");
+
+    assert_eq!(plan_def.blocks.len(), 1);
+
+    if let PlanBlock::Trigger(tb) = &plan_def.blocks[0] {
+        if let Trigger::Periodic {
+            interval,
+            interval_unit,
+            duration,
+            time_of_day,
+            ..
+        } = &tb.trigger
+        {
+            assert_eq!(*interval, 1.0);
+            assert!(matches!(interval_unit, hippocrates_engine::domain::Unit::Day));
+            assert_eq!(duration.as_ref().map(|(v, _)| *v), Some(9.0));
+            assert_eq!(time_of_day.as_deref(), Some("08:00"));
+        } else {
+            panic!("Expected Periodic trigger");
+        }
+    } else {
+        panic!("Expected Trigger block");
+    }
+}
+
+// UT-PERIODS-07: weekday periodic trigger with `at <time>` parses time_of_day.
+#[test]
+fn spec_event_trigger_weekday_with_time_parsing() {
+    let input = r#"
+<Plan> is a plan:
+    every Monday at 09:30 for 4 weeks:
+        information "Weekly check".
+"#;
+
+    let plan = parser::parse_plan(input).expect("Failed to parse plan");
+
+    let plan_def = plan
+        .definitions
+        .iter()
+        .find_map(|d| if let Definition::Plan(p) = d { Some(p) } else { None })
+        .expect("Plan definition not found");
+
+    assert_eq!(plan_def.blocks.len(), 1);
+
+    if let PlanBlock::Trigger(tb) = &plan_def.blocks[0] {
+        if let Trigger::Periodic {
+            interval,
+            interval_unit,
+            duration,
+            specific_day,
+            time_of_day,
+            ..
+        } = &tb.trigger
+        {
+            assert_eq!(*interval, 1.0);
+            assert!(matches!(interval_unit, hippocrates_engine::domain::Unit::Week));
+            assert_eq!(specific_day.as_deref(), Some("Monday"));
+            assert_eq!(duration.as_ref().map(|(v, _)| *v), Some(4.0));
+            assert!(
+                duration
+                    .as_ref()
+                    .map(|(_, u)| matches!(u, hippocrates_engine::domain::Unit::Week))
+                    .unwrap_or(false)
+            );
+            assert_eq!(time_of_day.as_deref(), Some("09:30"));
+        } else {
+            panic!("Expected Periodic trigger");
+        }
+    } else {
+        panic!("Expected Trigger block");
+    }
+}
+
+// UT-PLAN-01: `after plan:` block parses into PlanBlock::AfterPlan.
+#[test]
+fn spec_after_plan_block_parsing() {
+    let input = r#"
+<patient> is an addressee:
+    contact information:
+        email is "patient@test.com".
+
+<my plan> is a plan:
+    during plan:
+        information to <patient> "Plan started.".
+
+    after plan:
+        information to <patient> "Plan completed.".
+"#;
+
+    let plan = parser::parse_plan(input).expect("Failed to parse plan with after plan block");
+
+    let plan_def = plan
+        .definitions
+        .iter()
+        .find_map(|d| if let Definition::Plan(p) = d { Some(p) } else { None })
+        .expect("Plan definition not found");
+
+    assert_eq!(plan_def.blocks.len(), 2, "Expected 2 plan blocks (during + after)");
+
+    assert!(
+        matches!(&plan_def.blocks[0], PlanBlock::DuringPlan(_)),
+        "First block should be DuringPlan"
+    );
+    assert!(
+        matches!(&plan_def.blocks[1], PlanBlock::AfterPlan(_)),
+        "Second block should be AfterPlan"
+    );
+
+    if let PlanBlock::AfterPlan(stmts) = &plan_def.blocks[1] {
+        assert!(!stmts.is_empty(), "AfterPlan block should have statements");
+    }
 }
