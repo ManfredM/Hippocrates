@@ -315,6 +315,17 @@ This plan validates that the Hippocrates engine meets stakeholder needs as defin
 | **Status** | Not Started |
 | **Evidence** | ST-3.7-10 (system test); UT-PLAN-01 (unit test); IT-28 (integration test). |
 
+#### AT-37 — LLM-Correctable Error Diagnostics
+
+| Field | Value |
+|---|---|
+| **STKR Reference** | STKR-37 |
+| **Description** | Confirm that error messages produced by the engine are detailed and specific enough for an LLM to automatically correct Hippocrates scripts without human intervention. |
+| **Verification Method** | Automated |
+| **Pass Criteria** | (1) Given a script with a syntax error, when validated, then the error message describes what's wrong in plain English with a suggested fix. (2) Given a script referencing an undeclared variable, addressee, or unit, when validated, then the error identifies the undefined reference and lists available definitions. (3) Given a script with a coverage gap, when validated, then the error includes the exact range to add. |
+| **Status** | Not Started |
+| **Evidence** | ST-4.1-05 (human-readable parse errors); ST-5.1-02 (undefined reference detection); ST-5.1-03 (validation error suggestions); UT-PARSER-13, UT-VAL-38, UT-VAL-39 (unit tests). |
+
 ---
 
 ### 4.4 Regulatory (STKR-40 through STKR-42)
@@ -382,11 +393,12 @@ This plan validates that the Hippocrates engine meets stakeholder needs as defin
 | STKR-34 | AT-34 | Automated | Not Started |
 | STKR-35 | AT-35 | Automated | Not Started |
 | STKR-36 | AT-36 | Automated | Not Started |
+| STKR-37 | AT-37 | Automated | Not Started |
 | STKR-40 | AT-40 | Documentation | Not Started |
 | STKR-41 | AT-41 | Automated | Not Started |
 | STKR-42 | AT-42 | Documentation | Not Started |
 
-All 27 stakeholder requirements are covered by acceptance test cases.
+All 28 stakeholder requirements are covered by acceptance test cases.
 
 ---
 
@@ -399,3 +411,4 @@ All 27 stakeholder requirements are covered by acceptance test cases.
 | 1.2 | 2026-03-23 | Updated AT-05 with time-of-day and period repetition acceptance criteria and evidence. |
 | 1.3 | 2026-03-23 | Added AT-36 (Plan Completion Actions) for STKR-36. |
 | 1.4 | 2026-03-23 | Updated AT-02 evidence with natural language trigger syntax references (REQ-3.8-07). |
+| 1.5 | 2026-03-23 | Added AT-37 (LLM-Correctable Error Diagnostics) for STKR-37. |

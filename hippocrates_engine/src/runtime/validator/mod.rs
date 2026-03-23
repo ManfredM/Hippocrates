@@ -76,7 +76,7 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
                                 StatementKind::EventProgression(_, cases) => {
                                     for case in cases {
                                         if !enum_selector_is_identifier(&case.condition) {
-                                            errors.push(EngineError {
+                                            errors.push(EngineError { suggestion: None,
                                                 message: format!(
                                                     "Enumeration '{}' valid values must be identifiers (angle brackets).",
                                                     vd.name
@@ -89,7 +89,7 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
                                 }
                                 StatementKind::Constraint(_, _, sel) => {
                                     if !enum_selector_is_identifier(sel) {
-                                        errors.push(EngineError {
+                                        errors.push(EngineError { suggestion: None,
                                             message: format!(
                                                 "Enumeration '{}' valid values must be identifiers (angle brackets).",
                                                 vd.name
@@ -121,7 +121,7 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
                             _ => None,
                         })
                         .unwrap_or(0);
-                    errors.push(EngineError {
+                    errors.push(EngineError { suggestion: None,
                         message: format!("Precision mismatch for '{}': {}", vd.name, msg),
                         line,
                         column: 0,
@@ -172,6 +172,7 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
     semantics::check_addressees(&defs_map, &mut errors);
     semantics::check_value_definitions(&defs_map, &mut errors);
     semantics::check_timeframe_period_references(&defs_map, &mut errors);
+    semantics::check_undefined_references(&defs_map, &mut errors);
 
     // 1.25 Calculation assignments must match unit + precision of the value definition.
     for def in &plan.definitions {
@@ -249,7 +250,7 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
                         }
                     } else if let Some(valid_ranges) = value_ranges.get(&vd.name) {
                         if cases.iter().any(|case| selector_has_unitless_number(&case.condition)) {
-                            errors.push(EngineError {
+                            errors.push(EngineError { suggestion: None,
                                 message: format!(
                                     "Numeric values must have a unit. Meaning for '{}' uses unitless numbers.",
                                     vd.name
@@ -349,7 +350,7 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
                                       let expr_intervals = intervals::calculate_interval_set(&assign.expression, &value_ranges);
                                       
                                       if !intervals_within_ranges(&expr_intervals, ranges) {
-                                          errors.push(EngineError {
+                                          errors.push(EngineError { suggestion: None,
                                               message: format!(
                                                   "Assignment Validity Warning: Value for '{}' may be out of bounds. Expression result ranges ({}) are not fully contained in valid ranges.",
                                                   assign.target,
@@ -365,7 +366,7 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
                                   if let Expression::Binary(l, op, r) = &assign.expression {
                                       if op == "-" {
                                           if let Some(msg) = intervals::check_subtraction_safety(l, r, &value_bounds) {
-                                               errors.push(EngineError {
+                                               errors.push(EngineError { suggestion: None,
                                                   message: msg,
                                                   line: stmt.line,
                                                   column: 0
@@ -409,7 +410,7 @@ pub fn validate_file(plan: &Plan) -> Result<(), Vec<EngineError>> {
                                               // Numeric Coverage
                                               if let Some(valid_ranges) = value_ranges.get(name) {
                                                   if cond.cases.iter().any(|case| selector_has_unitless_number(&case.condition)) {
-                                                      errors.push(EngineError {
+                                                      errors.push(EngineError { suggestion: None,
                                                           message: format!("Numeric values must have a unit. Assessment for '{}' uses unitless numbers.", name),
                                                           line: stmt.line,
                                                           column: 0,
@@ -564,7 +565,7 @@ fn check_statistical_not_enough_data(
                 .any(|case| matches!(case.condition, RangeSelector::NotEnoughData));
 
             if is_statistical_target && !has_not_enough {
-                errors.push(EngineError {
+                errors.push(EngineError { suggestion: None,
                     message: "Assessment of statistical results must handle 'Not enough data'."
                         .to_string(),
                     line: stmt.line,
@@ -573,7 +574,7 @@ fn check_statistical_not_enough_data(
             }
 
             if !is_statistical_target && has_not_enough {
-                errors.push(EngineError {
+                errors.push(EngineError { suggestion: None,
                     message:
                         "Not enough data is only allowed when assessing statistical results."
                             .to_string(),
@@ -656,7 +657,7 @@ fn check_statistical_functions_require_timeframe(
         }
         StatementKind::Assignment(assign) => {
             if expression_contains_statistical(&assign.expression) && !has_timeframe_context {
-                errors.push(EngineError {
+                errors.push(EngineError { suggestion: None,
                     message:
                         "Statistical functions require an analysis timeframe context.".to_string(),
                     line: stmt.line,
@@ -667,7 +668,7 @@ fn check_statistical_functions_require_timeframe(
         StatementKind::Conditional(cond) => {
             if let ConditionalTarget::Expression(expr) = &cond.condition {
                 if expression_contains_statistical(expr) && !has_timeframe_context {
-                    errors.push(EngineError {
+                    errors.push(EngineError { suggestion: None,
                         message:
                             "Statistical functions require an analysis timeframe context."
                                 .to_string(),
@@ -678,7 +679,7 @@ fn check_statistical_functions_require_timeframe(
             }
             for case in &cond.cases {
                 if selector_contains_statistical(&case.condition) && !has_timeframe_context {
-                    errors.push(EngineError {
+                    errors.push(EngineError { suggestion: None,
                         message:
                             "Statistical functions require an analysis timeframe context."
                                 .to_string(),
@@ -700,7 +701,7 @@ fn check_statistical_functions_require_timeframe(
                 crate::ast::Action::ShowMessage { parts, .. } => {
                     if parts.iter().any(expression_contains_statistical) && !has_timeframe_context
                     {
-                        errors.push(EngineError {
+                        errors.push(EngineError { suggestion: None,
                             message:
                                 "Statistical functions require an analysis timeframe context."
                                     .to_string(),
@@ -712,7 +713,7 @@ fn check_statistical_functions_require_timeframe(
                 crate::ast::Action::SendInfo(_, exprs) => {
                     if exprs.iter().any(expression_contains_statistical) && !has_timeframe_context
                     {
-                        errors.push(EngineError {
+                        errors.push(EngineError { suggestion: None,
                             message:
                                 "Statistical functions require an analysis timeframe context."
                                     .to_string(),
@@ -723,7 +724,7 @@ fn check_statistical_functions_require_timeframe(
                 }
                 crate::ast::Action::MessageExpiration(sel) => {
                     if selector_contains_statistical(sel) && !has_timeframe_context {
-                        errors.push(EngineError {
+                        errors.push(EngineError { suggestion: None,
                             message:
                                 "Statistical functions require an analysis timeframe context."
                                     .to_string(),
@@ -739,7 +740,7 @@ fn check_statistical_functions_require_timeframe(
             if (expression_contains_statistical(expr) || selector_contains_statistical(sel))
                 && !has_timeframe_context
             {
-                errors.push(EngineError {
+                errors.push(EngineError { suggestion: None,
                     message:
                         "Statistical functions require an analysis timeframe context.".to_string(),
                     line: stmt.line,
@@ -924,7 +925,7 @@ fn check_valid_values_overlap(
     let mut current = sorted[0].clone();
     for range in sorted.into_iter().skip(1) {
         if range.min <= current.max + epsilon {
-            errors.push(EngineError {
+            errors.push(EngineError { suggestion: None,
                 message: format!(
                     "Constraint Violation: Valid values for '{}' have overlapping ranges ({} ... {} overlaps {} ... {}).",
                     name,
@@ -1013,7 +1014,7 @@ fn extract_datetime_ranges(
                 }
                 (None, None) => {}
                 _ => {
-                    errors.push(EngineError {
+                    errors.push(EngineError { suggestion: None,
                         message: "Valid value ranges must use consistent date/time or time-of-day bounds."
                             .to_string(),
                         line,
@@ -1026,7 +1027,7 @@ fn extract_datetime_ranges(
             match (parse_datetime_expr(min, base), parse_datetime_expr(max, base)) {
                 (Some(start), Some(end)) => {
                     if start > end {
-                        errors.push(EngineError {
+                        errors.push(EngineError { suggestion: None,
                             message: "Date/time ranges must have start before end.".to_string(),
                             line,
                             column: 0,
@@ -1036,7 +1037,7 @@ fn extract_datetime_ranges(
                     }
                 }
                 _ => {
-                    errors.push(EngineError {
+                    errors.push(EngineError { suggestion: None,
                         message: "Valid value ranges must use date/time literals or relative times."
                             .to_string(),
                         line,
@@ -1054,7 +1055,7 @@ fn extract_datetime_ranges(
                 date_ranges.push((dt, dt));
                 return;
             }
-            errors.push(EngineError {
+            errors.push(EngineError { suggestion: None,
                 message: "Valid value ranges must use date/time literals or time-of-day values."
                     .to_string(),
                 line,
@@ -1146,7 +1147,7 @@ fn check_datetime_ranges_overlap(
     let mut current = sorted[0];
     for range in sorted.into_iter().skip(1) {
         if range.0 <= current.1 {
-            errors.push(EngineError {
+            errors.push(EngineError { suggestion: None,
                 message: format!(
                     "Constraint Violation: Valid values for '{}' have overlapping date/time ranges.",
                     name
@@ -1190,7 +1191,7 @@ fn check_time_ranges_overlap(
     let mut current = intervals[0];
     for range in intervals.into_iter().skip(1) {
         if range.0 <= current.1 {
-            errors.push(EngineError {
+            errors.push(EngineError { suggestion: None,
                 message: format!(
                     "Constraint Violation: Valid values for '{}' have overlapping time-of-day ranges.",
                     name
@@ -1356,7 +1357,7 @@ fn validate_meaning_labels(
     }
 
     for line in invalid_expr_lines {
-        errors.push(EngineError {
+        errors.push(EngineError { suggestion: None,
             message: format!(
                 "Meaning of '{}' must assign an explicit meaning label (identifier or string literal) when 'valid meanings' are declared.",
                 value_name
@@ -1371,7 +1372,7 @@ fn validate_meaning_labels(
 
     for (label, label_line) in labels {
         if !valid_set.contains(label.as_str()) {
-            errors.push(EngineError {
+            errors.push(EngineError { suggestion: None,
                 message: format!(
                     "Meaning of '{}' uses invalid meaning '{}'; expected one of: {}.",
                     value_name,
@@ -1393,7 +1394,7 @@ fn validate_meaning_labels(
         .cloned()
         .collect();
     if !missing.is_empty() {
-        errors.push(EngineError {
+        errors.push(EngineError { suggestion: None,
             message: format!(
                 "Meaning of '{}' does not use all valid meanings. Missing: {}.",
                 value_name,
@@ -1555,7 +1556,7 @@ fn check_expression_unit_precision(
         Expression::Literal(Literal::Quantity(_, unit, decimals)) => {
             let unit = canonicalize_unit(unit, unit_map);
             if unit != *expected_unit {
-                errors.push(EngineError {
+                errors.push(EngineError { suggestion: None,
                     message: format!(
                         "Assignment to '{}' requires unit '{}', but found '{}'.",
                         target, expected_unit, unit
@@ -1566,7 +1567,7 @@ fn check_expression_unit_precision(
             }
             let precision = decimals.unwrap_or(0);
             if precision != expected_precision {
-                errors.push(EngineError {
+                errors.push(EngineError { suggestion: None,
                     message: format!(
                         "Assignment to '{}' requires precision {}, but found {}.",
                         target, expected_precision, precision
@@ -1578,7 +1579,7 @@ fn check_expression_unit_precision(
         }
         Expression::Literal(Literal::Number(_, decimals)) => {
             let precision = decimals.unwrap_or(0);
-            errors.push(EngineError {
+            errors.push(EngineError { suggestion: None,
                 message: format!(
                     "Assignment to '{}' requires unit '{}' with precision {}, but found unitless number (precision {}).",
                     target, expected_unit, expected_precision, precision
@@ -1591,7 +1592,7 @@ fn check_expression_unit_precision(
             let normalized = runtime::normalize_identifier(name);
             if let Some(unit) = value_units.get(&normalized) {
                 if *unit != *expected_unit {
-                    errors.push(EngineError {
+                    errors.push(EngineError { suggestion: None,
                         message: format!(
                             "Assignment to '{}' requires unit '{}', but '{}' uses unit '{}'.",
                             target, expected_unit, normalized, unit
@@ -1605,7 +1606,7 @@ fn check_expression_unit_precision(
                     .and_then(|info| info.decimals)
                     .unwrap_or(0);
                 if precision != expected_precision {
-                    errors.push(EngineError {
+                    errors.push(EngineError { suggestion: None,
                         message: format!(
                             "Assignment to '{}' requires precision {}, but '{}' uses precision {}.",
                             target, expected_precision, normalized, precision
@@ -1615,7 +1616,7 @@ fn check_expression_unit_precision(
                     });
                 }
             } else {
-                errors.push(EngineError {
+                errors.push(EngineError { suggestion: None,
                     message: format!(
                         "Assignment to '{}' requires numeric values with unit '{}', but '{}' is not numeric.",
                         target, expected_unit, normalized
@@ -1652,7 +1653,7 @@ fn check_expression_unit_precision(
         Expression::Statistical(func) => match func {
             crate::ast::StatisticalFunc::CountOf(_, _) => {
                 if expected_precision != 0 {
-                    errors.push(EngineError {
+                    errors.push(EngineError { suggestion: None,
                         message: format!(
                             "Assignment to '{}' requires precision {}, but 'count of' yields precision 0.",
                             target, expected_precision
@@ -1678,7 +1679,7 @@ fn check_expression_unit_precision(
                 );
             }
             crate::ast::StatisticalFunc::TrendOf(_) => {
-                errors.push(EngineError {
+                errors.push(EngineError { suggestion: None,
                     message: format!(
                         "Assignment to '{}' requires numeric values; 'trend of' is not numeric.",
                         target
@@ -1691,7 +1692,7 @@ fn check_expression_unit_precision(
         Expression::DateDiff(unit, _, _) => {
             let unit = canonicalize_unit(unit, unit_map);
             if unit != *expected_unit {
-                errors.push(EngineError {
+                errors.push(EngineError { suggestion: None,
                     message: format!(
                         "Assignment to '{}' requires unit '{}', but date diff returns '{}'.",
                         target, expected_unit, unit
@@ -1708,7 +1709,7 @@ fn check_expression_unit_precision(
         | Expression::Literal(Literal::String(_))
         | Expression::Literal(Literal::TimeOfDay(_))
         | Expression::Literal(Literal::Date(_)) => {
-            errors.push(EngineError {
+            errors.push(EngineError { suggestion: None,
                 message: format!(
                     "Assignment to '{}' requires numeric values with unit '{}' and precision {}.",
                     target, expected_unit, expected_precision

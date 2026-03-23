@@ -51,7 +51,8 @@ plans defined in the `test-plans/` directory.
 | §4.6 Data Sufficiency              | STKR-35 (Data Sufficiency)                                   |
 | §4.7 Date/Time                     | STKR-18 (Medical Domain)                                     |
 | §5 Execution                       | STKR-01 (Care Plan Execution), STKR-05 (Event-Driven)        |
-| §5.1 Validation                    | STKR-04 (Validation Without Execution)                       |
+| §4.1 (REQ-4.1-05)                 | STKR-37 (LLM-Correctable Error Diagnostics)                  |
+| §5.1 Validation                    | STKR-04 (Validation Without Execution), STKR-37 (LLM-Correctable Error Diagnostics) |
 | §5.2 Input Validation              | STKR-34 (Input Precision)                                    |
 | §5.3 Meaning Evaluation            | STKR-12 (Meaningful Values)                                  |
 
@@ -676,6 +677,7 @@ Requirements:
 - REQ-4.1-01: built-in units cannot be redefined.
 - REQ-4.1-02: unit conversions are supported within compatible groups.
 - REQ-4.1-03: calculations and assignments require matching units and precision.
+- REQ-4.1-05: parse errors shall include a human-readable description of the expected syntax at the error location, mapping internal grammar rule names to user-facing terms (e.g., `plan_definition` → `plan declaration with colon`). The raw PEG rule names shall not appear in error messages.
 
 
 
@@ -835,6 +837,8 @@ The Hippocrates Runtime functions as a **State Machine**.
 
 Requirements:
 - REQ-5.1-01: full-plan validation passes for a complete plan.
+- REQ-5.1-02: the validator shall detect references to undeclared variables, addressees, units, and periods in plan blocks. Each undefined reference shall produce an error naming the undefined identifier and listing available definitions of that type.
+- REQ-5.1-03: validation errors shall include a `suggestion` field with an actionable fix description. Coverage gaps shall suggest the exact missing range. Overlap errors shall suggest which range to adjust. Data flow errors shall suggest adding an `ask for` statement.
 
 
 
@@ -1061,6 +1065,7 @@ before plan:
 - REQ-4.1-01: built-in units cannot be redefined.
 - REQ-4.1-02: unit conversions are supported within compatible groups.
 - REQ-4.1-03: calculations and assignments require matching units and precision.
+- REQ-4.1-05: parse errors shall include human-readable descriptions, not raw PEG rule names.
 - REQ-4.2-01: numeric valid values require units.
 - REQ-4.2-02: assessment ranges require units.
 - REQ-4.2-03: numeric definitions require units.
@@ -1101,6 +1106,8 @@ before plan:
 - REQ-5-04: simulation mode executes plans at accelerated speed without real-time delays.
 - REQ-5-05: when a periodic trigger includes an `at` time, the first execution is scheduled at that time on the first eligible day, and subsequent executions recur at that same time each interval.
 - REQ-5.1-01: full-plan validation passes for a complete plan.
+- REQ-5.1-02: the validator shall detect references to undeclared variables, addressees, units, and periods, listing available definitions.
+- REQ-5.1-03: validation errors shall include a `suggestion` field with an actionable fix description.
 - REQ-5.2-01: numeric answers must respect the decimal precision implied by valid values.
 - REQ-5.3-01: meaning-of expressions evaluate using meaning assessments.
 - REQ-5.3-02: meaning evaluation returns Missing for unknown askable values.
@@ -1117,3 +1124,4 @@ before plan:
 | 1.2  | 2026-03-23 | V-Model | Added REQ-3.8-05 (at time clause), REQ-3.8-06 (period repetition), REQ-5-05 (time-pinned scheduling). Updated EBNF grammar. |
 | 1.3  | 2026-03-23 | V-Model | Added REQ-3.7-10 (`after plan:` block). Updated EBNF: `plan_block` gains `after_plan_block` alternative. |
 | 1.4  | 2026-03-23 | V-Model | Added REQ-3.8-07 (bare unit and ordinal trigger syntax). Updated EBNF: added `ordinal` and `bare_unit` rules, updated `event_trigger`. |
+| 1.5  | 2026-03-23 | V-Model | Added REQ-4.1-05 (human-readable parse errors), REQ-5.1-02 (undefined reference detection), REQ-5.1-03 (suggested fixes). All trace to STKR-37. |

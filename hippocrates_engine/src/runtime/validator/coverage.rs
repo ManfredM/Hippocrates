@@ -89,7 +89,7 @@ fn check_continuous_coverage(
 
     for r in clamped {
         if !is_first && r.start < current - epsilon {
-            errors.push(EngineError {
+            errors.push(EngineError { suggestion: None,
                 message: format!(
                     "Constraint Violation: Assessment for '{}' has overlapping ranges; value {} is covered multiple times.",
                     name,
@@ -101,14 +101,13 @@ fn check_continuous_coverage(
         }
 
         if r.start > current + epsilon {
-            errors.push(EngineError {
+            let gap_start = format_val(current);
+            let gap_end = format_val(r.start);
+                        errors.push(EngineError {
+                suggestion: Some(format!("Add a range: {} ... {}:", gap_start, gap_end)),
                 message: format!(
                     "Coverage Error: Assessment for '{}' is incomplete. Uncovered gap detected: {} ... {}. Valid range is {}...{}.",
-                    name,
-                    format_val(current),
-                    format_val(r.start),
-                    format_val(universe_min),
-                    format_val(universe_max)
+                    name, gap_start, gap_end, format_val(universe_min), format_val(universe_max)
                 ),
                 line,
                 column: 0,
@@ -123,14 +122,13 @@ fn check_continuous_coverage(
     }
 
     if current < universe_max - epsilon {
+        let gap_start = format_val(current);
+        let gap_end = format_val(universe_max);
         errors.push(EngineError {
+            suggestion: Some(format!("Add a range: {} ... {}:", gap_start, gap_end)),
             message: format!(
                 "Coverage Error: Assessment for '{}' is incomplete. Uncovered gap at the end: {} ... {}. Valid range is {}...{}.",
-                name,
-                format_val(current),
-                format_val(universe_max),
-                format_val(universe_min),
-                format_val(universe_max)
+                name, gap_start, gap_end, format_val(universe_min), format_val(universe_max)
             ),
             line,
             column: 0,
@@ -165,7 +163,7 @@ fn check_discrete_coverage(
 
     for r in clamped {
         if r.start < current - epsilon {
-            errors.push(EngineError {
+            errors.push(EngineError { suggestion: None,
                 message: format!(
                     "Constraint Violation: Assessment for '{}' has overlapping ranges; value {} is covered multiple times.",
                     name,
@@ -179,14 +177,13 @@ fn check_discrete_coverage(
         if r.start > current + epsilon {
             let gap_end = r.start - step;
             if gap_end + epsilon >= current {
+                let gs = format_val(current);
+                let ge = format_val(gap_end);
                 errors.push(EngineError {
+                    suggestion: Some(format!("Add a range: {} ... {}:", gs, ge)),
                     message: format!(
                         "Coverage Error: Assessment for '{}' is incomplete. Uncovered gap detected: {} ... {}. Valid range is {}...{}.",
-                        name,
-                        format_val(current),
-                        format_val(gap_end),
-                        format_val(universe_min),
-                        format_val(universe_max)
+                        name, gs, ge, format_val(universe_min), format_val(universe_max)
                     ),
                     line,
                     column: 0,
@@ -202,14 +199,13 @@ fn check_discrete_coverage(
     }
 
     if current <= universe_max + epsilon {
+        let gs = format_val(current);
+        let ge = format_val(universe_max);
         errors.push(EngineError {
+            suggestion: Some(format!("Add a range: {} ... {}:", gs, ge)),
             message: format!(
                 "Coverage Error: Assessment for '{}' is incomplete. Uncovered gap at the end: {} ... {}. Valid range is {}...{}.",
-                name,
-                format_val(current),
-                format_val(universe_max),
-                format_val(universe_min),
-                format_val(universe_max)
+                name, gs, ge, format_val(universe_min), format_val(universe_max)
             ),
             line,
             column: 0,
@@ -306,7 +302,7 @@ pub fn check_string_coverage(
     }
     
     if !missing.is_empty() {
-        errors.push(EngineError {
+        errors.push(EngineError { suggestion: None,
             message: format!(
                 "Coverage Error: Assessment for '{}' is incomplete. Missing cases: {}. Required: {}.",
                 name,

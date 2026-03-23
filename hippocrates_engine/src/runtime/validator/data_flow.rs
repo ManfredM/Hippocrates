@@ -51,7 +51,7 @@ pub fn analyze_statement(
                     if let Some(crate::ast::Definition::Value(vd)) = defs.get(var) {
                         let has_question = vd.properties.iter().any(|p| matches!(p, crate::ast::Property::Question(_)));
                         if !has_question {
-                             errors.push(EngineError {
+                             errors.push(EngineError { suggestion: None,
                                 message: format!("Validation Error: Cannot 'Ask {}' because it does not have a 'question' property defined.", var),
                                 line: stmt.line,
                                 column: 0
@@ -128,6 +128,7 @@ fn check_expression(
              if let Some(Definition::Value(_)) = defs.get(name) {
                  if !state.initialized.contains(name) {
                      errors.push(EngineError {
+                         suggestion: Some(format!("Add 'ask for <{}>.'' before this statement.", name)),
                          message: format!("Data Flow Error: Variable '{}' used before being assigned or asked.", name),
                          line,
                          column: 0
@@ -149,7 +150,7 @@ fn check_expression(
                      .unwrap_or(false);
 
                  if !askable {
-                     errors.push(EngineError {
+                     errors.push(EngineError { suggestion: None,
                          message: format!(
                              "Data Flow Error: Meaning of '{}' requires a question property when the value is not initialized.",
                              name

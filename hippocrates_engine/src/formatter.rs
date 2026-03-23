@@ -17,7 +17,7 @@ pub fn format_script(input: &str) -> Result<String, EngineError> {
                 pest::error::LineColLocation::Pos((l, c)) => (l, c),
                 pest::error::LineColLocation::Span((l, c), _) => (l, c),
             };
-            return Err(EngineError {
+            return Err(EngineError { suggestion: None,
                 message: format!("Parsing error: {}", e),
                 line,
                 column,
@@ -25,7 +25,7 @@ pub fn format_script(input: &str) -> Result<String, EngineError> {
         }
     };
 
-    let root = pairs.next().ok_or_else(|| EngineError {
+    let root = pairs.next().ok_or_else(|| EngineError { suggestion: None,
         message: "Parsing error: empty file".to_string(),
         line: 0,
         column: 0,

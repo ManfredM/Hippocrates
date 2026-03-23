@@ -168,6 +168,7 @@ Verify the complete Hippocrates engine against system requirements. Each REQ-* f
 | ST-4.1-01  | REQ-4.1-01  | `tests/spec/units.rs::spec_builtin_units_cannot_be_redefined`                    | Built-in units cannot be redefined.                                          | Test passes         |
 | ST-4.1-02  | REQ-4.1-02  | `tests/spec/units.rs::spec_unit_conversions_within_groups`                       | Unit conversions are supported within compatible groups.                     | Test passes         |
 | ST-4.1-03  | REQ-4.1-03  | `tests/spec/units.rs::spec_assignment_requires_unit_and_precision_match`         | Calculations and assignments require matching units and precision.           | Test passes         |
+| ST-4.1-05  | REQ-4.1-05  | `tests/spec/validation.rs::spec_parse_error_human_readable`                      | Parse errors include human-readable descriptions, not raw PEG rule names.   | Test passes         |
 
 ### 4.15 — §4.2 Required Properties
 
@@ -250,6 +251,8 @@ Verify the complete Hippocrates engine against system requirements. Each REQ-* f
 | ID         | REQ         | Test function                                                        | Description                                              | Pass criteria       |
 |------------|-------------|----------------------------------------------------------------------|----------------------------------------------------------|---------------------|
 | ST-5.1-01  | REQ-5.1-01  | `tests/spec/validation.rs::spec_validate_plan_fixture_suite`         | Full-plan validation passes for a complete plan.         | Test passes         |
+| ST-5.1-02  | REQ-5.1-02  | `tests/spec/validation.rs::spec_undefined_reference_detection`       | Undeclared references produce errors listing available definitions. | Test passes   |
+| ST-5.1-03  | REQ-5.1-03  | `tests/spec/validation.rs::spec_validation_error_suggestions`        | Validation errors include suggestion with actionable fix. | Test passes        |
 
 ### 4.23 — §5.2 Input Validation
 
@@ -269,11 +272,11 @@ Verify the complete Hippocrates engine against system requirements. Each REQ-* f
 
 | Metric                | Count |
 |-----------------------|-------|
-| Total ST-* test cases | 96    |
-| REQ-* entries covered | 94    |
+| Total ST-* test cases | 99    |
+| REQ-* entries covered | 97    |
 | Noted gaps            | 0     |
 
-Two REQ IDs (REQ-4.2-07 and REQ-4.3-05) each map to two distinct test functions. REQ-3.8-07 maps to two test functions (bare unit and ordinal). This produces 96 test cases from 94 unique requirement IDs. All requirements from the traceability matrix are covered; no gaps are noted.
+Two REQ IDs (REQ-4.2-07 and REQ-4.3-05) each map to two distinct test functions. REQ-3.8-07 maps to two test functions (bare unit and ordinal). This produces 99 test cases from 97 unique requirement IDs. All requirements from the traceability matrix are covered; no gaps are noted.
 
 ## Revision History
 
@@ -284,3 +287,4 @@ Two REQ IDs (REQ-4.2-07 and REQ-4.3-05) each map to two distinct test functions.
 | 1.2 | 2026-03-23 | —      | Added ST-3.8-05, ST-3.8-06, ST-5-05 (time-of-day and period repetition). |
 | 1.3 | 2026-03-23 | —      | Added ST-3.7-10 (`after plan:` block). |
 | 1.4 | 2026-03-23 | —      | Added ST-3.8-07 (bare unit and ordinal trigger parsing, REQ-3.8-07). |
+| 1.5 | 2026-03-23 | —      | Added ST-4.1-05 (parse error humanization), ST-5.1-02 (undefined reference detection), ST-5.1-03 (validation error suggestions). Updated counts. |

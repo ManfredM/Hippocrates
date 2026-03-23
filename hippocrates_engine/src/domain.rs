@@ -292,11 +292,27 @@ pub struct EngineError {
     pub message: String,
     pub line: usize,
     pub column: usize, // Optional, default 0
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub suggestion: Option<String>,
+}
+
+impl EngineError {
+    pub fn new(message: String, line: usize, column: usize) -> Self {
+        Self { message, line, column, suggestion: None }
+    }
+    pub fn with_suggestion(mut self, suggestion: String) -> Self {
+        self.suggestion = Some(suggestion);
+        self
+    }
 }
 
 impl std::fmt::Display for EngineError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Error at line {}, col {}: {}", self.line, self.column, self.message)
+        write!(f, "Error at line {}, col {}: {}", self.line, self.column, self.message)?;
+        if let Some(ref s) = self.suggestion {
+            write!(f, " Suggestion: {}", s)?;
+        }
+        Ok(())
     }
 }
 

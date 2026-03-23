@@ -68,6 +68,7 @@ Tests in `tests/spec/grammar.rs` verify DDR-PARSER-* elements (PEG grammar, AST 
 | UT-PARSER-10  | `tests/spec/grammar.rs::spec_meaning_requires_target_identifier`        | Meaning properties require an explicit target identifier.         | DDR-PARSER-02    |
 | UT-PARSER-11  | `tests/spec/grammar.rs::spec_meaning_requires_valid_meanings`           | Meaning properties must declare valid meanings.                   | DDR-PARSER-02    |
 | UT-PARSER-12  | `tests/spec/grammar.rs::spec_meaning_labels_require_identifiers`        | Meaning labels must be identifiers (angle brackets).              | DDR-PARSER-02    |
+| UT-PARSER-13  | `tests/spec/validation.rs::spec_parse_error_human_readable`             | Syntax error produces human-readable message, not raw Rule names. | DDR-PARSER-06    |
 
 ### 4.2 UT-DOM-* --- Domain Model Tests
 
@@ -124,6 +125,8 @@ Tests in `tests/spec/validation.rs` verify DDR-VAL-* elements (semantic checks, 
 | UT-VAL-35   | `tests/spec/validation.rs::spec_ask_requires_question_property`                 | Ask requires a question property on the value.                           | DDR-VAL-02    |
 | UT-VAL-36   | `tests/spec/validation.rs::spec_trend_requires_full_coverage`                   | Trend assessments require full coverage.                                 | DDR-VAL-05    |
 | UT-VAL-37   | `tests/spec/validation.rs::spec_assignment_range_compliance_warning`             | Assignment range compliance fails when out of bounds.                    | DDR-VAL-03    |
+| UT-VAL-38   | `tests/spec/validation.rs::spec_undefined_reference_detection`                  | Undeclared addressee/variable/unit produce errors listing available definitions. | DDR-VAL-07    |
+| UT-VAL-39   | `tests/spec/validation.rs::spec_validation_error_suggestions`                   | Coverage gap error includes suggestion with exact missing range.         | DDR-VAL-08    |
 
 ### 4.4 UT-RT-* --- Runtime Tests
 
@@ -279,9 +282,9 @@ Tests in `tests/formatter.rs` verify DDR-FMT-01 (formatter `format_script`).
 
 | Module group | DDR elements covered                                   | Test count |
 |--------------|--------------------------------------------------------|------------|
-| PARSER       | DDR-PARSER-01, DDR-PARSER-02, DDR-PARSER-03, DDR-PARSER-04, DDR-PARSER-05 | 12     |
+| PARSER       | DDR-PARSER-01, DDR-PARSER-02, DDR-PARSER-03, DDR-PARSER-04, DDR-PARSER-05, DDR-PARSER-06 | 13     |
 | DOM          | DDR-DOM-01, DDR-DOM-02, DDR-DOM-06                     | 5          |
-| VAL          | DDR-VAL-01 through DDR-VAL-06                          | 37         |
+| VAL          | DDR-VAL-01 through DDR-VAL-08                          | 39         |
 | RT           | DDR-RT-01, DDR-RT-02, DDR-RT-03, DDR-RT-04, DDR-RT-05, DDR-RT-06, DDR-RT-07, DDR-RT-08 | 17   |
 | VALUES       | DDR-PARSER-02                                          | 7          |
 | UNITS        | DDR-DOM-02, DDR-PARSER-01, DDR-VAL-02, DDR-VAL-03      | 7          |
@@ -293,7 +296,7 @@ Tests in `tests/formatter.rs` verify DDR-FMT-01 (formatter `format_script`).
 | FIX          | DDR-PARSER-04                                          | 1          |
 | FFI          | DDR-FFI-01, DDR-FFI-02, DDR-FFI-03, DDR-FFI-07, DDR-FFI-08, DDR-FFI-09, DDR-FFI-10, DDR-FFI-11 | 10 |
 | FMT          | DDR-FMT-01                                             | 2          |
-| **Total**    |                                                        | **130**    |
+| **Total**    |                                                        | **133**    |
 
 ### Gaps
 
@@ -315,3 +318,4 @@ Tests in `tests/formatter.rs` verify DDR-FMT-01 (formatter `format_script`).
 | 1.2     | 2026-03-23 | ---    | Added UT-PERIODS-06, UT-PERIODS-07 for time-of-day parsing (DDR-RT-09). |
 | 1.3     | 2026-03-23 | ---    | Added UT-PLAN-01 for `after plan:` block parsing (DDR-RT-10). |
 | 1.4     | 2026-03-23 | ---    | Added UT-PERIODS-08, UT-PERIODS-09 for bare unit and ordinal trigger parsing (DDR-PARSER-05). |
+| 1.5     | 2026-03-23 | ---    | Added UT-PARSER-13 (parse error humanization, DDR-PARSER-06), UT-VAL-38 (undefined references, DDR-VAL-07), UT-VAL-39 (suggested fixes, DDR-VAL-08). |

@@ -415,7 +415,7 @@ Supporting type: `ValueDefinition { name: String, value_type: ValueType }`.
 
 Supporting type: `ValueInstance { value: RuntimeValue, timestamp: NaiveDateTime }` -- a timestamped value used in the history store.
 
-Supporting type: `EngineError { message: String, line: usize, column: usize }` -- error type used throughout parsing and validation, implementing `Display` and `Error`.
+Supporting type: `EngineError { message: String, line: usize, column: usize, suggestion: Option<String> }` -- error type used throughout parsing and validation, implementing `Display` and `Error`. The `suggestion` field carries an actionable fix description when available (DDR-VAL-08).
 
 ---
 
@@ -561,6 +561,22 @@ The parser struct `HippocratesParser` is derived via `#[derive(Parser)]` with `#
 - Ordinals are NOT round-tripped; they desugar to `every 3 days` etc.
 - Bare unit `every day` could be round-tripped but for simplicity is normalized to `every 1 day`.
 
+### DDR-PARSER-06: Parse Error Humanization
+
+**Traces to:** DES-10, REQ-4.1-05, STKR-37
+
+**Function:** `to_engine_error()` in `src/parser.rs` maps `Rule` enum variants to human-readable names via a `rule_to_human()` function.
+
+**Mapping examples:**
+- `Rule::plan_definition` → "plan declaration (missing colon?)"
+- `Rule::identifier` → "an identifier in angle brackets"
+- `Rule::quantity` → "a number with unit"
+- `Rule::expression` → "an expression"
+- `Rule::statement` → "a statement ending with a period"
+- `Rule::value_definition` → "a value definition"
+
+**Behavior:** When the Pest parser returns an error, `to_engine_error()` intercepts the error's `positives` list (expected rules) and replaces each `Rule` variant with its human-readable equivalent. The resulting error message reads like plain English (e.g., "Expected a plan declaration (missing colon?) at line 5, column 1") rather than exposing PEG internals (e.g., "Expected plan_definition").
+
 ---
 
 ## 5. Validator
@@ -657,7 +673,43 @@ All validation errors use `EngineError { message: String, line: usize, column: u
 - The `line` field indicates the source line (1-based when available, 0 when line information is not tracked).
 - The `column` field is typically 0 (column-level precision is not tracked in most validators).
 - `EngineError` implements `Display` (formatted as `"Error at line N, col N: message"`) and `Error`.
-- For FFI, errors are serialized to JSON via `serde`: `{"message": "...", "line": N, "column": N}`.
+- For FFI, errors are serialized to JSON via `serde`: `{"message": "...", "line": N, "column": N, "suggestion": "..."}`.
+
+### DDR-VAL-07: Undefined Reference Validation
+
+**Traces to:** DES-12, REQ-5.1-02, STKR-37
+
+**Function:** `check_undefined_references()` in `src/runtime/validator/semantics.rs`.
+
+**Algorithm:**
+1. Collect all defined names by type from the AST: values, addressees, units, periods.
+2. Walk all plan block statements, checking that every referenced identifier exists in the corresponding definition set.
+3. For each undefined reference, produce an error like: "Undefined addressee 'nurse'. Available addressees: patient, dentist." or "Undefined variable 'heart rate'. Available values: blood pressure, temperature."
+
+**Categories checked:**
+- Variable references in assignments, expressions, and statistical functions.
+- Addressee references in message actions.
+- Unit references in quantity literals and value definitions.
+- Period references in timeframe selectors and event triggers.
+
+### DDR-VAL-08: Suggested Fixes
+
+**Traces to:** DES-12, REQ-5.1-03, STKR-37
+
+**Change:** Extends existing validation functions to include a `suggestion` field. The `EngineError` struct gains `pub suggestion: Option<String>`.
+
+**Suggestion generation by error type:**
+
+| Error Type | Suggestion Pattern |
+|---|---|
+| Coverage gap | "Add range: 6 \<points\> ... 7 \<points\>" (the exact missing range) |
+| Range overlap | "Adjust range boundary at value X" |
+| Data flow (use before assignment) | "Add 'ask for \<variable\>' before this assess block" |
+| Undefined reference | "Did you mean '\<closest match\>'?" (when a close match exists) |
+| Missing unit | "Add 'unit is \<unit_name\>.' to the value definition" |
+| Missing valid values | "Add 'valid values:' property to the definition" |
+
+**Implementation:** Each validation function that produces an `EngineError` may set the `suggestion` field. The field is `Option<String>` so that errors without a clear fix remain `None`. The FFI JSON serialization includes the field when present.
 
 ---
 
@@ -983,8 +1035,8 @@ Defined in `src/formatter.rs`.
 |-----------------|------------------------|-----------|
 | DDR-FFI-01..19  | DES-18                 | FFI Layer |
 | DDR-DOM-01..06  | DES-15, DES-11         | Environment, AST |
-| DDR-PARSER-01..05 | DES-10               | Parser |
-| DDR-VAL-01..06  | DES-12                 | Validator |
+| DDR-PARSER-01..06 | DES-10               | Parser |
+| DDR-VAL-01..08  | DES-12                 | Validator |
 | DDR-RT-01       | DES-13                 | Executor |
 | DDR-RT-02       | DES-15                 | Environment |
 | DDR-RT-03       | DES-13                 | Executor |
@@ -1007,3 +1059,4 @@ Defined in `src/formatter.rs`.
 | 1.1     | 2026-03-23 | V-Model | Added DDR-RT-09 (time-of-day pinning, period repetition). Updated DDR-RT-03 EventKind variants and execution flow. |
 | 1.2     | 2026-03-23 | V-Model | Added DDR-RT-10 (after plan execution). PlanBlock gains AfterPlan variant; executor runs AfterPlan blocks after event loop exit. |
 | 1.3     | 2026-03-23 | V-Model | Added DDR-PARSER-05 (ordinal and bare-unit trigger sugar). Grammar gains `ordinal` and `bare_unit` rules; parser desugars to numeric intervals at parse time. |
+| 1.4     | 2026-03-23 | V-Model | Added DDR-PARSER-06 (parse error humanization), DDR-VAL-07 (undefined reference validation), DDR-VAL-08 (suggested fixes). EngineError gains `suggestion` field. All trace to STKR-37. |

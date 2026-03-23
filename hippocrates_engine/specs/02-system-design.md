@@ -72,7 +72,7 @@ graph TD
 
 ### DES-10 — Parser
 
-The parser uses **Pest** (PEG parser generator). A `grammar.pest` file defines the Hippocrates language grammar. The parser module (`parser.rs`) transforms source text into the typed AST. Error messages include line and column numbers. An indentation preprocessor normalizes whitespace before parsing. The trigger grammar supports natural language sugar: bare unit names (`every day`) and ordinals (`every second day`, `every other week`) are desugared to numeric intervals at parse time (REQ-3.8-07).
+The parser uses **Pest** (PEG parser generator). A `grammar.pest` file defines the Hippocrates language grammar. The parser module (`parser.rs`) transforms source text into the typed AST. Error messages include line and column numbers. An indentation preprocessor normalizes whitespace before parsing. The trigger grammar supports natural language sugar: bare unit names (`every day`) and ordinals (`every second day`, `every other week`) are desugared to numeric intervals at parse time (REQ-3.8-07). Parse errors are mapped from internal PEG rule names to human-readable descriptions via a `rule_to_human()` function, ensuring raw grammar internals never appear in error messages (REQ-4.1-05).
 
 ### DES-11 — AST Representation
 
@@ -82,12 +82,12 @@ The AST (`ast.rs`) is a typed tree of Rust structs and enums representing the fu
 
 The validator (`runtime/validator/mod.rs`) performs static analysis on the parsed AST before execution. It is organized into four sub-modules:
 
-- **`semantics`** — type checking, definition consistency, unit compatibility.
+- **`semantics`** — type checking, definition consistency, unit compatibility, and undefined reference detection (REQ-5.1-02). References to undeclared variables, addressees, units, and periods produce errors naming the undefined identifier and listing available definitions of that type.
 - **`intervals`** — numeric range analysis, gap/overlap detection in assessment cases.
 - **`data_flow`** — use-before-assignment detection, dependency analysis.
 - **`coverage`** — exhaustive case coverage verification for assessments and meaning models.
 
-Validation produces a `Vec<EngineError>` with source locations. The FFI exposes validation independently from execution (`hippocrates_validate_file`).
+Validation produces a `Vec<EngineError>` with source locations. Each error may include a `suggestion` field with an actionable fix (REQ-5.1-03): coverage gaps suggest the exact missing range, overlap errors suggest which range to adjust, and data flow errors suggest adding an `ask for` statement. The FFI exposes validation independently from execution (`hippocrates_validate_file`).
 
 ### DES-13 — Runtime Executor
 
@@ -330,9 +330,9 @@ These divergences reflect pragmatic design decisions made during implementation.
 | DES-01 | Rust language selection | STKR-03, STKR-14 |
 | DES-02 | Dual crate output (rlib + staticlib) | STKR-03 |
 | DES-03 | C-FFI boundary | STKR-03, STKR-14 |
-| DES-10 | Pest PEG parser | STKR-01, STKR-02 |
+| DES-10 | Pest PEG parser | STKR-01, STKR-02, STKR-37 |
 | DES-11 | AST representation | STKR-01 |
-| DES-12 | Multi-layer validator | STKR-04, STKR-10, STKR-30, STKR-31, STKR-32, STKR-33, STKR-34, STKR-35 |
+| DES-12 | Multi-layer validator | STKR-04, STKR-10, STKR-30, STKR-31, STKR-32, STKR-33, STKR-34, STKR-35, STKR-37 |
 | DES-13 | Runtime executor | STKR-01, STKR-05, STKR-36 |
 | DES-14 | Scheduler | STKR-05 |
 | DES-15 | Environment (state store) | STKR-15, STKR-16, STKR-19 |
@@ -367,3 +367,4 @@ These divergences reflect pragmatic design decisions made during implementation.
 | 1.1 | 2026-03-23 | Updated DES-13: added PeriodicByPeriod event kind and time-of-day pinning |
 | 1.2 | 2026-03-23 | Updated DES-13: added AfterPlan block execution after event loop exit. Added STKR-36 traceability. |
 | 1.3 | 2026-03-23 | Updated DES-10: parser supports ordinal and bare-unit trigger sugar (REQ-3.8-07). |
+| 1.4 | 2026-03-23 | Updated DES-10: human-readable error mapping (REQ-4.1-05). Updated DES-12: undefined reference detection (REQ-5.1-02) and suggestion generation (REQ-5.1-03). Added STKR-37 traceability. |

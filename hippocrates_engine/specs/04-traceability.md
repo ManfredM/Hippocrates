@@ -50,6 +50,7 @@ This table inverts the traceability header from `01-system-requirements.md`, sho
 | STKR-34 | §5.2 | Input precision validation |
 | STKR-35 | §3.12, §4.6 | Data sufficiency handling |
 | STKR-36 | §3.7 | Plan completion actions (`after plan:` block) |
+| STKR-37 | §4.1 (REQ-4.1-05), §5.1 (REQ-5.1-02, REQ-5.1-03) | LLM-correctable error diagnostics |
 | STKR-40 | _(Meta-requirement)_ | Requirements traceability |
 | STKR-41 | _(Meta-requirement)_ | Reproducible verification |
 | STKR-42 | _(Meta-requirement)_ | Class II documentation readiness |
@@ -82,7 +83,9 @@ This table maps REQ specification sections to DES-* design elements, derived fro
 | §4.6 Data Sufficiency | DES-12, DES-16 | Validator sufficiency checks; Evaluator NotEnoughData |
 | §4.7 Date/Time | DES-16, DES-21 | Evaluator date handling; Chrono |
 | §5 Execution | DES-13, DES-15 | Executor event loop; Environment state |
+| §4.1 (REQ-4.1-05) | DES-10 | Parser human-readable error mapping |
 | §5.1 Validation | DES-12 | Validator pipeline |
+| §5.1 (REQ-5.1-02, REQ-5.1-03) | DES-12 | Validator undefined reference detection and suggestion generation |
 | §5.2 Input Validation | DES-15, DES-42 | Environment input validation; Input channel |
 | §5.3 Meaning Evaluation | DES-16 | Evaluator meaning resolution |
 
@@ -94,9 +97,9 @@ This table maps DES-* design elements to DDR-* detailed design elements, derived
 
 | DES ID | DDR ID Range | Component |
 |--------|-------------|-----------|
-| DES-10 | DDR-PARSER-01..05 | Parser (PEG grammar, AST construction, indentation, entry point, ordinal/bare-unit sugar) |
+| DES-10 | DDR-PARSER-01..06 | Parser (PEG grammar, AST construction, indentation, entry point, ordinal/bare-unit sugar, error humanization) |
 | DES-11 | DDR-DOM-01..06, DDR-PARSER-02 | AST representation and domain model types |
-| DES-12 | DDR-VAL-01..06 | Multi-layer validator (pipeline, semantics, intervals, data flow, coverage, error reporting) |
+| DES-12 | DDR-VAL-01..08 | Multi-layer validator (pipeline, semantics, intervals, data flow, coverage, error reporting, undefined references, suggested fixes) |
 | DES-13 | DDR-RT-01, DDR-RT-03, DDR-RT-08, DDR-RT-10 | Runtime executor (Engine struct, Executor, execution modes, after plan) |
 | DES-14 | DDR-RT-05 | Scheduler |
 | DES-15 | DDR-DOM-01..06, DDR-RT-02, DDR-RT-07 | Environment (state store, domain types, input validation) |
@@ -208,6 +211,9 @@ This section adopts the content from `tests/spec/TRACEABILITY.md` verbatim. All 
 - REQ-4.1-02 -- `tests/spec/units.rs::spec_unit_conversions_within_groups` -- unit conversions are supported within compatible groups.
 - REQ-4.1-03 -- `tests/spec/units.rs::spec_assignment_requires_unit_and_precision_match` -- calculations and assignments require matching units and precision.
 
+### 5.14a -- Section 4.1 (REQ-4.1-05): Parse Error Humanization
+- REQ-4.1-05 -- `tests/spec/validation.rs::spec_parse_error_human_readable` -- parse errors include human-readable descriptions, not raw Rule names.
+
 ### 5.15 -- Section 4.2: Required Properties
 - REQ-4.2-01 -- `tests/spec/validation.rs::spec_unit_requirement_validation` -- numeric valid values require units.
 - REQ-4.2-02 -- `tests/spec/validation.rs::spec_unitless_assess_fails` -- assessment ranges require units.
@@ -264,6 +270,8 @@ This section adopts the content from `tests/spec/TRACEABILITY.md` verbatim. All 
 
 ### 5.22 -- Section 5.1: Validation Logic
 - REQ-5.1-01 -- `tests/spec/validation.rs::spec_validate_plan_fixture_suite` -- full-plan validation passes for a complete plan.
+- REQ-5.1-02 -- `tests/spec/validation.rs::spec_undefined_reference_detection` -- undeclared addressee/variable/unit produce errors listing available definitions.
+- REQ-5.1-03 -- `tests/spec/validation.rs::spec_validation_error_suggestions` -- coverage gap error includes suggestion with exact missing range.
 
 ### 5.23 -- Section 5.2: Input Validation
 - REQ-5.2-01 -- `tests/spec/execution.rs::spec_numeric_input_precision_rejection` -- numeric answers must respect the decimal precision implied by valid values.
@@ -279,10 +287,10 @@ This section adopts the content from `tests/spec/TRACEABILITY.md` verbatim. All 
 
 | V-Model Level | Test Plan | Test ID Prefix | # Test Cases | Coverage |
 |---|---|---|---|---|
-| Stakeholder Req (STKR) | `test-plans/03-acceptance-test-plan.md` | AT-\* | 27 | 100% (all 27 STKR covered) |
-| System Req (REQ) | `test-plans/02-system-test-plan.md` | ST-\* | 96 | 100% (94 unique REQ IDs, 96 test cases) |
+| Stakeholder Req (STKR) | `test-plans/03-acceptance-test-plan.md` | AT-\* | 28 | 100% (all 28 STKR covered) |
+| System Req (REQ) | `test-plans/02-system-test-plan.md` | ST-\* | 99 | 100% (97 unique REQ IDs, 99 test cases) |
 | System Design (DES) | `test-plans/01-integration-test-plan.md` | IT-\* | 28 | 14/33 DES elements directly covered (~42%) |
-| Detailed Design (DDR) | `test-plans/00-unit-test-plan.md` | UT-\* | 130 | 27/30 DDR elements covered (~90%) |
+| Detailed Design (DDR) | `test-plans/00-unit-test-plan.md` | UT-\* | 133 | 30/33 DDR elements covered (~91%) |
 
 **Notes on DES coverage:** DES elements not covered by integration tests (DES-01, DES-02, DES-03, DES-19, DES-20..DES-26, DES-30, DES-33, DES-34, DES-40) are either architectural constraints verified by successful compilation, dependency declarations, or host-side concerns outside the scope of Rust integration tests. DES-43 (stop signal) is now covered by IT-25.
 
@@ -320,6 +328,7 @@ The master matrix traces each stakeholder requirement through all V-Model levels
 | STKR-34 | §5.2 | DES-15, DES-42 | DDR-RT-07 | UT-RT-07 | IT-16, IT-17 | ST-5.2-01 | AT-34 | Covered |
 | STKR-35 | §3.12, §4.6 | DES-12, DES-16 | DDR-VAL-02, DDR-RT-04 | UT-VAL-09..12, UT-RT-01, UT-CTX-09 | IT-11 | ST-3.12-05, ST-4.6-\* | AT-35 | Covered |
 | STKR-36 | §3.7 | DES-13 | DDR-RT-10 | UT-PLAN-01 | IT-28 | ST-3.7-10 | AT-36 | Covered |
+| STKR-37 | §4.1 (REQ-4.1-05), §5.1 (REQ-5.1-02, REQ-5.1-03) | DES-10, DES-12 | DDR-PARSER-06, DDR-VAL-07, DDR-VAL-08 | UT-PARSER-13, UT-VAL-38, UT-VAL-39 | _(none)_ | ST-4.1-05, ST-5.1-02, ST-5.1-03 | AT-37 | Covered |
 | STKR-40 | _(meta)_ | _(this document)_ | _(this document)_ | _(N/A)_ | _(N/A)_ | _(N/A)_ | AT-40 | Covered |
 | STKR-41 | _(meta)_ | _(build system)_ | _(build system)_ | _(all tests)_ | _(all tests)_ | _(all tests)_ | AT-41 | Covered |
 | STKR-42 | _(meta)_ | _(doc set)_ | _(doc set)_ | _(N/A)_ | _(N/A)_ | _(N/A)_ | AT-42 | Covered |
@@ -378,3 +387,4 @@ The following DES elements are not directly covered by integration tests (per `0
 | 1.2 | 2026-03-23 | Added REQ-3.8-05, REQ-3.8-06, REQ-5-05, DDR-RT-09. Updated STKR-05 row. |
 | 1.3 | 2026-03-23 | Added STKR-36 chain: REQ-3.7-10, DDR-RT-10, UT-PLAN-01, IT-28, ST-3.7-10, AT-36. |
 | 1.4 | 2026-03-23 | Added REQ-3.8-07 (bare unit and ordinal triggers). Added DDR-PARSER-05. Updated STKR-02 and STKR-05 rows. Added UT-PERIODS-08..09, ST-3.8-07. |
+| 1.5 | 2026-03-23 | Added STKR-37 chain: REQ-4.1-05, REQ-5.1-02, REQ-5.1-03, DDR-PARSER-06, DDR-VAL-07, DDR-VAL-08, UT-PARSER-13, UT-VAL-38, UT-VAL-39, ST-4.1-05, ST-5.1-02, ST-5.1-03, AT-37. Updated test counts. |

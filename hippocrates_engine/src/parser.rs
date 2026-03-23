@@ -84,24 +84,23 @@ fn to_engine_error(e: ParseError) -> EngineError {
                 pest::error::LineColLocation::Span((line, col), _) => (line, col),
             };
             
-            // Custom simplified error message
+            // Human-readable error message (LLM-friendly)
             let message = match pe.variant {
                 pest::error::ErrorVariant::ParsingError { positives, negatives } => {
-                     let expected: Vec<String> = positives.iter().map(|r| format!("{:?}", r)).collect();
+                     let expected: Vec<String> = positives.iter().map(|r| rule_to_human(r)).collect();
                      let mut msg = String::new();
                      if !expected.is_empty() {
                          msg.push_str("Expected ");
-                         // simple join
                          msg.push_str(&expected.join(", "));
                      }
                      if !negatives.is_empty() {
                          if !msg.is_empty() { msg.push_str("; "); }
                          msg.push_str("Unexpected ");
-                         let unexpected: Vec<String> = negatives.iter().map(|r| format!("{:?}", r)).collect();
+                         let unexpected: Vec<String> = negatives.iter().map(|r| rule_to_human(r)).collect();
                          msg.push_str(&unexpected.join(", "));
                      }
                      if msg.is_empty() {
-                         "Parsing error".to_string()
+                         "Syntax error".to_string()
                      } else {
                          msg
                      }
@@ -109,27 +108,66 @@ fn to_engine_error(e: ParseError) -> EngineError {
                 pest::error::ErrorVariant::CustomError { message } => message,
             };
 
-            EngineError {
+            EngineError { suggestion: None,
                 message,
                 line: line_col.0,
                 column: line_col.1,
             }
         },
-        ParseError::ValidationError(msg) => EngineError {
+        ParseError::ValidationError(msg) => EngineError { suggestion: None,
             message: msg,
             line: 0,
             column: 0,
         },
-        ParseError::UnknownRule(msg) => EngineError {
+        ParseError::UnknownRule(msg) => EngineError { suggestion: None,
             message: format!("Unknown rule: {}", msg),
             line: 0,
             column: 0,
         },
-        ParseError::UnknownUnit(msg) => EngineError {
+        ParseError::UnknownUnit(msg) => EngineError { suggestion: None,
             message: format!("Unknown unit: {}", msg),
             line: 0,
             column: 0,
         }
+    }
+}
+
+/// Maps PEG grammar Rule names to human-readable descriptions for LLM-friendly error messages.
+fn rule_to_human(rule: &Rule) -> String {
+    match rule {
+        Rule::file => "a complete Hippocrates script".into(),
+        Rule::definition => "a definition (value, plan, addressee, unit, period, or drug)".into(),
+        Rule::plan_definition => "a plan declaration (e.g., '<name> is a plan:')".into(),
+        Rule::value_definition => "a value definition (e.g., '<name> is a number:')".into(),
+        Rule::unit_definition => "a unit definition (e.g., '<name> is a unit:')".into(),
+        Rule::addressee_definition => "an addressee definition (e.g., '<name> is an addressee:')".into(),
+        Rule::period_definition => "a period definition (e.g., '<name> is a period:')".into(),
+        Rule::drug_definition => "a drug definition".into(),
+        Rule::context_definition => "a context definition".into(),
+        Rule::identifier => "an identifier in angle brackets (e.g., '<name>')".into(),
+        Rule::angled_identifier => "an identifier in angle brackets (e.g., '<name>')".into(),
+        Rule::quantity => "a number with unit (e.g., '1 day', '37.5 °C')".into(),
+        Rule::number => "a number".into(),
+        Rule::string_literal => "a quoted string (e.g., \"text\")".into(),
+        Rule::event_trigger => "a trigger (e.g., 'every day', 'with begin of <period>')".into(),
+        Rule::plan_block => "a plan block ('before plan:', 'after plan:', or a trigger block)".into(),
+        Rule::before_plan_block => "'before plan:' block".into(),
+        Rule::after_plan_block => "'after plan:' block".into(),
+        Rule::statement => "a statement (ask, assess, information, etc.)".into(),
+        Rule::assessment_case => "an assessment case (e.g., '0 ... 10:')".into(),
+        Rule::ask_question => "an ask statement (e.g., 'ask for <value>.')".into(),
+        Rule::information_message => "an information statement".into(),
+        Rule::valid_values_prop => "a valid values property".into(),
+        Rule::question_prop => "a question property".into(),
+        Rule::timeframe_prop => "a timeframe property".into(),
+        Rule::weekday => "a weekday name (Monday, Tuesday, ...)".into(),
+        Rule::time_literal => "a time (e.g., '08:00')".into(),
+        Rule::ordinal => "an ordinal (second, third, fourth, ...)".into(),
+        Rule::bare_unit => "a time unit (day, week, month, ...)".into(),
+        Rule::INDENT => "an indented block".into(),
+        Rule::DEDENT => "end of indented block".into(),
+        Rule::EOI => "end of file".into(),
+        _ => format!("{:?}", rule),
     }
 }
 

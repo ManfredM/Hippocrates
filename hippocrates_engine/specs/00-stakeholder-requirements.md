@@ -281,6 +281,20 @@ Plans shall support defining actions that execute when the plan reaches its natu
 
 ---
 
+## 6. AI Integration Requirements
+
+### STKR-37 — LLM-Correctable Error Diagnostics
+
+Error messages produced by the engine shall be detailed and specific enough for a large language model (LLM) to automatically correct Hippocrates scripts without human intervention. This requires human-readable descriptions (not raw parser internals), detection of all reference errors, and actionable suggested fixes.
+
+**Priority:** Must
+**Acceptance criteria:**
+- Given a script with a syntax error, when validated, then the error message describes what's wrong in plain English with a suggested fix.
+- Given a script referencing an undeclared variable, addressee, or unit, when validated, then the error identifies the undefined reference and lists available definitions.
+- Given a script with a coverage gap, when validated, then the error includes the exact range to add.
+
+---
+
 ## 5. Regulatory Requirements
 
 ### STKR-40 — Requirements Traceability
@@ -323,3 +337,4 @@ The engine documentation shall be structured to support Class II medical device 
 | 1.1 | 2026-03-23 | Extended STKR-05 acceptance criteria for time-of-day pinning and period-based repetition |
 | 1.2 | 2026-03-23 | Added STKR-36 (Plan Completion Actions) for `after plan:` block |
 | 1.3 | 2026-03-23 | Natural language trigger syntax (bare units, ordinals) enhances STKR-02 readability. No new STKR required. |
+| 1.4 | 2026-03-23 | Added STKR-37 (LLM-Correctable Error Diagnostics) in new AI Integration Requirements section. |

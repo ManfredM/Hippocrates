@@ -10,7 +10,7 @@ pub fn check_drugs(defs: &HashMap<String, Definition>, valid_units: &HashSet<Str
                     for ing in ingredients {
                         if let crate::domain::Unit::Custom(name) = &ing.unit {
                             if !valid_units.contains(name) {
-                                errors.push(EngineError {
+                                errors.push(EngineError { suggestion: None,
                                     message: format!("Undefined unit '{}' in drug ingredient '{}'", name, ing.name),
                                     line: 0,
                                     column: 0,
@@ -41,7 +41,7 @@ pub fn check_unit_definitions(defs: &HashMap<String, Definition>, errors: &mut V
 
             for alias in aliases {
                 if is_builtin_unit(alias) {
-                    errors.push(EngineError {
+                    errors.push(EngineError { suggestion: None,
                         message: format!(
                             "Built-in units cannot be redefined. Custom unit '{}' conflicts with built-in unit '{}'.",
                             ud.name, alias
@@ -63,7 +63,7 @@ pub fn check_addressees(defs: &HashMap<String, Definition>, errors: &mut Vec<Eng
                     for detail in details {
                         if let crate::ast::ContactDetail::Email(e) = detail {
                             if !e.contains('@') {
-                                errors.push(EngineError {
+                                errors.push(EngineError { suggestion: None,
                                     message: format!("Invalid email format '{}' for addressee '{}'", e, ad.name),
                                     line: 0,
                                     column: 0,
@@ -94,7 +94,7 @@ pub fn check_value_definitions(defs: &HashMap<String, Definition>, errors: &mut 
              if needs_values {
                  let has_valid_values = vd.properties.iter().any(|p| matches!(p, Property::ValidValues(_)));
                  if !has_valid_values {
-                      errors.push(EngineError {
+                      errors.push(EngineError { suggestion: None,
                           message: format!("Definition of '{}' is invalid: Missing 'valid values' property.", vd.name),
                           line: 0,
                           column: 0,
@@ -126,14 +126,14 @@ pub fn check_value_definitions(defs: &HashMap<String, Definition>, errors: &mut 
                  }
 
                  if !has_explicit_unit && !has_implied_unit {
-                      errors.push(EngineError {
+                      errors.push(EngineError { suggestion: None,
                           message: format!("Numeric values must have a unit. Definition of '{}' is invalid: Number defined without a Unit (e.g. 'unit is mg' or usage of '0 mg ... 100 mg').", vd.name),
                           line: line_hint,
                           column: 0,
                       });
                  } else if has_unitless_range {
                       // Mixed or Unitless ranges
-                      errors.push(EngineError {
+                      errors.push(EngineError { suggestion: None,
                           message: format!("Numeric values must have a unit. Definition of '{}' is invalid: Range contains unitless numbers (must use quantities like '10 mg').", vd.name),
                           line: line_hint,
                           column: 0,
@@ -234,7 +234,7 @@ pub fn check_timeframe_period_references(defs: &HashMap<String, Definition>, err
 fn check_timeframe_selector(sel: &RangeSelector, period_names: &HashSet<String>, line: usize, errors: &mut Vec<EngineError>) {
     if let RangeSelector::Equals(Expression::Variable(name)) = sel {
         if !period_names.contains(name) {
-            errors.push(EngineError {
+            errors.push(EngineError { suggestion: None,
                 message: format!("Timeframe selector references undefined period '{}'.", name),
                 line,
                 column: 0,
@@ -311,7 +311,7 @@ pub fn check_statement_semantics(
                              });
                              
                              if !has_question {
-                                 errors.push(EngineError {
+                                 errors.push(EngineError { suggestion: None,
                                      message: format!("Variable '{}' cannot be asked: Missing 'question:' property with text.", q),
                                      line: stmt.line,
                                      column: 0,
@@ -323,7 +323,7 @@ pub fn check_statement_semantics(
                              let needs_values = matches!(vd.value_type, crate::domain::ValueType::Number | crate::domain::ValueType::Enumeration);
                              
                              if needs_values && !has_valid_values {
-                                 errors.push(EngineError {
+                                 errors.push(EngineError { suggestion: None,
                                      message: format!("Variable '{}' cannot be asked: Missing 'valid values:' definition (range or enum cases).", q),
                                      line: stmt.line,
                                      column: 0,
@@ -331,7 +331,7 @@ pub fn check_statement_semantics(
                              }
                          }
                      } else {
-                         errors.push(EngineError {
+                         errors.push(EngineError { suggestion: None,
                              message: format!("Asking question for undefined variable '{}'", q),
                              line: stmt.line,
                              column: 0,
@@ -340,7 +340,7 @@ pub fn check_statement_semantics(
                  },
                  crate::ast::Action::ListenFor(q) => {
                      if !defined_values.contains_key(q) {
-                         errors.push(EngineError {
+                         errors.push(EngineError { suggestion: None,
                              message: format!("ListenFor action targets undefined variable '{}'", q),
                              line: stmt.line,
                              column: 0,
@@ -458,7 +458,7 @@ fn validate_expression(
     match expr {
         Expression::Variable(name) => {
              if !defined_values.contains(name) && !allow_undefined_identifiers {
-                 errors.push(EngineError {
+                 errors.push(EngineError { suggestion: None,
                      message: format!("Undefined variable '{}' in expression", name),
                      line,
                      column: 0,
@@ -467,7 +467,7 @@ fn validate_expression(
         }
         Expression::MeaningOf(name) => {
              if !defined_values.contains(name) {
-                 errors.push(EngineError {
+                 errors.push(EngineError { suggestion: None,
                      message: format!("Undefined variable '{}' in meaning expression", name),
                      line,
                      column: 0,
@@ -485,7 +485,7 @@ fn validate_expression(
         Expression::Statistical(func) => match func {
             crate::ast::StatisticalFunc::CountOf(name, filter) => {
                 if enum_vars.contains(name) && filter.is_none() {
-                     errors.push(EngineError {
+                     errors.push(EngineError { suggestion: None,
                          message: format!("Validation Error: 'count of {}' requires a specific value to count (e.g. 'count of {} is <Yes>') because it is an Enumeration.", name, name),
                          line,
                          column: 0
@@ -494,7 +494,7 @@ fn validate_expression(
             }
             crate::ast::StatisticalFunc::TrendOf(name) => {
                  if enum_vars.contains(name) {
-                    errors.push(EngineError {
+                    errors.push(EngineError { suggestion: None,
                         message: format!("Validation Error: 'trend of {}' is not supported because it is an Enumeration.", name),
                         line,
                         column: 0
@@ -503,6 +503,139 @@ fn validate_expression(
             }
             _ => {}
         },
+        _ => {}
+    }
+}
+
+/// Checks for references to undeclared variables, addressees, units, and periods in plan blocks.
+pub fn check_undefined_references(defs: &HashMap<String, Definition>, errors: &mut Vec<EngineError>) {
+    let mut value_names: HashSet<String> = HashSet::new();
+    let mut addressee_names: HashSet<String> = HashSet::new();
+    let mut plan_defs: Vec<&crate::ast::PlanDef> = Vec::new();
+
+    for def in defs.values() {
+        match def {
+            Definition::Value(vd) => { value_names.insert(vd.name.clone()); }
+            Definition::Addressee(ad) => { addressee_names.insert(ad.name.clone()); }
+            Definition::Plan(plan) => { plan_defs.push(plan); }
+            Definition::Drug(dd) => { value_names.insert(dd.name.clone()); }
+            _ => {}
+        }
+    }
+
+    for plan in &plan_defs {
+        for block in &plan.blocks {
+            let stmts = match block {
+                PlanBlock::BeforePlan(stmts) | PlanBlock::AfterPlan(stmts) => stmts,
+                PlanBlock::Event(eb) => &eb.statements,
+                PlanBlock::Trigger(tb) => &tb.statements,
+            };
+            for stmt in stmts {
+                check_stmt_refs(stmt, &value_names, &addressee_names, errors);
+            }
+        }
+    }
+}
+
+fn check_stmt_refs(
+    stmt: &Statement,
+    value_names: &HashSet<String>,
+    addressee_names: &HashSet<String>,
+    errors: &mut Vec<EngineError>,
+) {
+    match &stmt.kind {
+        StatementKind::Action(action) => {
+            match action {
+                crate::ast::Action::ShowMessage { addressees, .. } => {
+                    for addr in addressees {
+                        let name = addr.trim_start_matches('<').trim_end_matches('>');
+                        if !addressee_names.contains(name) {
+                            let mut available: Vec<&String> = addressee_names.iter().collect();
+                            available.sort();
+                            errors.push(EngineError {
+                                suggestion: Some(format!("Define '<{}> is an addressee:' before the plan, or use one of: {}.",
+                                    name,
+                                    available.iter().map(|s| format!("<{}>", s)).collect::<Vec<_>>().join(", ")
+                                )),
+                                message: format!(
+                                    "Undefined Reference: Addressee '{}' is not defined. Available addressees: {}.",
+                                    name,
+                                    if available.is_empty() { "(none)".to_string() } else { available.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ") }
+                                ),
+                                line: stmt.line,
+                                column: 0,
+                            });
+                        }
+                    }
+                }
+                crate::ast::Action::AskQuestion(var_name, sub_stmts) => {
+                    let name = var_name.trim_start_matches('<').trim_end_matches('>');
+                    if !value_names.contains(name) {
+                        let mut available: Vec<&String> = value_names.iter().collect();
+                        available.sort();
+                        errors.push(EngineError {
+                            suggestion: Some(format!("Define '<{}> is a number:' (or enumeration/string) before the plan.", name)),
+                            message: format!(
+                                "Undefined Reference: Variable '{}' is not defined. Available values: {}.",
+                                name,
+                                if available.is_empty() { "(none)".to_string() } else { available.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ") }
+                            ),
+                            line: stmt.line,
+                            column: 0,
+                        });
+                    }
+                    if let Some(stmts) = sub_stmts {
+                        for s in stmts { check_stmt_refs(s, value_names, addressee_names, errors); }
+                    }
+                }
+                crate::ast::Action::ListenFor(var_name) => {
+                    let name = var_name.trim_start_matches('<').trim_end_matches('>');
+                    if !value_names.contains(name) {
+                        errors.push(EngineError {
+                            suggestion: Some(format!("Define '<{}> is a number:' before the plan.", name)),
+                            message: format!("Undefined Reference: Variable '{}' is not defined.", name),
+                            line: stmt.line,
+                            column: 0,
+                        });
+                    }
+                }
+                _ => {}
+            }
+        }
+        StatementKind::EventProgression(var_name, branches) => {
+            let name = var_name.trim_start_matches('<').trim_end_matches('>');
+            if !value_names.contains(name) {
+                let mut available: Vec<&String> = value_names.iter().collect();
+                available.sort();
+                errors.push(EngineError {
+                    suggestion: Some(format!("Define '<{}> is a number:' before the plan.", name)),
+                    message: format!(
+                        "Undefined Reference: Variable '{}' is not defined. Available values: {}.",
+                        name,
+                        if available.is_empty() { "(none)".to_string() } else { available.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ") }
+                    ),
+                    line: stmt.line,
+                    column: 0,
+                });
+            }
+            for branch in branches {
+                for sub_stmt in &branch.block {
+                    check_stmt_refs(sub_stmt, value_names, addressee_names, errors);
+                }
+            }
+        }
+        StatementKind::Conditional(cond) => {
+            for branch in &cond.cases {
+                for sub_stmt in &branch.block {
+                    check_stmt_refs(sub_stmt, value_names, addressee_names, errors);
+                }
+            }
+        }
+        StatementKind::Timeframe(tb) => {
+            for sub_stmt in &tb.block {
+                check_stmt_refs(sub_stmt, value_names, addressee_names, errors);
+            }
+        }
         _ => {}
     }
 }
