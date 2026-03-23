@@ -321,12 +321,12 @@ plan_definition =
     identifier, " is a plan:", newline, indent, { plan_block }, dedent;
 
 plan_block =
-    during_plan_block |
+    before_plan_block |
     after_plan_block |
     trigger_block |
     event_block;
 
-during_plan_block = "during plan:", newline, indent, { statement }, dedent;
+before_plan_block = "before plan:", newline, indent, { statement }, dedent;
 
 after_plan_block = "after plan:", newline, indent, { statement }, dedent;
 
@@ -919,7 +919,7 @@ Informative: When the source value is unknown, the runtime returns `Missing` to 
         timeframe for analysis is 7 days ago ... now:
             <weekly average> = average of <daily pain> over 7 days.
 
-during plan:
+before plan:
     assess <weekly average>:
         Not enough data:
             information "Please continue tracking pain for a full week.".
@@ -960,7 +960,7 @@ urgent warning to <patient> "Take your medication now":
     reuse:
         reuse period of value is 1 hour.
 
-during plan:
+before plan:
     ask <body temperature>.
 ```
 
@@ -981,7 +981,7 @@ during plan:
         ask "How many hours ago did you eat?".
 
 <intake> is a plan:
-    during plan:
+    before plan:
         ask <time of injury>.
         ask <hours since meal>.
 ```

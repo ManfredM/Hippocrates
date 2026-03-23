@@ -12,6 +12,6 @@
         ask "How many hours ago did you eat?".
 
 <injury intake> is a plan:
-    during plan:
+    before plan:
         ask <time of injury>.
         ask <hours since meal>.

@@ -245,7 +245,7 @@ fn spec_numeric_input_precision_rejection() {
         ask "How many hours ago did you eat?".
 
 <intake> is a plan:
-    during plan:
+    before plan:
         ask <hours since meal>.
 "#;
 
@@ -312,7 +312,7 @@ fn spec_numeric_input_precision_rejection() {
 fn spec_runtime_execution_flow() {
     let input = r#"
 <test plan> is a plan:
-    during plan:
+    before plan:
         information "Hello World".
         <x> = 10 kg.
         send information "Val is " <x>.
@@ -344,7 +344,7 @@ fn spec_runtime_execution_flow() {
 fn spec_message_callback_missing_warns() {
     let input = r#"
 <plan> is a plan:
-    during plan:
+    before plan:
         information to <patient> "Hello".
 "#;
 
@@ -404,7 +404,7 @@ fn spec_validity_reuse_timeframe() {
         reuse period of value is 5 seconds.
 
 <CheckTemp> is a plan:
-    during plan:
+    before plan:
         ask <Temp>.
         information "Temp is " + <Temp>.
 "#;

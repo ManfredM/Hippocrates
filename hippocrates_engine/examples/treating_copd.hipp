@@ -128,7 +128,7 @@
     *)
 
 <COPD telehealth> is a plan:
-    during plan:
+    before plan:
         <log> = "Plan started".
 
     <inhalation> with begin of <best inhalation period>:

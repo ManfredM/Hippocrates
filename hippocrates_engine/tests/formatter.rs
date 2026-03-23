@@ -11,7 +11,7 @@ fn formatter_inserts_missing_statement_newlines() {
     0 <units> ... 1 <unit>.
 
 <plan> is a plan:
-  during plan:
+  before plan:
     information "First". information "Second".
 "#;
 
@@ -36,7 +36,7 @@ fn formatter_normalizes_indentation() {
     0 <units> ... 10 <units>.
 
 <plan> is a plan:
-  during plan:
+  before plan:
     assess <value>:
       0 <units> ... 10 <units>:
         information "OK".
@@ -57,7 +57,7 @@ fn formatter_normalizes_indentation() {
 fn formatter_preserves_message_recipient() {
     let input = r#"
 <plan> is a plan:
-  during plan:
+  before plan:
     information to <patient> "Hello":
       message expires after 1 day.
 "#;
@@ -99,7 +99,7 @@ fn formatter_round_trip_parse_format_parse() {
                 <severe>.
 
 <tracker> is a plan:
-    during plan:
+    before plan:
         ask <severity>.
         information "Tracking started.".
     every 1 day:
@@ -167,7 +167,7 @@ fn formatter_handles_all_definition_types() {
         maximum daily dose = 4000 mg.
 
 <care plan> is a plan:
-    during plan:
+    before plan:
         ask <weight>.
         information "Plan started.".
     every 1 day:

@@ -18,7 +18,7 @@ fn spec_timeframe_block_parsing() {
         assert_eq!(plan_def.name, "TimeframePlan");
 
         let block = &plan_def.blocks[0];
-        if let PlanBlock::DuringPlan(stmts) = block {
+        if let PlanBlock::BeforePlan(stmts) = block {
             if let StatementKind::Timeframe(block) = &stmts[0].kind {
                 assert!(block.for_analysis);
             }
@@ -31,7 +31,7 @@ fn spec_timeframe_block_parsing() {
                 _ => panic!("Expected Timeframe block"),
             }
         } else {
-            panic!("Expected DuringPlan block");
+            panic!("Expected BeforePlan block");
         }
     } else {
         panic!("Expected Plan definition");
@@ -49,7 +49,7 @@ fn spec_question_config_parsing_and_validation() {
     for def in &plan.definitions {
         if let hippocrates_engine::ast::Definition::Plan(pd) = def {
             for block in &pd.blocks {
-                if let PlanBlock::DuringPlan(stmts) = block {
+                if let PlanBlock::BeforePlan(stmts) = block {
                     for stmt in stmts {
                         if let StatementKind::Action(Action::Configure(config)) = &stmt.kind {
                             if let QuestionConfig::VisualAnalogScale(vas) = config {
@@ -78,7 +78,7 @@ fn spec_question_config_parsing_and_validation() {
 fn spec_message_expiration_parsing() {
     let input = r#"
 <plan> is a plan:
-    during plan:
+    before plan:
         information to <patient>; <caregiver> "Take your medication now":
             message expires after 15 minutes.
 "#;
@@ -92,8 +92,8 @@ fn spec_message_expiration_parsing() {
         .expect("Plan definition not found");
 
     let during = match &plan_def.blocks[0] {
-        PlanBlock::DuringPlan(stmts) => stmts,
-        _ => panic!("Expected DuringPlan"),
+        PlanBlock::BeforePlan(stmts) => stmts,
+        _ => panic!("Expected BeforePlan"),
     };
 
     let show_stmt = during
@@ -118,7 +118,7 @@ fn spec_message_expiration_parsing() {
 fn spec_message_action_keyword_parsing() {
     let input = r#"
 <plan> is a plan:
-    during plan:
+    before plan:
         information "Hello.".
         warning "Check this.".
         urgent warning "Act now.".
@@ -132,8 +132,8 @@ fn spec_message_action_keyword_parsing() {
         .expect("Plan definition not found");
 
     let during = match &plan_def.blocks[0] {
-        PlanBlock::DuringPlan(stmts) => stmts,
-        _ => panic!("Expected DuringPlan"),
+        PlanBlock::BeforePlan(stmts) => stmts,
+        _ => panic!("Expected BeforePlan"),
     };
 
     let mut kinds = Vec::new();
@@ -163,7 +163,7 @@ fn spec_question_modifiers_parsing() {
         ask "Temp?".
 
 <plan> is a plan:
-    during plan:
+    before plan:
         ask <temp>:
             validate answer twice.
             type of question is "numeric".
@@ -179,8 +179,8 @@ fn spec_question_modifiers_parsing() {
         .expect("Plan definition not found");
 
     let during = match &plan_def.blocks[0] {
-        PlanBlock::DuringPlan(stmts) => stmts,
-        _ => panic!("Expected DuringPlan"),
+        PlanBlock::BeforePlan(stmts) => stmts,
+        _ => panic!("Expected BeforePlan"),
     };
 
     let ask_stmt = during
@@ -234,7 +234,7 @@ fn spec_question_expiration_block_parsing() {
         ask "Temp?".
 
 <plan> is a plan:
-    during plan:
+    before plan:
         ask <temp>:
             question expires after 1 day:
                 information "Reminder".
@@ -248,8 +248,8 @@ fn spec_question_expiration_block_parsing() {
         .expect("Plan definition not found");
 
     let during = match &plan_def.blocks[0] {
-        PlanBlock::DuringPlan(stmts) => stmts,
-        _ => panic!("Expected DuringPlan"),
+        PlanBlock::BeforePlan(stmts) => stmts,
+        _ => panic!("Expected BeforePlan"),
     };
 
     let ask_stmt = during
@@ -291,7 +291,7 @@ fn spec_question_expiration_until_event_trigger_parsing() {
         ask "Temp?".
 
 <plan> is a plan:
-    during plan:
+    before plan:
         ask <temp>:
             question expires after until every Monday.
 "#;
@@ -304,8 +304,8 @@ fn spec_question_expiration_until_event_trigger_parsing() {
         .expect("Plan definition not found");
 
     let during = match &plan_def.blocks[0] {
-        PlanBlock::DuringPlan(stmts) => stmts,
-        _ => panic!("Expected DuringPlan"),
+        PlanBlock::BeforePlan(stmts) => stmts,
+        _ => panic!("Expected BeforePlan"),
     };
 
     let ask_stmt = during
@@ -338,7 +338,7 @@ fn spec_validate_answer_within_parsing() {
         ask "Temp?".
 
 <plan> is a plan:
-    during plan:
+    before plan:
         ask <temp>:
             validate answer twice within 5 minutes.
 "#;
@@ -351,8 +351,8 @@ fn spec_validate_answer_within_parsing() {
         .expect("Plan definition not found");
 
     let during = match &plan_def.blocks[0] {
-        PlanBlock::DuringPlan(stmts) => stmts,
-        _ => panic!("Expected DuringPlan"),
+        PlanBlock::BeforePlan(stmts) => stmts,
+        _ => panic!("Expected BeforePlan"),
     };
 
     let ask_stmt = during
@@ -371,7 +371,7 @@ fn spec_validate_answer_within_parsing() {
 fn spec_listen_send_start_and_simple_command_parsing() {
     let input = r#"
 <plan> is a plan:
-    during plan:
+    before plan:
         listen for <signal>:
             information "Listening".
         send information "Info" <signal>.
@@ -387,8 +387,8 @@ fn spec_listen_send_start_and_simple_command_parsing() {
         .expect("Plan definition not found");
 
     let during = match &plan_def.blocks[0] {
-        PlanBlock::DuringPlan(stmts) => stmts,
-        _ => panic!("Expected DuringPlan"),
+        PlanBlock::BeforePlan(stmts) => stmts,
+        _ => panic!("Expected BeforePlan"),
     };
 
     let mut saw_listen = false;
@@ -427,7 +427,7 @@ fn spec_listen_send_start_and_simple_command_parsing() {
 fn spec_timeframe_requires_range_selector() {
     let input = r#"
 <plan> is a plan:
-    during plan:
+    before plan:
         timeframe for analysis is now:
             information "Hi".
 "#;

@@ -39,7 +39,7 @@ fn spec_context_block_items_parsing() {
         0 kg ... 10 kg.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         context for analysis:
             data: <pain>.
             value filter: 0 kg ... 10 kg:
@@ -55,8 +55,8 @@ fn spec_context_block_items_parsing() {
         .expect("Plan definition not found");
 
     let during = match &plan_def.blocks[0] {
-        PlanBlock::DuringPlan(stmts) => stmts,
-        _ => panic!("Expected DuringPlan"),
+        PlanBlock::BeforePlan(stmts) => stmts,
+        _ => panic!("Expected BeforePlan"),
     };
 
     let ctx_stmt = during
@@ -80,7 +80,7 @@ fn spec_statistical_functions_parsing() {
         0 kg ... 10 kg.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         <min val> = min of <val>.
         <max val> = max of <val>.
         <avg val> = average of <val> over 5 days.
@@ -94,8 +94,8 @@ fn spec_statistical_functions_parsing() {
         .expect("Plan definition not found");
 
     let during = match &plan_def.blocks[0] {
-        PlanBlock::DuringPlan(stmts) => stmts,
-        _ => panic!("Expected DuringPlan"),
+        PlanBlock::BeforePlan(stmts) => stmts,
+        _ => panic!("Expected BeforePlan"),
     };
 
     let mut saw_min = false;
@@ -136,7 +136,7 @@ fn spec_meaning_of_expression_parsing() {
 <label> is a string.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         <label> = meaning of <weight>.
 "#;
 
@@ -148,8 +148,8 @@ fn spec_meaning_of_expression_parsing() {
         .expect("Plan definition not found");
 
     let during = match &plan_def.blocks[0] {
-        PlanBlock::DuringPlan(stmts) => stmts,
-        _ => panic!("Expected DuringPlan"),
+        PlanBlock::BeforePlan(stmts) => stmts,
+        _ => panic!("Expected BeforePlan"),
     };
 
     let assignment = during
@@ -170,7 +170,7 @@ fn spec_time_indications_parsing() {
 <when> is a time indication.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         <when> = now.
         <when> = Monday.
         <when> = 08:30.
@@ -184,8 +184,8 @@ fn spec_time_indications_parsing() {
         .expect("Plan definition not found");
 
     let during = match &plan_def.blocks[0] {
-        PlanBlock::DuringPlan(stmts) => stmts,
-        _ => panic!("Expected DuringPlan"),
+        PlanBlock::BeforePlan(stmts) => stmts,
+        _ => panic!("Expected BeforePlan"),
     };
 
     let mut saw_now = false;
@@ -216,7 +216,7 @@ fn spec_date_time_literals_parsing() {
 <when> is a date/time.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         <when> = 2026-01-18.
         <when> = 2026-01-18 13:45.
 "#;
@@ -229,8 +229,8 @@ fn spec_date_time_literals_parsing() {
         .expect("Plan definition not found");
 
     let during = match &plan_def.blocks[0] {
-        PlanBlock::DuringPlan(stmts) => stmts,
-        _ => panic!("Expected DuringPlan"),
+        PlanBlock::BeforePlan(stmts) => stmts,
+        _ => panic!("Expected BeforePlan"),
     };
 
     let mut saw_date = false;
@@ -259,7 +259,7 @@ fn spec_date_diff_parsing() {
         0 days ... 365 days.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         <delta> = days between 2026-01-01 and 2026-01-11.
 "#;
 
@@ -271,8 +271,8 @@ fn spec_date_diff_parsing() {
         .expect("Plan definition not found");
 
     let during = match &plan_def.blocks[0] {
-        PlanBlock::DuringPlan(stmts) => stmts,
-        _ => panic!("Expected DuringPlan"),
+        PlanBlock::BeforePlan(stmts) => stmts,
+        _ => panic!("Expected BeforePlan"),
     };
 
     let assign = during
@@ -293,7 +293,7 @@ fn spec_relative_time_from_now_parsing() {
 <when> is a time indication.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         <when> = 2 days from now.
 "#;
 
@@ -305,8 +305,8 @@ fn spec_relative_time_from_now_parsing() {
         .expect("Plan definition not found");
 
     let during = match &plan_def.blocks[0] {
-        PlanBlock::DuringPlan(stmts) => stmts,
-        _ => panic!("Expected DuringPlan"),
+        PlanBlock::BeforePlan(stmts) => stmts,
+        _ => panic!("Expected BeforePlan"),
     };
 
     let assign = during
@@ -331,7 +331,7 @@ fn spec_context_for_analysis_execution() {
 <pain level> is a number.
 
 <TestPlan> is a plan:
-    during plan:
+    before plan:
         context for analysis:
             timeframe: 2 days ago ... now.
             assess trend of <pain level>:

@@ -67,7 +67,7 @@ fn spec_full_fixture_parses_core_definitions() {
         assert_eq!(p.name, "Treatment Plan");
 
         let block = &p.blocks[0]; // During plan
-        if let hippocrates_engine::ast::PlanBlock::DuringPlan(stmts) = block {
+        if let hippocrates_engine::ast::PlanBlock::BeforePlan(stmts) = block {
             // Check for conditional
             let cond_opts = stmts
                 .iter()
@@ -80,7 +80,7 @@ fn spec_full_fixture_parses_core_definitions() {
                 }
             }
         } else {
-            panic!("Expected DuringPlan block");
+            panic!("Expected BeforePlan block");
         }
 
         // Verify we have other blocks

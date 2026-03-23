@@ -18,7 +18,7 @@ fn spec_custom_unit_pluralization_is_canonical() {
         0 <drops> ... 100 <drops>.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         <val> = 1 <drop> + 1 <drops> + 1 <drop>.
 "#;
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
@@ -50,7 +50,7 @@ fn spec_standard_units_still_work() {
         0 m ... 100 m.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         <val> = 5 m + 1 m.
 "#;
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
@@ -86,7 +86,7 @@ fn spec_custom_unit_abbreviation_is_canonical() {
         0 <pts> ... 100 <pts>.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         <val> = 5 <pts> + 5 <points>.
 "#;
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
@@ -165,7 +165,7 @@ fn spec_assignment_requires_unit_and_precision_match() {
         0.0 mg ... 10.0 mg.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         <dose> = 5 mg.
 "#;
     let plan = parser::parse_plan(precision_mismatch.trim()).expect("Failed to parse precision mismatch plan");
@@ -184,7 +184,7 @@ fn spec_assignment_requires_unit_and_precision_match() {
         0 mg ... 10 mg.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         <dose> = 5 g.
 "#;
     let plan = parser::parse_plan(unit_mismatch.trim()).expect("Failed to parse unit mismatch plan");

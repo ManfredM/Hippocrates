@@ -54,7 +54,7 @@ fn test_ask_parsing_regression() {
     let input = r#"
 <v> is a number.
 <TestPlan> is a plan:
-    during plan:
+    before plan:
         ask for <v>.
 "#;
     let plan = parse_plan(input).expect("Failed to parse plan");

@@ -53,7 +53,7 @@ fn test_execution_callback() {
 
     let input = r#"
 <callback plan> is a plan:
-    during plan:
+    before plan:
         information "Line 4".
         information "Line 5".
 "#;

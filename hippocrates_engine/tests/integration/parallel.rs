@@ -31,7 +31,7 @@ mod tests {
     valid values:
         0 years ... 130 years.
 <Script1> is a plan:
-    during plan:
+    before plan:
         ask <Age>.
         information "Script1: Age is " + <Age>.
 "#;
@@ -41,7 +41,7 @@ mod tests {
     valid values:
         0 years ... 130 years.
 <Script2> is a plan:
-    during plan:
+    before plan:
         ask <Age>.
         information "Script2: Age is " + <Age>.
 "#;

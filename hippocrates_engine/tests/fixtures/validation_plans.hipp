@@ -7,7 +7,7 @@
         0 <doses> ... 2 <doses>.
 
 <Basic plan> is a plan:
-    during plan:
+    before plan:
         <adherence> = 1 <dose>.
         assess <adherence>:
             0 <doses>:
@@ -41,7 +41,7 @@
         0 <units> ... 10 <units>.
 
 <Invalid plan> is a plan:
-    during plan:
+    before plan:
         assess <value>:
             0 <units> ... 5 <units>:
                 information "partial".

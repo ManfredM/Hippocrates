@@ -160,7 +160,7 @@ fn spec_validator_numeric_overlap() {
         0 kg ... 100 kg.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         assess <val>:
             1 kg:
                 <log> = "one".
@@ -185,7 +185,7 @@ fn spec_validator_enum_duplicate() {
         <A>; <B>.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         assess <val>:
             <A>:
                 <log> = "A1".
@@ -208,7 +208,7 @@ fn spec_enum_valid_values_require_identifiers() {
         "Yes"; "No".
 
 <plan> is a plan:
-    during plan:
+    before plan:
         ask <val>.
 "#;
 
@@ -237,7 +237,7 @@ fn spec_validator_requires_not_enough_data_case() {
             <value> = count of <something>.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         timeframe for analysis is between 2 days ago ... now:
             <value> = count of <something>.
         assess <value>:
@@ -273,7 +273,7 @@ fn spec_statistical_functions_require_timeframe_context() {
         0 <points> ... 10 <points>.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         <count> = count of <flag> is <Yes>.
 "#;
 
@@ -302,7 +302,7 @@ fn spec_not_enough_data_requires_statistical_target() {
         0 <units> ... 1 <unit>.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         <value> = 0 <units>.
         assess <value>:
             Not enough data:
@@ -336,7 +336,7 @@ fn spec_validator_passes_with_not_enough_data() {
             <value> = count of <something>.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         timeframe for analysis is between 2 days ago ... now:
             <value> = count of <something>.
         assess <value>:
@@ -399,7 +399,7 @@ fn spec_validator_integer_gap_message() {
         0 <points> ... 10 <points>.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         <val> = 0 <points>.
         assess <val>:
             0 <points> ... 5 <points>:
@@ -422,7 +422,7 @@ fn spec_validator_float_gap_message() {
         0.0 mg ... 10.0 mg.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         <val> = 0.0 mg.
         assess <val>:
             0.0 mg ... 5.5 mg:
@@ -445,7 +445,7 @@ fn spec_precision_gaps() {
         0.0 mm ... 10.0 mm.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         <val> = 0.0 mm.
         assess <val>:
             0.0 mm ... 5.5 mm:
@@ -463,7 +463,7 @@ fn spec_precision_gaps() {
         0 <points> ... 10 <points>.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         <val> = 0 <points>.
         assess <val>:
             0 <points> ... 5 <points>:
@@ -570,7 +570,7 @@ fn spec_range_overlap() {
         35.0 °C ... 42.0 °C.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         <Temp> = 35.0 °C.
         assess <Temp>:
             38.0 °C ... 42.0 °C:
@@ -635,7 +635,7 @@ fn spec_missing_valid_values_fails() {
     unit is kg.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         information "Hi".
 "#;
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");
@@ -650,7 +650,7 @@ fn spec_missing_valid_values_fails() {
         english: "State".
 
 <plan> is a plan:
-    during plan:
+    before plan:
         information "Hi".
 "#;
     let plan2 = parser::parse_plan(input2.trim()).expect("Failed to parse");
@@ -665,7 +665,7 @@ fn spec_missing_valid_values_fails() {
 fn spec_timeframe_selector_requires_period_definition() {
     let input = r#"
 <plan> is a plan:
-    during plan:
+    before plan:
         timeframe for analysis is <MissingPeriod>:
             information "Hi".
 "#;
@@ -685,7 +685,7 @@ fn spec_reproduce_missing_error() {
         0 kg ... 10 kg.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         assess <val>:
             0 kg ... 5 kg:
                 information "Lower half covered".
@@ -708,7 +708,7 @@ fn spec_unitless_assess_fails() {
         0 kg ... 100 kg.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         <val> = 0 kg.
         assess <val>:
             0 ... 100:
@@ -771,7 +771,7 @@ fn spec_data_flow_use_before_assignment_fails() {
         0 kg ... 10 kg.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         information "Value is " + <val>.
 "#;
 
@@ -794,7 +794,7 @@ fn spec_calculation_does_not_initialize_value() {
         <val> = 5 kg.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         information "Value is " + <val>.
 "#;
 
@@ -814,7 +814,7 @@ fn spec_statistical_functions_do_not_require_local_init() {
         <Yes>; <No>.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         timeframe for analysis is between 5 days ago ... now:
             information count of <val> is <Yes>.
 "#;
@@ -841,7 +841,7 @@ fn spec_meaning_of_requires_question_when_uninitialized() {
 <label> is a string.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         <label> = meaning of <val>.
 "#;
 
@@ -877,7 +877,7 @@ fn spec_meaning_of_allows_question_when_uninitialized() {
 <label> is a string.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         <label> = meaning of <val>.
 "#;
 
@@ -895,7 +895,7 @@ fn spec_listen_and_context_initialize_values() {
         <Yes>; <No>.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         listen for <signal>:
             information "Heard".
         information "Value is " + <signal>.
@@ -918,7 +918,7 @@ fn spec_ask_requires_question_property() {
         0 kg ... 10 kg.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         ask <val>.
 "#;
 
@@ -939,7 +939,7 @@ fn spec_trend_requires_full_coverage() {
         0 kg ... 10 kg.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         timeframe for analysis is between 7 days ago ... now:
             assess trend of <val>:
                 "increase":
@@ -960,7 +960,7 @@ fn spec_assignment_range_compliance_warning() {
         0 kg ... 10 kg.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         <val> = 5 kg + 10 kg.
 "#;
 

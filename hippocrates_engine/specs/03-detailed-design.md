@@ -198,7 +198,7 @@ Callback type signature:
 | **Signature**   | `void hippocrates_engine_execute(EngineContext* ctx, const char* plan_name)` |
 | **Purpose**     | Begins executing a named plan. This is a blocking call that runs the event loop until completion or stop signal. |
 | **Preconditions** | `ctx` is a valid `EngineContext` with a loaded plan. `plan_name` matches a plan definition name. |
-| **Postconditions** | The plan executes: `during plan` blocks run immediately, periodic triggers are scheduled, and the event loop processes events in chronological order. |
+| **Postconditions** | The plan executes: `before plan` blocks run immediately, periodic triggers are scheduled, the event loop processes events in chronological order, and `after plan` blocks run on completion. |
 | **Error handling** | Silently returns if `plan_name` is invalid UTF-8 or does not match a known plan. |
 | **Memory**      | No allocation returned to caller. |
 
@@ -461,7 +461,7 @@ Defined in `src/ast.rs`.
 - `Unit(UnitDef)` -- name, plurals, singulars, abbreviations
 
 **PlanBlock variants:**
-- `DuringPlan(Vec<Statement>)` -- executed immediately at plan start
+- `BeforePlan(Vec<Statement>)` -- executed immediately at plan start
 - `Event(EventBlock)` -- named event with trigger and statements
 - `Trigger(TriggerBlock)` -- anonymous trigger with statements
 
@@ -743,7 +743,7 @@ Implements reverse `Ord` for min-heap behavior in `BinaryHeap` (earliest event p
 **Execution flow (`execute_plan`):**
 1. Clone definitions from environment.
 2. Drain initial inputs.
-3. Process `DuringPlan` blocks immediately.
+3. Process `BeforePlan` blocks immediately.
 4. Schedule `Periodic` triggers into the `BinaryHeap` with calculated first-run times. If `time_of_day` is set, pin first run to that time on the first eligible day. If the trigger references a named period (offset is a defined period name) and has a duration, use `Scheduler::occurrences_in_range` to enumerate all occurrences and schedule each as `PeriodicByPeriod`.
 5. Schedule `StartOf` triggers by querying the scheduler for next period occurrences.
 6. Enter event loop: pop events from the heap, advance `env.now`, execute associated statement blocks, reschedule `Periodic` events (pinning to time_of_day when set), execute `PeriodicByPeriod` events without rescheduling, drain input channel between events.
@@ -921,7 +921,7 @@ pub enum ExecutionMode {
 - `PlanBlock` enum gains an `AfterPlan(Vec<Statement>)` variant, representing the `after plan:` block.
 
 **Grammar change** (`src/grammar.pest`):
-- `plan_block` gains `after_plan_block` as an alternative: `plan_block = { during_plan_block | after_plan_block | trigger_block | event_block }`.
+- `plan_block` gains `after_plan_block` as an alternative: `plan_block = { before_plan_block | after_plan_block | trigger_block | event_block }`.
 - `after_plan_block = { "after plan" ~ flexible_block }`.
 
 **Parser change** (`src/parser.rs`):
@@ -931,7 +931,7 @@ pub enum ExecutionMode {
 - After the event loop in `execute_plan` exits (heap empty or stop signal), the executor iterates `plan_def.blocks` and executes any `PlanBlock::AfterPlan(stmts)` blocks exactly once via the standard statement execution path.
 
 **Formatter change** (`src/formatter.rs`):
-- `format_script` emits `after plan:` with proper indentation when encountering an `AfterPlan` block, mirroring the `during plan:` formatting logic.
+- `format_script` emits `after plan:` with proper indentation when encountering an `AfterPlan` block, mirroring the `before plan:` formatting logic.
 
 ---
 

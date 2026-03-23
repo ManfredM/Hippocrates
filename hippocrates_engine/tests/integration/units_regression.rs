@@ -14,7 +14,7 @@ fn test_strict_units_without_definition() {
         0 kg ... 100 kg.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         <val> = 5 <coins> + 1 <coin>.
 "#;
     let plan = parser::parse_plan(input.trim()).expect("Failed to parse");

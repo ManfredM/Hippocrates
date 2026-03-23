@@ -22,7 +22,7 @@ fn test_interactive_execution() {
         ask "Pick number".
     
 <My Plan> is a plan:
-    during plan:
+    before plan:
         ask <my var>.
         ask <my range>.
 "#;

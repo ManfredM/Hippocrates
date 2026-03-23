@@ -170,7 +170,7 @@ impl Executor {
             // Initial Scheduling
             for block in &plan_def.blocks {
                 match block {
-                    crate::ast::PlanBlock::DuringPlan(stmts) => {
+                    crate::ast::PlanBlock::BeforePlan(stmts) => {
                         self.execute_block(env, stmts);
                     }
                     crate::ast::PlanBlock::AfterPlan(_) => {

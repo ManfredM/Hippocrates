@@ -2,7 +2,7 @@
     plural is <points>.
 
 <daily wellness check> is a plan:
-    during plan:
+    before plan:
         information "Welcome to your wellness check.".
 
     every 1 day:
@@ -53,7 +53,7 @@
             <average temperature> = average of <body temperature> over 1 day.
 
 <fever monitor> is a plan:
-    during plan:
+    before plan:
         ask for <body temperature>.
 
     every 4 hours:
@@ -90,7 +90,7 @@
             <weekly symptom average> = average of <symptom severity> over 7 days.
 
 <monitoring plan> is a plan:
-    during plan:
+    before plan:
         timeframe for analysis is 7 days ago ... now:
             <weekly symptom average> = average of <symptom severity> over 7 days.
         assess <weekly symptom average>:
@@ -111,6 +111,6 @@
         0 years ... 130 years.
 
 <treatment> is a plan:
-    during plan:
+    before plan:
         <body weight> = 75 kg.
         information "Patient weight recorded".

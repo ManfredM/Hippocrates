@@ -39,7 +39,7 @@ class AppState: ObservableObject {
             validate answer once.
 
 <implant care> is a plan:
-    during plan:
+    before plan:
         information to <patient> "Welcome to your post-implant care plan.".
         information to <patient> "Monitoring pain and temperature for 9 days.".
         ask for <body temperature>.

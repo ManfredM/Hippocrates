@@ -19,7 +19,7 @@
         ask "How severe are your symptoms?".
 
 <cli intake> is a plan:
-    during plan:
+    before plan:
         ask <age>.
         ask <weight>.
         ask <symptom severity>.

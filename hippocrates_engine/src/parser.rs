@@ -268,11 +268,11 @@ fn parse_plan_def(pair: pest::iterators::Pair<Rule>) -> Result<PlanDef, ParseErr
 fn parse_plan_block(pair: pest::iterators::Pair<Rule>) -> Result<PlanBlock, ParseError> {
     let inner = pair.into_inner().next().unwrap();
     match inner.as_rule() {
-        Rule::during_plan_block => {
+        Rule::before_plan_block => {
             // flexible_block is silent, so we get block_body directly
             let block_body = inner.into_inner().next().unwrap();
             let stmts = parse_block(block_body)?;
-            Ok(PlanBlock::DuringPlan(stmts))
+            Ok(PlanBlock::BeforePlan(stmts))
         }
         Rule::after_plan_block => {
             let block_body = inner.into_inner().next().unwrap();

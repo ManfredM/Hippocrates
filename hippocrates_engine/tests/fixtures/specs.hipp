@@ -65,7 +65,7 @@
         contact all addressees in parallel.
 
 <Treatment Plan> is a plan:
-    during plan:
+    before plan:
         ask <Temperature>.
         <Temperature> = 37.0 °C.
         
@@ -126,12 +126,12 @@
             <status> = <high>.
 
 <undefined usage> is a plan:
-    during plan:
+    before plan:
         <UndefinedVar> = 10 kg.
         information to <UnknownPerson> "Hello".
 
 <unit mismatch assign> is a plan:
-    during plan:
+    before plan:
         <weight> = 10 <pounds>.
         <conflicting val> = 5 kg.
         <conflicting val> = 10 m.
@@ -154,7 +154,7 @@
         <C>.
 
 <Golden Plan> is a plan:
-    during plan:
+    before plan:
         <Test Number> = 42 <testpoint>.
         <Test String> = "Hello World".
         <TestEnum> = <A>.
@@ -232,7 +232,7 @@
 
 (* --- PASS: timeframe --- *)
 <TimeframePlan> is a plan:
-    during plan:
+    before plan:
         timeframe for analysis is 1 day ago ... now:
             information "Analyzing recent window".
 
@@ -265,7 +265,7 @@
 <Pain> is a number.
 
 <MyPlan> is a plan:
-    during plan:
+    before plan:
         question style is visual analogue scale:
             best value is 0 <count>.
             text for best value is "No Pain".

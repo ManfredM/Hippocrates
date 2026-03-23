@@ -304,7 +304,7 @@ fn spec_after_plan_block_parsing() {
         email is "patient@test.com".
 
 <my plan> is a plan:
-    during plan:
+    before plan:
         information to <patient> "Plan started.".
 
     after plan:
@@ -322,8 +322,8 @@ fn spec_after_plan_block_parsing() {
     assert_eq!(plan_def.blocks.len(), 2, "Expected 2 plan blocks (during + after)");
 
     assert!(
-        matches!(&plan_def.blocks[0], PlanBlock::DuringPlan(_)),
-        "First block should be DuringPlan"
+        matches!(&plan_def.blocks[0], PlanBlock::BeforePlan(_)),
+        "First block should be BeforePlan"
     );
     assert!(
         matches!(&plan_def.blocks[1], PlanBlock::AfterPlan(_)),

@@ -69,7 +69,7 @@ struct CodeVisualizerView: NSViewRepresentable {
             ("\\b(is|during|between|begin|and|or|not)\\b", .systemPink),
             ("\\b(with|for|every|after|to|once|of)\\b", .systemOrange),
             ("\\b(information|warning|urgent warning|ask|listen for|send information|validate answer)\\b", .systemTeal),
-            ("\\b(context|timeframe|during plan|valid values|meaning|calculation|reuse|documentation|question|assess|event progression|change of|begin of|end of)\\b", .systemIndigo),
+            ("\\b(context|timeframe|before plan|after plan|valid values|meaning|calculation|reuse|documentation|question|assess|event progression|change of|begin of|end of)\\b", .systemIndigo),
             ("\\b(is a plan|is a drug|is an addressee|is a number|is a boolean|is a string)\\b", .systemPurple),
             ("\\b\\d+(\\.\\d+)?\\s*(°C|°F|mg|kg|g|lb|oz|ml|l|m|cm|mm|km|days|weeks|hours|minutes|seconds)?\\b", .systemYellow),
             ("<[^>]+>", .systemGreen),

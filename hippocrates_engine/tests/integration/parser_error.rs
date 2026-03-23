@@ -2,7 +2,7 @@
 #[ignore = "Non-spec integration/regression"]
 fn test_error_formatting() {
     // Input that is mostly valid but has a syntax error
-    // "during plan" expects "begin of" or similar inside.
+    // "before plan" expects "begin of" or similar inside.
     // Let's just give garbage.
     let input = "not a valid plan";
     

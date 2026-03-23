@@ -129,7 +129,7 @@
     *)
 
 <COPD telehealth> is a plan:
-    during plan:
+    before plan:
         <log> = "Plan started".
 
     <inhalation> with begin of <best inhalation period>:
@@ -254,7 +254,7 @@
     ask "What is your age".
 
 <Age assessment> is a plan:
-  during plan:
+  before plan:
     assess <user age>:
       1 year ... 18 years:
         information "Quite young".
@@ -269,7 +269,7 @@
         0 kg ... 10 kg.
 
 <Bad Plan> is a plan:
-    during plan:
+    before plan:
         assess <unitless value>:
             0 kg ... 5 kg:
                 information "Partial coverage".

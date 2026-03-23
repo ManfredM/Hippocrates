@@ -20,7 +20,7 @@ const VALID_PLAN: &str = r#"
         0 <units> ... 10 <units>.
 
 <test plan> is a plan:
-    during plan:
+    before plan:
         information "Hello".
 "#;
 
@@ -44,7 +44,7 @@ const UNITLESS_NUMBER_PLAN: &str = r#"
         0 ... 10.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         information "Hello".
 "#;
 

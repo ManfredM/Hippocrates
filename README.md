@@ -208,7 +208,7 @@ Plans react to events -- time windows, value changes, and recurring triggers:
 
 ```ruby
 <COPD telehealth> is a plan:
-    during plan:                                         (* runs once at plan start *)
+    before plan:                                         (* runs once at plan start *)
         <log> = "Plan started".
 
     <inhalation> with begin of <best inhalation period>: (* triggered by time window *)
@@ -298,7 +298,7 @@ A real-world example showing inhaler adherence tracking with trend analysis:
 
 ```ruby
 <COPD telehealth> is a plan:
-    during plan:
+    before plan:
         <log> = "Plan started".
 
     <inhalation> with begin of <best inhalation period>:

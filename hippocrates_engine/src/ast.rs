@@ -65,7 +65,7 @@ pub struct PlanDef {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum PlanBlock {
-    DuringPlan(Vec<Statement>),
+    BeforePlan(Vec<Statement>),
     AfterPlan(Vec<Statement>),
     Event(EventBlock),
     Trigger(TriggerBlock),

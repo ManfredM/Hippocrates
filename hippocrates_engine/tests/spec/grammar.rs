@@ -6,7 +6,7 @@ use hippocrates_engine::parser;
 #[test]
 fn spec_block_requires_newline_after_colon() {
     let input = r#"
-<plan> is a plan: during plan:
+<plan> is a plan: before plan:
     information "Hi".
 "#;
     let result = parser::parse_plan(input);
@@ -41,7 +41,7 @@ fn spec_inline_colon_requires_block() {
 fn spec_string_literal_rejects_angle_brackets() {
     let input = r#"
 "test" is a plan:
-《during plan:
+《before plan:
     information "Hello <world>".
 》
 "#;
@@ -58,7 +58,7 @@ fn spec_no_comparison_operators() {
         0 kg ... 10 kg.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         <val> < 5 kg.
 "#;
     let result = parser::parse_plan(input);
@@ -74,7 +74,7 @@ fn spec_unitless_numeric_literal_fails() {
         0 kg ... 10 kg.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         <val> = 5.
 "#;
     let result = parser::parse_plan(input);
@@ -86,7 +86,7 @@ fn spec_unitless_numeric_literal_fails() {
 fn spec_block_statements_require_period() {
     let input = r#"
 <plan> is a plan:
-    during plan:
+    before plan:
         information "Hi"
 "#;
     let result = parser::parse_plan(input);
@@ -98,7 +98,7 @@ fn spec_block_statements_require_period() {
 fn spec_blocks_require_colon() {
     let input = r#"
 <plan> is a plan:
-    during plan
+    before plan
         information "Hi".
 "#;
     let result = parser::parse_plan(input);
@@ -115,7 +115,7 @@ fn spec_meaning_assessments_not_allowed_in_plans() {
         0 kg ... 10 kg.
 
 <plan> is a plan:
-    during plan:
+    before plan:
         meaning of <val>:
             valid meanings:
                 <ok>.

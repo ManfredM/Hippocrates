@@ -7,7 +7,7 @@
         0 <doses> ... 1 <dose>.
 
 <Daily reminder> is a plan:
-    during plan:
+    before plan:
         <taken> = 1 <dose>.
         assess <taken>:
             0 <doses>:
@@ -21,7 +21,7 @@
         between Monday ... Friday; 08:00 ... 09:00.
 
 <Morning check-in> is a plan:
-    during plan:
+    before plan:
         information "Plan started".
 
     <check in> with begin of <morning>:
@@ -33,5 +33,5 @@
         1 year ... 10 years.
 
 <Missing question> is a plan:
-    during plan:
+    before plan:
         ask for <age>.

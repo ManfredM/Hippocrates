@@ -189,7 +189,7 @@ block_text = { (!DEDENT ~ ANY)+ }
 plan_definition = { identifier ~ "is a plan" ~ ":" ~ NEWLINE* ~ INDENT ~ plan_block+ ~ DEDENT }
 
 plan_block = {
-    (during_plan_block |
+    (before_plan_block |
     after_plan_block |
     trigger_block |
     event_block) ~ NEWLINE*
@@ -198,7 +198,7 @@ plan_block = {
 flexible_block = _{ ":" ~ NEWLINE* ~ INDENT ~ block_body ~ DEDENT }
 block_body = { statement+ }
 
-during_plan_block = { "during plan" ~ flexible_block }
+before_plan_block = { "before plan" ~ flexible_block }
 after_plan_block = { "after plan" ~ flexible_block }
 event_block = { identifier ~ "with" ~ event_trigger ~ flexible_block } 
 trigger_block = { event_trigger ~ flexible_block }
