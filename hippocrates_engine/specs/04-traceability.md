@@ -27,7 +27,7 @@ This table inverts the traceability header from `01-system-requirements.md`, sho
 | STKR | REQ Sections | Description |
 |------|-------------|-------------|
 | STKR-01 | §3.7, §3.9, §3.10, §5 | Care plan execution |
-| STKR-02 | §2, §3.1-3.3 | Readability by medical professionals |
+| STKR-02 | §2, §3.1-3.3, §3.8 (REQ-3.8-07) | Readability by medical professionals |
 | STKR-03 | _(No REQ sections; satisfied by DES-01..03, DES-18, DES-30..34)_ | Embeddable runtime (architectural) |
 | STKR-04 | §5.1 | Validation without execution |
 | STKR-05 | §3.5, §3.7, §3.8, §5 | Event-driven execution |
@@ -94,7 +94,7 @@ This table maps DES-* design elements to DDR-* detailed design elements, derived
 
 | DES ID | DDR ID Range | Component |
 |--------|-------------|-----------|
-| DES-10 | DDR-PARSER-01..04 | Parser (PEG grammar, AST construction, indentation, entry point) |
+| DES-10 | DDR-PARSER-01..05 | Parser (PEG grammar, AST construction, indentation, entry point, ordinal/bare-unit sugar) |
 | DES-11 | DDR-DOM-01..06, DDR-PARSER-02 | AST representation and domain model types |
 | DES-12 | DDR-VAL-01..06 | Multi-layer validator (pipeline, semantics, intervals, data flow, coverage, error reporting) |
 | DES-13 | DDR-RT-01, DDR-RT-03, DDR-RT-08, DDR-RT-10 | Runtime executor (Engine struct, Executor, execution modes, after plan) |
@@ -178,6 +178,7 @@ This section adopts the content from `tests/spec/TRACEABILITY.md` verbatim. All 
 - REQ-3.8-04 -- `tests/spec/periods_plans.rs::spec_event_trigger_duration_and_offset_parsing` -- periodic triggers parse duration and offsets.
 - REQ-3.8-05 -- `tests/spec/periods_plans.rs::spec_event_trigger_time_of_day_parsing` -- periodic triggers parse `at <time>` clause.
 - REQ-3.8-06 -- `tests/integration/simulation.rs::test_period_based_repetition_within_duration` -- period-based triggers fire at every occurrence within duration window.
+- REQ-3.8-07 -- `tests/spec/periods_plans.rs::spec_bare_unit_trigger_parsing` -- bare unit triggers (`every day`) parse to interval=1.0. `tests/spec/periods_plans.rs::spec_ordinal_trigger_parsing` -- ordinal triggers (`every third day`) parse to interval=3.0.
 
 ### 5.10 -- Section 3.9: Communication and Actors
 - REQ-3.9-01 -- `tests/spec/actors_drugs.rs::spec_addressee_group_and_contact_logic_parsing` -- addressee groups and contact logic parse.
@@ -279,9 +280,9 @@ This section adopts the content from `tests/spec/TRACEABILITY.md` verbatim. All 
 | V-Model Level | Test Plan | Test ID Prefix | # Test Cases | Coverage |
 |---|---|---|---|---|
 | Stakeholder Req (STKR) | `test-plans/03-acceptance-test-plan.md` | AT-\* | 27 | 100% (all 27 STKR covered) |
-| System Req (REQ) | `test-plans/02-system-test-plan.md` | ST-\* | 95 | 100% (93 unique REQ IDs, 95 test cases) |
+| System Req (REQ) | `test-plans/02-system-test-plan.md` | ST-\* | 96 | 100% (94 unique REQ IDs, 96 test cases) |
 | System Design (DES) | `test-plans/01-integration-test-plan.md` | IT-\* | 28 | 14/33 DES elements directly covered (~42%) |
-| Detailed Design (DDR) | `test-plans/00-unit-test-plan.md` | UT-\* | 128 | 26/29 DDR elements covered (~90%) |
+| Detailed Design (DDR) | `test-plans/00-unit-test-plan.md` | UT-\* | 130 | 27/30 DDR elements covered (~90%) |
 
 **Notes on DES coverage:** DES elements not covered by integration tests (DES-01, DES-02, DES-03, DES-19, DES-20..DES-26, DES-30, DES-33, DES-34, DES-40) are either architectural constraints verified by successful compilation, dependency declarations, or host-side concerns outside the scope of Rust integration tests. DES-43 (stop signal) is now covered by IT-25.
 
@@ -296,10 +297,10 @@ The master matrix traces each stakeholder requirement through all V-Model levels
 | STKR | REQ (section) | DES | DDR | UT | IT | ST | AT | Status |
 |------|--------------|-----|-----|----|----|----|----|----|
 | STKR-01 | §3.7, §3.9, §3.10, §5 | DES-10, DES-13, DES-16, DES-18 | DDR-PARSER-01..04, DDR-RT-01, DDR-RT-03, DDR-RT-04 | UT-PARSER-\*, UT-RT-08, UT-RT-09, UT-ACTIONS-\*, UT-ACTORS-\* | IT-02, IT-07..IT-12 | ST-3.7-\*, ST-3.9-\*, ST-3.10-\*, ST-5-\* | AT-01 | Covered |
-| STKR-02 | §2, §3.1-3.3 | DES-10, DES-11, DES-19 | DDR-PARSER-01..04, DDR-FMT-01 | UT-PARSER-\*, UT-VALUES-\*, UT-FIX-01, UT-CTX-05..08 | IT-03..IT-06 | ST-2-\*, ST-3.1-\*, ST-3.2-\*, ST-3.3-01 | AT-02 | Covered |
+| STKR-02 | §2, §3.1-3.3, §3.8 (REQ-3.8-07) | DES-10, DES-11, DES-19 | DDR-PARSER-01..05, DDR-FMT-01 | UT-PARSER-\*, UT-VALUES-\*, UT-FIX-01, UT-CTX-05..08, UT-PERIODS-08..09 | IT-03..IT-06 | ST-2-\*, ST-3.1-\*, ST-3.2-\*, ST-3.3-01, ST-3.8-07 | AT-02 | Covered |
 | STKR-03 | _(architectural)_ | DES-01, DES-02, DES-03, DES-18, DES-22, DES-24, DES-30..DES-34 | DDR-FFI-01..19 | UT-FFI-01..10 | IT-23 | _(no ST)_ | AT-03 | Covered |
 | STKR-04 | §5.1 | DES-12 | DDR-VAL-01..06 | UT-VAL-01..37 | IT-01, IT-02 | ST-5.1-01 | AT-04 | Covered |
-| STKR-05 | §3.5, §3.7, §3.8, §5 | DES-13, DES-14, DES-17, DES-21, DES-31, DES-40..DES-43 | DDR-RT-01, DDR-RT-03..DDR-RT-06, DDR-RT-08, DDR-RT-09, DDR-PARSER-02 | UT-PERIODS-\*, UT-RT-08, UT-RT-10, UT-RT-14 | IT-07..IT-13, IT-16..IT-22 | ST-3.5-\*, ST-3.7-\*, ST-3.8-\*, ST-5-\* | AT-05 | Covered |
+| STKR-05 | §3.5, §3.7, §3.8, §5 | DES-10, DES-13, DES-14, DES-17, DES-21, DES-31, DES-40..DES-43 | DDR-RT-01, DDR-RT-03..DDR-RT-06, DDR-RT-08, DDR-RT-09, DDR-PARSER-02, DDR-PARSER-05 | UT-PERIODS-\*, UT-RT-08, UT-RT-10, UT-RT-14 | IT-07..IT-13, IT-16..IT-22 | ST-3.5-\*, ST-3.7-\*, ST-3.8-\*, ST-5-\* | AT-05 | Covered |
 | STKR-06 | _(architectural)_ | DES-41 | DDR-RT-08 | UT-RT-17 | IT-07..IT-09, IT-20, IT-21 | ST-5-04 | AT-06 | Covered |
 | STKR-10 | §3.6, §4.4 | DES-10, DES-12 | DDR-VAL-05, DDR-PARSER-01..02 | UT-VAL-01..07, UT-VAL-25, UT-VAL-36, UT-ACTIONS-01..02 | IT-01, IT-02 | ST-3.6-\*, ST-4.4-\* | AT-10 | Covered |
 | STKR-11 | §3.1-3.3, §4.2 | DES-10, DES-12 | DDR-PARSER-01..02, DDR-VAL-02 | UT-PARSER-\*, UT-VAL-21..27, UT-VAL-35 | IT-01, IT-02 | ST-3.1-\*, ST-3.2-\*, ST-3.3-01, ST-4.2-\* | AT-11 | Covered |
@@ -376,3 +377,4 @@ The following DES elements are not directly covered by integration tests (per `0
 | 1.1 | 2026-03-20 | Closed gaps: STKR-03, -06, -16, -19 changed from Partial to Covered. Added REQ-5-04 and ST-5-04. Updated test counts. STKR-17 remains only accepted gap. |
 | 1.2 | 2026-03-23 | Added REQ-3.8-05, REQ-3.8-06, REQ-5-05, DDR-RT-09. Updated STKR-05 row. |
 | 1.3 | 2026-03-23 | Added STKR-36 chain: REQ-3.7-10, DDR-RT-10, UT-PLAN-01, IT-28, ST-3.7-10, AT-36. |
+| 1.4 | 2026-03-23 | Added REQ-3.8-07 (bare unit and ordinal triggers). Added DDR-PARSER-05. Updated STKR-02 and STKR-05 rows. Added UT-PERIODS-08..09, ST-3.8-07. |

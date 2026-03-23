@@ -591,6 +591,8 @@ fn parse_event_trigger(pair: pest::iterators::Pair<Rule>) -> Result<Trigger, Par
         let mut anchor = None;
         let mut specific_day = None;
         let mut time_of_day = None;
+        let mut ordinal_value: Option<f64> = None;
+        let mut bare_unit_value: Option<Unit> = None;
 
         for child in inner {
             match child.as_rule() {
@@ -604,6 +606,32 @@ fn parse_event_trigger(pair: pest::iterators::Pair<Rule>) -> Result<Trigger, Par
                 Rule::time_literal => {
                      time_of_day = Some(child.as_str().to_string());
                 }
+                Rule::ordinal => {
+                     ordinal_value = Some(match child.as_str() {
+                         "other" | "second" => 2.0,
+                         "third" => 3.0,
+                         "fourth" => 4.0,
+                         "fifth" => 5.0,
+                         "sixth" => 6.0,
+                         "seventh" => 7.0,
+                         "eighth" => 8.0,
+                         "ninth" => 9.0,
+                         "tenth" => 10.0,
+                         _ => 1.0,
+                     });
+                }
+                Rule::bare_unit => {
+                     bare_unit_value = Some(match child.as_str() {
+                         "year" | "years" => Unit::Year,
+                         "month" | "months" => Unit::Month,
+                         "week" | "weeks" => Unit::Week,
+                         "day" | "days" => Unit::Day,
+                         "hour" | "hours" => Unit::Hour,
+                         "minute" | "minutes" => Unit::Minute,
+                         "second" | "seconds" => Unit::Second,
+                         _ => Unit::Day,
+                     });
+                }
                 _ => {}
             }
         }
@@ -612,7 +640,14 @@ fn parse_event_trigger(pair: pest::iterators::Pair<Rule>) -> Result<Trigger, Par
         let mut interval_unit = Unit::Second;
         let mut duration = None;
 
-        if let Some(_day) = &specific_day {
+        if let Some(bu) = bare_unit_value {
+            // "every day" or "every third day" — bare unit with optional ordinal
+            interval_val = ordinal_value.unwrap_or(1.0);
+            interval_unit = bu;
+            if let Some((v, u)) = quantities.get(0) {
+                duration = Some((*v, u.clone()));
+            }
+        } else if let Some(_day) = &specific_day {
              interval_val = 1.0;
              interval_unit = Unit::Week;
         } else if let Some((v, u)) = quantities.get(0) {

@@ -543,6 +543,24 @@ The grammar rules `INDENT` and `DEDENT` match these marker characters:
 
 The parser struct `HippocratesParser` is derived via `#[derive(Parser)]` with `#[grammar = "grammar.pest"]`.
 
+### DDR-PARSER-05: Ordinal and Bare-Unit Trigger Sugar
+
+**Traces to:** DES-10, REQ-3.8-07, STKR-02
+
+**Grammar change** (`src/grammar.pest`):
+- Add `ordinal` rule: matches `"other" | "second" | "third" | "fourth" | "fifth" | "sixth" | "seventh" | "eighth" | "ninth" | "tenth"`.
+- Add `bare_unit` rule: matches `"day" | "week" | "month" | "year" | "hour" | "minute" | "second"` (the time unit words without a leading quantity).
+- Update `event_trigger` first periodic alternative to: `"every" ~ (ordinal ~ bare_unit | bare_unit | quantity ~ identifier?) ~ ("at" ~ time_literal)? ~ ("for" ~ quantity)?`.
+
+**Parser change** (`src/parser.rs`):
+- `parse_event_trigger` maps ordinals to their numeric value: other/second = 2, third = 3, fourth = 4, fifth = 5, sixth = 6, seventh = 7, eighth = 8, ninth = 9, tenth = 10.
+- Bare units (no ordinal, no quantity) are desugared to interval = 1.0 with the matched unit.
+- The AST `Trigger::Periodic` is unchanged -- ordinals and bare units are desugared to numeric interval and unit at parse time.
+
+**Formatter change** (`src/formatter.rs`):
+- Ordinals are NOT round-tripped; they desugar to `every 3 days` etc.
+- Bare unit `every day` could be round-tripped but for simplicity is normalized to `every 1 day`.
+
 ---
 
 ## 5. Validator
@@ -965,7 +983,7 @@ Defined in `src/formatter.rs`.
 |-----------------|------------------------|-----------|
 | DDR-FFI-01..19  | DES-18                 | FFI Layer |
 | DDR-DOM-01..06  | DES-15, DES-11         | Environment, AST |
-| DDR-PARSER-01..04 | DES-10               | Parser |
+| DDR-PARSER-01..05 | DES-10               | Parser |
 | DDR-VAL-01..06  | DES-12                 | Validator |
 | DDR-RT-01       | DES-13                 | Executor |
 | DDR-RT-02       | DES-15                 | Environment |
@@ -988,3 +1006,4 @@ Defined in `src/formatter.rs`.
 | 1.0     | 2026-03-20 | --     | Initial draft. Full module inventory, C-FFI interface (DDR-FFI-01 through DDR-FFI-19), domain model (DDR-DOM-01 through DDR-DOM-06), parser (DDR-PARSER-01 through DDR-PARSER-04), validator (DDR-VAL-01 through DDR-VAL-06), runtime (DDR-RT-01 through DDR-RT-08), formatter (DDR-FMT-01), and traceability matrix. |
 | 1.1     | 2026-03-23 | V-Model | Added DDR-RT-09 (time-of-day pinning, period repetition). Updated DDR-RT-03 EventKind variants and execution flow. |
 | 1.2     | 2026-03-23 | V-Model | Added DDR-RT-10 (after plan execution). PlanBlock gains AfterPlan variant; executor runs AfterPlan blocks after event loop exit. |
+| 1.3     | 2026-03-23 | V-Model | Added DDR-PARSER-05 (ordinal and bare-unit trigger sugar). Grammar gains `ordinal` and `bare_unit` rules; parser desugars to numeric intervals at parse time. |

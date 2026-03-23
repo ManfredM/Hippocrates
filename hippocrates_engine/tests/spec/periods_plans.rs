@@ -334,3 +334,82 @@ fn spec_after_plan_block_parsing() {
         assert!(!stmts.is_empty(), "AfterPlan block should have statements");
     }
 }
+
+// UT-PERIODS-08: bare unit `every day at 08:00 for 9 days:` parses to interval=1.0, unit=Day.
+#[test]
+fn spec_bare_unit_trigger_parsing() {
+    let input = r#"
+<Plan> is a plan:
+    every day at 08:00 for 9 days:
+        information "Daily check".
+"#;
+
+    let plan = parser::parse_plan(input).expect("Failed to parse bare unit trigger");
+
+    let plan_def = plan
+        .definitions
+        .iter()
+        .find_map(|d| if let Definition::Plan(p) = d { Some(p) } else { None })
+        .expect("Plan definition not found");
+
+    if let PlanBlock::Trigger(tb) = &plan_def.blocks[0] {
+        if let Trigger::Periodic {
+            interval,
+            interval_unit,
+            duration,
+            time_of_day,
+            ..
+        } = &tb.trigger
+        {
+            assert_eq!(*interval, 1.0, "bare 'day' should desugar to interval 1.0");
+            assert!(matches!(interval_unit, hippocrates_engine::domain::Unit::Day));
+            assert!(duration.is_some(), "should have duration");
+            let (dv, du) = duration.as_ref().unwrap();
+            assert_eq!(*dv, 9.0);
+            assert!(matches!(du, hippocrates_engine::domain::Unit::Day));
+            assert_eq!(time_of_day.as_deref(), Some("08:00"));
+        } else {
+            panic!("Expected Periodic trigger");
+        }
+    } else {
+        panic!("Expected Trigger block");
+    }
+}
+
+// UT-PERIODS-09: ordinal `every third day for 12 days:` parses to interval=3.0, unit=Day.
+#[test]
+fn spec_ordinal_trigger_parsing() {
+    let input = r#"
+<Plan> is a plan:
+    every third day for 12 days:
+        information "Check".
+"#;
+
+    let plan = parser::parse_plan(input).expect("Failed to parse ordinal trigger");
+
+    let plan_def = plan
+        .definitions
+        .iter()
+        .find_map(|d| if let Definition::Plan(p) = d { Some(p) } else { None })
+        .expect("Plan definition not found");
+
+    if let PlanBlock::Trigger(tb) = &plan_def.blocks[0] {
+        if let Trigger::Periodic {
+            interval,
+            interval_unit,
+            duration,
+            ..
+        } = &tb.trigger
+        {
+            assert_eq!(*interval, 3.0, "'third' should desugar to interval 3.0");
+            assert!(matches!(interval_unit, hippocrates_engine::domain::Unit::Day));
+            assert!(duration.is_some());
+            let (dv, _) = duration.as_ref().unwrap();
+            assert_eq!(*dv, 12.0);
+        } else {
+            panic!("Expected Periodic trigger");
+        }
+    } else {
+        panic!("Expected Trigger block");
+    }
+}

@@ -44,7 +44,7 @@ class AppState: ObservableObject {
         information to <patient> "Monitoring pain and temperature for 9 days.".
         ask for <body temperature>.
 
-    every 1 day at 08:00 for 9 days:
+    every day at 08:00 for 9 days:
         ask for <pain level>.
         assess <pain level>:
             0 <points> ... 3 <points>:

@@ -524,13 +524,18 @@ Requirements:
 - REQ-3.8-04: periodic triggers parse duration and offsets.
 - REQ-3.8-05: periodic triggers accept an optional `at <time_literal>` clause to pin execution to a specific time of day.
 - REQ-3.8-06: periodic triggers using a named period identifier with a `for` duration fire at every occurrence of that period within the duration window.
+- REQ-3.8-07: the grammar shall accept bare unit names (`every day`, `every week`) as shorthand for `every 1 day`, `every 1 week`. The grammar shall accept ordinals (`every second day`, `every third week`, `every other day`) as shorthand for the corresponding numeric interval. Supported ordinals: other/second (2), third (3), fourth (4), fifth (5), sixth (6), seventh (7), eighth (8), ninth (9), tenth (10).
 
 
 ```ebnf
+ordinal = "other" | "second" | "third" | "fourth" | "fifth" | "sixth" | "seventh" | "eighth" | "ninth" | "tenth";
+
+bare_unit = "day" | "week" | "month" | "year" | "hour" | "minute" | "second";
+
 event_trigger =
     "change of ", identifier |
     "begin of ", identifier |
-    "every ", quantity, [ identifier ], [ " at ", time_literal ], [ " for ", quantity ] |
+    "every ", ( ordinal, bare_unit | bare_unit | quantity, [ identifier ] ), [ " at ", time_literal ], [ " for ", quantity ] |
     "every ", ( identifier | weekday ), [ " at ", time_literal ], [ " after ", identifier ], [ " for ", quantity ];
 
 period_expr = quantity | "until ", event_trigger;
@@ -1111,3 +1116,4 @@ before plan:
 | 1.1  | 2026-03-20 | (auto-adopted) | Added REQ-5-04 (simulation mode). |
 | 1.2  | 2026-03-23 | V-Model | Added REQ-3.8-05 (at time clause), REQ-3.8-06 (period repetition), REQ-5-05 (time-pinned scheduling). Updated EBNF grammar. |
 | 1.3  | 2026-03-23 | V-Model | Added REQ-3.7-10 (`after plan:` block). Updated EBNF: `plan_block` gains `after_plan_block` alternative. |
+| 1.4  | 2026-03-23 | V-Model | Added REQ-3.8-07 (bare unit and ordinal trigger syntax). Updated EBNF: added `ordinal` and `bare_unit` rules, updated `event_trigger`. |

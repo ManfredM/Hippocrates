@@ -322,3 +322,4 @@ The engine documentation shall be structured to support Class II medical device 
 | 1.0 | 2026-03-20 | Initial V-Model adoption from existing project documentation |
 | 1.1 | 2026-03-23 | Extended STKR-05 acceptance criteria for time-of-day pinning and period-based repetition |
 | 1.2 | 2026-03-23 | Added STKR-36 (Plan Completion Actions) for `after plan:` block |
+| 1.3 | 2026-03-23 | Natural language trigger syntax (bare units, ordinals) enhances STKR-02 readability. No new STKR required. |

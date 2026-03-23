@@ -124,6 +124,7 @@ Verify the complete Hippocrates engine against system requirements. Each REQ-* f
 | ST-3.8-04  | REQ-3.8-04  | `tests/spec/periods_plans.rs::spec_event_trigger_duration_and_offset_parsing`    | Periodic triggers parse duration and offsets.                    | Test passes         |
 | ST-3.8-05  | REQ-3.8-05  | `tests/spec/periods_plans.rs::spec_event_trigger_time_of_day_parsing`            | Periodic triggers parse `at <time>` clause.                      | Test passes         |
 | ST-3.8-06  | REQ-3.8-06  | `tests/integration/simulation.rs::test_period_based_repetition_within_duration`   | Period-based triggers fire at every occurrence within duration.   | All occurrences fire |
+| ST-3.8-07  | REQ-3.8-07  | `tests/spec/periods_plans.rs::spec_bare_unit_trigger_parsing`, `tests/spec/periods_plans.rs::spec_ordinal_trigger_parsing` | Bare unit (`every day`) and ordinal (`every third day`) triggers parse correctly to numeric intervals. | Test passes |
 
 ### 4.10 — §3.9 Communication & Actors
 
@@ -268,11 +269,11 @@ Verify the complete Hippocrates engine against system requirements. Each REQ-* f
 
 | Metric                | Count |
 |-----------------------|-------|
-| Total ST-* test cases | 95    |
-| REQ-* entries covered | 93    |
+| Total ST-* test cases | 96    |
+| REQ-* entries covered | 94    |
 | Noted gaps            | 0     |
 
-Two REQ IDs (REQ-4.2-07 and REQ-4.3-05) each map to two distinct test functions, producing 95 test cases from 93 unique requirement IDs. All requirements from the traceability matrix are covered; no gaps are noted.
+Two REQ IDs (REQ-4.2-07 and REQ-4.3-05) each map to two distinct test functions. REQ-3.8-07 maps to two test functions (bare unit and ordinal). This produces 96 test cases from 94 unique requirement IDs. All requirements from the traceability matrix are covered; no gaps are noted.
 
 ## Revision History
 
@@ -282,3 +283,4 @@ Two REQ IDs (REQ-4.2-07 and REQ-4.3-05) each map to two distinct test functions,
 | 1.1 | 2026-03-20 | —      | Added ST-5-04 (simulation mode, REQ-5-04). |
 | 1.2 | 2026-03-23 | —      | Added ST-3.8-05, ST-3.8-06, ST-5-05 (time-of-day and period repetition). |
 | 1.3 | 2026-03-23 | —      | Added ST-3.7-10 (`after plan:` block). |
+| 1.4 | 2026-03-23 | —      | Added ST-3.8-07 (bare unit and ordinal trigger parsing, REQ-3.8-07). |

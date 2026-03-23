@@ -72,7 +72,7 @@ graph TD
 
 ### DES-10 — Parser
 
-The parser uses **Pest** (PEG parser generator). A `grammar.pest` file defines the Hippocrates language grammar. The parser module (`parser.rs`) transforms source text into the typed AST. Error messages include line and column numbers. An indentation preprocessor normalizes whitespace before parsing.
+The parser uses **Pest** (PEG parser generator). A `grammar.pest` file defines the Hippocrates language grammar. The parser module (`parser.rs`) transforms source text into the typed AST. Error messages include line and column numbers. An indentation preprocessor normalizes whitespace before parsing. The trigger grammar supports natural language sugar: bare unit names (`every day`) and ordinals (`every second day`, `every other week`) are desugared to numeric intervals at parse time (REQ-3.8-07).
 
 ### DES-11 — AST Representation
 
@@ -366,3 +366,4 @@ These divergences reflect pragmatic design decisions made during implementation.
 | 1.0 | 2026-03-20 | Initial system design document reflecting actual implementation |
 | 1.1 | 2026-03-23 | Updated DES-13: added PeriodicByPeriod event kind and time-of-day pinning |
 | 1.2 | 2026-03-23 | Updated DES-13: added AfterPlan block execution after event loop exit. Added STKR-36 traceability. |
+| 1.3 | 2026-03-23 | Updated DES-10: parser supports ordinal and bare-unit trigger sugar (REQ-3.8-07). |

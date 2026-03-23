@@ -12,6 +12,8 @@ time_literal = @{ ASCII_DIGIT{1,2} ~ ":" ~ ASCII_DIGIT{2} }
 date_literal = @{ ASCII_DIGIT{4} ~ "-" ~ ASCII_DIGIT{2} ~ "-" ~ ASCII_DIGIT{2} }
 datetime_literal = @{ date_literal ~ " " ~ time_literal }
 weekday = { "Monday" | "Tuesday" | "Wednesday" | "Thursday" | "Friday" | "Saturday" | "Sunday" }
+ordinal = { "other" | "second" | "third" | "fourth" | "fifth" | "sixth" | "seventh" | "eighth" | "ninth" | "tenth" }
+bare_unit = { "years" | "year" | "months" | "month" | "weeks" | "week" | "days" | "day" | "hours" | "hour" | "minutes" | "minute" | "seconds" | "second" }
 time_indication = { time_literal | weekday | "now" }
 
 // string_literal = @{ "\"" ~ (!"\"" ~ ANY)* ~ "\"" }
@@ -207,6 +209,8 @@ trigger_block = { event_trigger ~ flexible_block }
 event_trigger = {
     "change of" ~ identifier |
     "begin of" ~ identifier |
+    "every" ~ ordinal ~ bare_unit ~ ("at" ~ time_literal)? ~ ("for" ~ quantity)? |
+    "every" ~ bare_unit ~ ("at" ~ time_literal)? ~ ("for" ~ quantity)? |
     "every" ~ quantity ~ identifier? ~ ("at" ~ time_literal)? ~ ("for" ~ quantity)? |
     "every" ~ (identifier | weekday) ~ ("at" ~ time_literal)? ~ ( "after" ~ identifier)? ~ ("for" ~ quantity)?
 }

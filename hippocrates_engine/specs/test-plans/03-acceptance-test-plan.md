@@ -63,7 +63,7 @@ This plan validates that the Hippocrates engine meets stakeholder needs as defin
 | **Verification Method** | Manual |
 | **Pass Criteria** | Given a care plan script, when presented to a medical professional unfamiliar with programming, then the professional can identify the script's clinical intent and decision logic. |
 | **Status** | Not Started |
-| **Evidence** | Expert review session of example scripts (e.g., `treating_copd.hipp`); documented reviewer feedback. |
+| **Evidence** | Expert review session of example scripts (e.g., `treating_copd.hipp`); documented reviewer feedback. Natural language trigger syntax (`every day`, `every other day`, `every third week`) enhances readability per REQ-3.8-07; verified by ST-3.8-07, UT-PERIODS-08, UT-PERIODS-09. |
 
 #### AT-03 — Embeddable Runtime
 
@@ -398,3 +398,4 @@ All 27 stakeholder requirements are covered by acceptance test cases.
 | 1.1 | 2026-03-20 | Updated AT-03, AT-06, AT-16, AT-19 with automated evidence references. |
 | 1.2 | 2026-03-23 | Updated AT-05 with time-of-day and period repetition acceptance criteria and evidence. |
 | 1.3 | 2026-03-23 | Added AT-36 (Plan Completion Actions) for STKR-36. |
+| 1.4 | 2026-03-23 | Updated AT-02 evidence with natural language trigger syntax references (REQ-3.8-07). |
