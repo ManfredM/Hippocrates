@@ -31,6 +31,7 @@ HippocratesEditor.app/
 *.o
 
 # Generated Libs
+*.a
 
 # Logs
 *.log
