@@ -156,3 +156,4 @@ SYS-HIPP-001 (language selection), SYS-HIPP-002 (dual crate output), SYS-HIPP-00
 | 1.1 | 2026-03-20 | --     | Added IT-HIPP-025 (stop signal). Closed SYS-HIPP-043 gap. |
 | 1.2 | 2026-03-23 | --     | Added IT-HIPP-026 (time-pinned triggers), IT-HIPP-027 (period-based repetition). |
 | 1.3 | 2026-03-23 | --     | Added IT-HIPP-028 (after plan block execution). |
+| 1.4 | 2026-04-19 | --     | Renamed all IT-* test IDs to canonical IT-HIPP-* form and updated `**Traces to:**` references from DES-* to SYS-HIPP-* for V-Model validator/generator compatibility. |

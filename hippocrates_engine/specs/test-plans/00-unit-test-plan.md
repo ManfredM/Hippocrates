@@ -319,3 +319,4 @@ Tests in `tests/formatter.rs` verify DET-HIPP-FMT-001 (formatter `format_script`
 | 1.3     | 2026-03-23 | ---    | Added UT-HIPP-PLAN-001 for `after plan:` block parsing (DET-HIPP-RT-010). |
 | 1.4     | 2026-03-23 | ---    | Added UT-HIPP-PERIODS-008, UT-HIPP-PERIODS-009 for bare unit and ordinal trigger parsing (DET-HIPP-PARSER-005). |
 | 1.5     | 2026-03-23 | ---    | Added UT-HIPP-PARSER-013 (parse error humanization, DET-HIPP-PARSER-006), UT-HIPP-VAL-038 (undefined references, DET-HIPP-VAL-007), UT-HIPP-VAL-039 (suggested fixes, DET-HIPP-VAL-008). |
+| 1.6     | 2026-04-19 | ---    | Renamed all UT-* test IDs to canonical UT-HIPP-* form and updated `**Traces to:**` references from DDR-* to DET-HIPP-* for V-Model validator/generator compatibility. |

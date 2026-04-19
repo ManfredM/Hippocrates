@@ -1158,3 +1158,4 @@ Defined in `src/formatter.rs`.
 | 1.2     | 2026-03-23 | V-Model | Added DET-HIPP-RT-010 (after plan execution). PlanBlock gains AfterPlan variant; executor runs AfterPlan blocks after event loop exit. |
 | 1.3     | 2026-03-23 | V-Model | Added DET-HIPP-PARSER-005 (ordinal and bare-unit trigger sugar). Grammar gains `ordinal` and `bare_unit` rules; parser desugars to numeric intervals at parse time. |
 | 1.4     | 2026-03-23 | V-Model | Added DET-HIPP-PARSER-006 (parse error humanization), DET-HIPP-VAL-007 (undefined reference validation), DET-HIPP-VAL-008 (suggested fixes). EngineError gains `suggestion` field. All trace to SREQ-HIPP-037. |
+| 1.5     | 2026-04-19 | V-Model | Renamed all DDR-* IDs to canonical DET-HIPP-* form and added explicit `**Traces to:**` lines on every detailed-design item for V-Model validator/generator compatibility. |
