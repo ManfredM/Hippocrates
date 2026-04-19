@@ -18,14 +18,14 @@ Every requirement on the left side has a corresponding verification on the right
 
 | V-Model Level | Prefix | Format | Example |
 |---|---|---|---|
-| Stakeholder Requirements | `STKR-` | `STKR-nn` | `STKR-10` |
-| System Requirements | `REQ-` | `REQ-{section}-{nn}` | `REQ-3.4-05` |
-| System Design | `DES-` | `DES-nn` | `DES-12` |
-| Detailed Design | `DDR-` | `DDR-{module}-nn` | `DDR-FFI-03` |
-| Unit Tests | `UT-` | `UT-{module}-nn` | `UT-PARSER-01` |
-| Integration Tests | `IT-` | `IT-nn` | `IT-05` |
-| System Tests | `ST-` | `ST-{section}-nn` | `ST-3.4-05` |
-| Acceptance Tests | `AT-` | `AT-nn` | `AT-10` |
+| Stakeholder Requirements | `STKR-` | `STKR-nn` | `SREQ-HIPP-010` |
+| System Requirements | `REQ-` | `REQ-{section}-{nn}` | `REQ-HIPP-VALUE-005` |
+| System Design | `DES-` | `DES-nn` | `SYS-HIPP-012` |
+| Detailed Design | `DDR-` | `DDR-{module}-nn` | `DET-HIPP-FFI-003` |
+| Unit Tests | `UT-` | `UT-{module}-nn` | `UT-HIPP-PARSER-001` |
+| Integration Tests | `IT-` | `IT-nn` | `IT-HIPP-005` |
+| System Tests | `ST-` | `ST-{section}-nn` | `ST-HIPP-VALUE-005` |
+| Acceptance Tests | `AT-` | `AT-nn` | `AT-HIPP-010` |
 
 **Numbering policy**: STKR IDs use gapped ranges to allow insertion without renumbering:
 - 01–09: Purpose and scope
@@ -57,10 +57,10 @@ REQ IDs are inherited from the existing language specification and must not be r
 ## Traceability Flow
 
 ```
-STKR-10 ──> REQ-2-01, REQ-2-02  ──> DES-10       ──> DDR-PARSER-01  ──> UT-PARSER-01
+SREQ-HIPP-010 ──> REQ-HIPP-LANG-001, REQ-HIPP-LANG-002  ──> SYS-HIPP-010       ──> DET-HIPP-PARSER-001  ──> UT-HIPP-PARSER-001
                                                                           │
-            REQ-2-01             <── ST-2-01       <── IT-05          <───┘
-STKR-10                         <── AT-10
+            REQ-HIPP-LANG-001             <── ST-HIPP-LANG-001       <── IT-HIPP-005          <───┘
+SREQ-HIPP-010                         <── AT-HIPP-010
 ```
 
 Every row in the [traceability matrix](04-traceability.md) links a stakeholder requirement through system requirements, design, detailed design, and all four test levels. Gaps in this matrix signal incomplete work.

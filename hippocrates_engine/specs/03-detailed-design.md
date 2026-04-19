@@ -65,7 +65,9 @@ All public C functions are declared in `include/hippocrates_engine.h` and implem
 
 ### Parsing and Validation
 
-#### DDR-FFI-01: hippocrates_parse_json
+#### DET-HIPP-FFI-001: hippocrates_parse_json
+
+**Traces to:** SYS-HIPP-018
 
 | Item            | Detail |
 |-----------------|--------|
@@ -76,7 +78,9 @@ All public C functions are declared in `include/hippocrates_engine.h` and implem
 | **Error handling** | Returns a JSON error object for invalid UTF-8, parse failures, and serialization errors. Never returns null for valid input. Returns null only if `input` is null. |
 | **Memory**      | Caller must free the returned string via `hippocrates_free_string`. |
 
-#### DDR-FFI-02: hippocrates_free_string
+#### DET-HIPP-FFI-002: hippocrates_free_string
+
+**Traces to:** SYS-HIPP-018
 
 | Item            | Detail |
 |-----------------|--------|
@@ -87,7 +91,9 @@ All public C functions are declared in `include/hippocrates_engine.h` and implem
 | **Error handling** | None. |
 | **Memory**      | After this call, `s` is invalid and must not be dereferenced. |
 
-#### DDR-FFI-03: hippocrates_validate_file
+#### DET-HIPP-FFI-003: hippocrates_validate_file
+
+**Traces to:** SYS-HIPP-018
 
 | Item            | Detail |
 |-----------------|--------|
@@ -98,7 +104,9 @@ All public C functions are declared in `include/hippocrates_engine.h` and implem
 | **Error handling** | Parse errors are treated as a single error. Validation errors are accumulated. Returns 0 for null input. |
 | **Memory**      | Errors are stored in a global `Mutex<Vec<EngineError>>`. Thread-safe but shared across calls. |
 
-#### DDR-FFI-04: hippocrates_get_error_count
+#### DET-HIPP-FFI-004: hippocrates_get_error_count
+
+**Traces to:** SYS-HIPP-018
 
 | Item            | Detail |
 |-----------------|--------|
@@ -109,7 +117,9 @@ All public C functions are declared in `include/hippocrates_engine.h` and implem
 | **Error handling** | None. Returns 0 if no validation has been performed. |
 | **Memory**      | No allocation. |
 
-#### DDR-FFI-05: hippocrates_get_error
+#### DET-HIPP-FFI-005: hippocrates_get_error
+
+**Traces to:** SYS-HIPP-018
 
 | Item            | Detail |
 |-----------------|--------|
@@ -122,7 +132,9 @@ All public C functions are declared in `include/hippocrates_engine.h` and implem
 
 ### Engine Lifecycle
 
-#### DDR-FFI-06: hippocrates_engine_new
+#### DET-HIPP-FFI-006: hippocrates_engine_new
+
+**Traces to:** SYS-HIPP-018
 
 | Item            | Detail |
 |-----------------|--------|
@@ -133,7 +145,9 @@ All public C functions are declared in `include/hippocrates_engine.h` and implem
 | **Error handling** | None (infallible). |
 | **Memory**      | Caller must free via `hippocrates_engine_free`. The context owns the `Environment`, `Executor`, and channel sender. |
 
-#### DDR-FFI-07: hippocrates_engine_free
+#### DET-HIPP-FFI-007: hippocrates_engine_free
+
+**Traces to:** SYS-HIPP-018
 
 | Item            | Detail |
 |-----------------|--------|
@@ -146,7 +160,9 @@ All public C functions are declared in `include/hippocrates_engine.h` and implem
 
 ### Loading
 
-#### DDR-FFI-08: hippocrates_engine_load
+#### DET-HIPP-FFI-008: hippocrates_engine_load
+
+**Traces to:** SYS-HIPP-018
 
 | Item            | Detail |
 |-----------------|--------|
@@ -159,7 +175,9 @@ All public C functions are declared in `include/hippocrates_engine.h` and implem
 
 ### Callback Registration
 
-#### DDR-FFI-09: hippocrates_engine_set_callbacks
+#### DET-HIPP-FFI-009: hippocrates_engine_set_callbacks
+
+**Traces to:** SYS-HIPP-018
 
 | Item            | Detail |
 |-----------------|--------|
@@ -175,7 +193,9 @@ Callback type signatures:
 - `LogCallback`: `void (*)(const char* json, uint8_t event_type, int64_t timestamp_ms, void* user_data)`
 - `AskCallback`: `void (*)(const char* json, void* user_data)`
 
-#### DDR-FFI-10: hippocrates_engine_set_message_callback
+#### DET-HIPP-FFI-010: hippocrates_engine_set_message_callback
+
+**Traces to:** SYS-HIPP-018
 
 | Item            | Detail |
 |-----------------|--------|
@@ -191,7 +211,9 @@ Callback type signature:
 
 ### Execution and Control
 
-#### DDR-FFI-11: hippocrates_engine_execute
+#### DET-HIPP-FFI-011: hippocrates_engine_execute
+
+**Traces to:** SYS-HIPP-018
 
 | Item            | Detail |
 |-----------------|--------|
@@ -202,7 +224,9 @@ Callback type signature:
 | **Error handling** | Silently returns if `plan_name` is invalid UTF-8 or does not match a known plan. |
 | **Memory**      | No allocation returned to caller. |
 
-#### DDR-FFI-12: hippocrates_engine_stop
+#### DET-HIPP-FFI-012: hippocrates_engine_stop
+
+**Traces to:** SYS-HIPP-018
 
 | Item            | Detail |
 |-----------------|--------|
@@ -213,7 +237,9 @@ Callback type signature:
 | **Error handling** | None. |
 | **Memory**      | No allocation. |
 
-#### DDR-FFI-13: hippocrates_engine_enable_simulation
+#### DET-HIPP-FFI-013: hippocrates_engine_enable_simulation
+
+**Traces to:** SYS-HIPP-018
 
 | Item            | Detail |
 |-----------------|--------|
@@ -226,7 +252,9 @@ Callback type signature:
 
 ### Value Management
 
-#### DDR-FFI-14: hippocrates_engine_set_value
+#### DET-HIPP-FFI-014: hippocrates_engine_set_value
+
+**Traces to:** SYS-HIPP-018
 
 | Item            | Detail |
 |-----------------|--------|
@@ -242,20 +270,24 @@ Value parsing logic (`parse_runtime_value`):
 - **DateTime type**: Parses date strings in `%Y-%m-%d %H:%M` or `%Y-%m-%d` format producing `RuntimeValue::Date`.
 - **Other types**: Attempts `serde_json` deserialization, falls back to `RuntimeValue::String`.
 
-#### DDR-FFI-15: hippocrates_engine_set_value_at
+#### DET-HIPP-FFI-015: hippocrates_engine_set_value_at
+
+**Traces to:** SYS-HIPP-018
 
 | Item            | Detail |
 |-----------------|--------|
 | **Signature**   | `int hippocrates_engine_set_value_at(EngineContext* ctx, const char* var_name, const char* json_val, int64_t timestamp_ms)` |
 | **Purpose**     | Same as `hippocrates_engine_set_value` but with an explicit timestamp in milliseconds. |
-| **Preconditions** | Same as DDR-FFI-14. `timestamp_ms` must be a valid millisecond timestamp convertible to `NaiveDateTime`. |
+| **Preconditions** | Same as DET-HIPP-FFI-014. `timestamp_ms` must be a valid millisecond timestamp convertible to `NaiveDateTime`. |
 | **Postconditions** | Returns 0 on success. The `InputMessage` carries the provided timestamp instead of `env.now`. |
-| **Error handling** | Returns 1 for all conditions in DDR-FFI-14, plus invalid timestamp conversion. |
+| **Error handling** | Returns 1 for all conditions in DET-HIPP-FFI-014, plus invalid timestamp conversion. |
 | **Memory**      | No allocation returned to caller. |
 
 ### Data Retrieval
 
-#### DDR-FFI-16: hippocrates_get_periods
+#### DET-HIPP-FFI-016: hippocrates_get_periods
+
+**Traces to:** SYS-HIPP-018
 
 | Item            | Detail |
 |-----------------|--------|
@@ -266,7 +298,9 @@ Value parsing logic (`parse_runtime_value`):
 | **Error handling** | Returns null for null `ctx` or serialization failure. |
 | **Memory**      | Caller must free via `hippocrates_free_string`. |
 
-#### DDR-FFI-17: hippocrates_simulate_occurrences
+#### DET-HIPP-FFI-017: hippocrates_simulate_occurrences
+
+**Traces to:** SYS-HIPP-018
 
 | Item            | Detail |
 |-----------------|--------|
@@ -277,7 +311,9 @@ Value parsing logic (`parse_runtime_value`):
 | **Error handling** | Returns null for null pointers, invalid UTF-8, undefined period, or serialization failure. |
 | **Memory**      | Caller must free via `hippocrates_free_string`. |
 
-#### DDR-FFI-18: hippocrates_engine_get_values
+#### DET-HIPP-FFI-018: hippocrates_engine_get_values
+
+**Traces to:** SYS-HIPP-018
 
 | Item            | Detail |
 |-----------------|--------|
@@ -290,7 +326,9 @@ Value parsing logic (`parse_runtime_value`):
 
 ### Time Management
 
-#### DDR-FFI-19: hippocrates_engine_set_time
+#### DET-HIPP-FFI-019: hippocrates_engine_set_time
+
+**Traces to:** SYS-HIPP-018
 
 | Item            | Detail |
 |-----------------|--------|
@@ -307,7 +345,9 @@ Value parsing logic (`parse_runtime_value`):
 
 All domain types are defined in `src/domain.rs`.
 
-### DDR-DOM-01: RuntimeValue
+### DET-HIPP-DOM-001: RuntimeValue
+
+**Traces to:** SYS-HIPP-011, SYS-HIPP-015
 
 `RuntimeValue` is the central value representation used throughout the engine at execution time.
 
@@ -328,7 +368,9 @@ Helper methods:
 - `as_date() -> Option<NaiveDateTime>`: Extracts date if variant is `Date`.
 - `as_number() -> Option<f64>`: Extracts numeric component from `Number` or `Quantity`.
 
-### DDR-DOM-02: Unit
+### DET-HIPP-DOM-002: Unit
+
+**Traces to:** SYS-HIPP-011, SYS-HIPP-015
 
 `Unit` represents measurement units with built-in conversion support.
 
@@ -346,7 +388,9 @@ Helper methods:
 
 The `convert(&self, value, target) -> Result<f64, String>` method supports same-category conversions (e.g., Celsius to Fahrenheit, Kilogram to Gram, MmolPerL to MgPerDl via glucose approximation factor 18.0182). Returns `Err` for cross-category conversions.
 
-### DDR-DOM-03: EventType
+### DET-HIPP-DOM-003: EventType
+
+**Traces to:** SYS-HIPP-011, SYS-HIPP-015
 
 `EventType` classifies audit log entries. Represented as `u8` for FFI transmission.
 
@@ -360,7 +404,9 @@ The `convert(&self, value, target) -> Result<f64, String>` method supports same-
 | `StateChange`  | 5            | A variable value changed. |
 | `EventTrigger` | 6            | A scheduled or triggered event fired. |
 
-### DDR-DOM-04: AskRequest
+### DET-HIPP-DOM-004: AskRequest
+
+**Traces to:** SYS-HIPP-011, SYS-HIPP-015
 
 `AskRequest` is serialized to JSON and passed to the `AskCallback` when the engine needs user input.
 
@@ -383,7 +429,9 @@ The `convert(&self, value, target) -> Result<f64, String>` method supports same-
 
 `ValidationMode` variants: `Once`, `Twice`.
 
-### DDR-DOM-05: AuditEntry
+### DET-HIPP-DOM-005: AuditEntry
+
+**Traces to:** SYS-HIPP-011, SYS-HIPP-015
 
 `AuditEntry` records a single auditable event during plan execution.
 
@@ -394,7 +442,9 @@ The `convert(&self, value, target) -> Result<f64, String>` method supports same-
 | `details`   | `String`          | JSON payload or descriptive text. |
 | `context`   | `Option<String>`  | Context name or rule name associated with the event. |
 
-### DDR-DOM-06: ValueType
+### DET-HIPP-DOM-006: ValueType
+
+**Traces to:** SYS-HIPP-011, SYS-HIPP-015
 
 `ValueType` defines the kind of a value definition, determining parsing, validation, and UI behavior.
 
@@ -415,13 +465,15 @@ Supporting type: `ValueDefinition { name: String, value_type: ValueType }`.
 
 Supporting type: `ValueInstance { value: RuntimeValue, timestamp: NaiveDateTime }` -- a timestamped value used in the history store.
 
-Supporting type: `EngineError { message: String, line: usize, column: usize, suggestion: Option<String> }` -- error type used throughout parsing and validation, implementing `Display` and `Error`. The `suggestion` field carries an actionable fix description when available (DDR-VAL-08).
+Supporting type: `EngineError { message: String, line: usize, column: usize, suggestion: Option<String> }` -- error type used throughout parsing and validation, implementing `Display` and `Error`. The `suggestion` field carries an actionable fix description when available (DET-HIPP-VAL-008).
 
 ---
 
 ## 4. Parser
 
-### DDR-PARSER-01: PEG Grammar Structure
+### DET-HIPP-PARSER-001: PEG Grammar Structure
+
+**Traces to:** SYS-HIPP-010
 
 The grammar is defined in `src/grammar.pest` and processed by the `pest` parser generator. Top-level rules:
 
@@ -444,7 +496,9 @@ Key expression and statement rules:
 - `conditional`: `"assess" expression ":" INDENT assessment_case* DEDENT`.
 - `identifier`: `angled_identifier` (e.g., `<Blood Pressure>`).
 
-### DDR-PARSER-02: AST Node Hierarchy
+### DET-HIPP-PARSER-002: AST Node Hierarchy
+
+**Traces to:** SYS-HIPP-010, SYS-HIPP-011
 
 Defined in `src/ast.rs`.
 
@@ -509,7 +563,9 @@ Defined in `src/ast.rs`.
 - `MessageExpiration(RangeSelector)` -- message expiry setting
 - `ValidateAnswer(ValidationMode, Option<(f64, Unit)>)` -- answer validation
 
-### DDR-PARSER-03: Indentation Handling
+### DET-HIPP-PARSER-003: Indentation Handling
+
+**Traces to:** SYS-HIPP-010
 
 The Hippocrates language uses significant indentation (similar to Python). Since PEG grammars cannot natively handle indentation, a preprocessing step converts indentation to explicit tokens.
 
@@ -529,7 +585,9 @@ The grammar rules `INDENT` and `DEDENT` match these marker characters:
 - `INDENT = _{ "《" ~ "\n"? }`
 - `DEDENT = _{ "》" ~ "\n"? }`
 
-### DDR-PARSER-04: Parser Entry Point
+### DET-HIPP-PARSER-004: Parser Entry Point
+
+**Traces to:** SYS-HIPP-010
 
 **Function:** `parse_plan(input: &str) -> Result<Plan, EngineError>` in `src/parser.rs`.
 
@@ -543,9 +601,11 @@ The grammar rules `INDENT` and `DEDENT` match these marker characters:
 
 The parser struct `HippocratesParser` is derived via `#[derive(Parser)]` with `#[grammar = "grammar.pest"]`.
 
-### DDR-PARSER-05: Ordinal and Bare-Unit Trigger Sugar
+### DET-HIPP-PARSER-005: Ordinal and Bare-Unit Trigger Sugar
 
-**Traces to:** DES-10, REQ-3.8-07, STKR-02
+**Traces to:** SYS-HIPP-010
+
+**Traces to:** SYS-HIPP-010, REQ-HIPP-EVT-007, SREQ-HIPP-002
 
 **Grammar change** (`src/grammar.pest`):
 - Add `ordinal` rule: matches `"other" | "second" | "third" | "fourth" | "fifth" | "sixth" | "seventh" | "eighth" | "ninth" | "tenth"`.
@@ -561,9 +621,11 @@ The parser struct `HippocratesParser` is derived via `#[derive(Parser)]` with `#
 - Ordinals are NOT round-tripped; they desugar to `every 3 days` etc.
 - Bare unit `every day` could be round-tripped but for simplicity is normalized to `every 1 day`.
 
-### DDR-PARSER-06: Parse Error Humanization
+### DET-HIPP-PARSER-006: Parse Error Humanization
 
-**Traces to:** DES-10, REQ-4.1-05, STKR-37
+**Traces to:** SYS-HIPP-010
+
+**Traces to:** SYS-HIPP-010, REQ-HIPP-CORE-005, SREQ-HIPP-037
 
 **Function:** `to_engine_error()` in `src/parser.rs` maps `Rule` enum variants to human-readable names via a `rule_to_human()` function.
 
@@ -581,7 +643,9 @@ The parser struct `HippocratesParser` is derived via `#[derive(Parser)]` with `#
 
 ## 5. Validator
 
-### DDR-VAL-01: Validation Pipeline
+### DET-HIPP-VAL-001: Validation Pipeline
+
+**Traces to:** SYS-HIPP-012
 
 Entry point: `validate_file(plan: &Plan) -> Result<(), Vec<EngineError>>` in `src/runtime/validator/mod.rs`.
 
@@ -605,7 +669,9 @@ Entry point: `validate_file(plan: &Plan) -> Result<(), Vec<EngineError>>` in `sr
    - Data flow analysis (`data_flow::analyze_block`): use-before-assignment detection.
 10. **Return:** If errors are empty, return `Ok(())`. Otherwise return `Err(errors)`.
 
-### DDR-VAL-02: Semantic Validation
+### DET-HIPP-VAL-002: Semantic Validation
+
+**Traces to:** SYS-HIPP-012
 
 Implemented in `src/runtime/validator/semantics.rs`.
 
@@ -619,7 +685,9 @@ Implemented in `src/runtime/validator/semantics.rs`.
 | `check_statement_semantics`          | Validates assignments (undefined variable references), `ask` actions (variable must have question property and valid values if Number/Enumeration), `listen for` (must target defined variable), message parts (expression validation). Recurses into conditional branches. |
 | `validate_expression`                | Checks that variables and meaning-of references point to defined names. Validates statistical function constraints (e.g., `count of` Enumeration requires a filter value; `trend of` not supported for Enumerations). |
 
-### DDR-VAL-03: Interval Validation
+### DET-HIPP-VAL-003: Interval Validation
+
+**Traces to:** SYS-HIPP-012
 
 Implemented in `src/runtime/validator/intervals.rs`.
 
@@ -633,7 +701,9 @@ Implemented in `src/runtime/validator/intervals.rs`.
 - `calculate_interval(expr, defined_ranges)` -- simplified single-interval calculation for expressions.
 - `check_subtraction_safety(left, right, defined_ranges)` -- warns if a subtraction could produce a negative result.
 
-### DDR-VAL-04: Data Flow Analysis
+### DET-HIPP-VAL-004: Data Flow Analysis
+
+**Traces to:** SYS-HIPP-012
 
 Implemented in `src/runtime/validator/data_flow.rs`.
 
@@ -651,7 +721,9 @@ Implemented in `src/runtime/validator/data_flow.rs`.
   - **TimeframeBlock:** Analyzes inner statements in current flow state.
 - `check_expression(expr, state, defs, line, errors)` -- reports use-before-assignment for `Variable` and `MeaningOf` references. Statistical functions are exempt (they operate on history).
 
-### DDR-VAL-05: Coverage Analysis
+### DET-HIPP-VAL-005: Coverage Analysis
+
+**Traces to:** SYS-HIPP-012
 
 Implemented in `src/runtime/validator/coverage.rs`.
 
@@ -665,7 +737,9 @@ Implemented in `src/runtime/validator/coverage.rs`.
 - Extracts string/identifier labels from assessment case selectors.
 - Reports any required values not covered by any case.
 
-### DDR-VAL-06: Error Reporting
+### DET-HIPP-VAL-006: Error Reporting
+
+**Traces to:** SYS-HIPP-012
 
 All validation errors use `EngineError { message: String, line: usize, column: usize }`.
 
@@ -675,9 +749,11 @@ All validation errors use `EngineError { message: String, line: usize, column: u
 - `EngineError` implements `Display` (formatted as `"Error at line N, col N: message"`) and `Error`.
 - For FFI, errors are serialized to JSON via `serde`: `{"message": "...", "line": N, "column": N, "suggestion": "..."}`.
 
-### DDR-VAL-07: Undefined Reference Validation
+### DET-HIPP-VAL-007: Undefined Reference Validation
 
-**Traces to:** DES-12, REQ-5.1-02, STKR-37
+**Traces to:** SYS-HIPP-012
+
+**Traces to:** SYS-HIPP-012, REQ-HIPP-VALID-002, SREQ-HIPP-037
 
 **Function:** `check_undefined_references()` in `src/runtime/validator/semantics.rs`.
 
@@ -692,9 +768,11 @@ All validation errors use `EngineError { message: String, line: usize, column: u
 - Unit references in quantity literals and value definitions.
 - Period references in timeframe selectors and event triggers.
 
-### DDR-VAL-08: Suggested Fixes
+### DET-HIPP-VAL-008: Suggested Fixes
 
-**Traces to:** DES-12, REQ-5.1-03, STKR-37
+**Traces to:** SYS-HIPP-012
+
+**Traces to:** SYS-HIPP-012, REQ-HIPP-VALID-003, SREQ-HIPP-037
 
 **Change:** Extends existing validation functions to include a `suggestion` field. The `EngineError` struct gains `pub suggestion: Option<String>`.
 
@@ -715,7 +793,9 @@ All validation errors use `EngineError { message: String, line: usize, column: u
 
 ## 6. Runtime
 
-### DDR-RT-01: Engine Struct
+### DET-HIPP-RT-001: Engine Struct
+
+**Traces to:** SYS-HIPP-013
 
 Defined in `src/runtime/mod.rs`.
 
@@ -739,7 +819,9 @@ Helper functions:
 - `normalize_identifier(name)` -- strips angle brackets from `<Name>` to produce `Name`.
 - `format_identifier(name)` -- wraps bare names in angle brackets.
 
-### DDR-RT-02: Environment
+### DET-HIPP-RT-002: Environment
+
+**Traces to:** SYS-HIPP-015
 
 Defined in `src/runtime/environment.rs`.
 
@@ -777,7 +859,9 @@ pub struct Environment {
 - `push_context(ctx)` / `pop_context()` / `active_context()` -- manage the evaluation context stack.
 - `expected_unit_for_value(name)` -- determines the canonical unit for a numeric value from its definition.
 
-### DDR-RT-03: Executor
+### DET-HIPP-RT-003: Executor
+
+**Traces to:** SYS-HIPP-013
 
 Defined in `src/runtime/executor.rs`.
 
@@ -806,8 +890,8 @@ struct ScheduledEvent {
 Implements reverse `Ord` for min-heap behavior in `BinaryHeap` (earliest event pops first).
 
 **EventKind variants:**
-- `Periodic { block, iteration, interval_secs, max_duration, time_of_day }` -- a repeating trigger block. When `time_of_day` is `Some(NaiveTime)`, both initial scheduling and rescheduling pin to that time (REQ-5-05).
-- `PeriodicByPeriod { block }` -- a pre-scheduled event for a single occurrence of a named period within a duration window (REQ-3.8-06). All occurrences are enumerated at plan start via `Scheduler::occurrences_in_range`; no rescheduling.
+- `Periodic { block, iteration, interval_secs, max_duration, time_of_day }` -- a repeating trigger block. When `time_of_day` is `Some(NaiveTime)`, both initial scheduling and rescheduling pin to that time (REQ-HIPP-EXEC-005).
+- `PeriodicByPeriod { block }` -- a pre-scheduled event for a single occurrence of a named period within a duration window (REQ-HIPP-EVT-006). All occurrences are enumerated at plan start via `Scheduler::occurrences_in_range`; no rescheduling.
 - `StartOf { block, period_name }` -- fires at the start of a period.
 
 **Execution flow (`execute_plan`):**
@@ -823,7 +907,9 @@ Implements reverse `Ord` for min-heap behavior in `BinaryHeap` (earliest event p
 - `drain_inputs(env)` -- receives messages from `mpsc` channel, normalizes variable names, sorts by timestamp, applies due inputs.
 - `drain_inputs_with_triggers(env)` -- same but also processes change-of triggers.
 
-### DDR-RT-04: Evaluator
+### DET-HIPP-RT-004: Evaluator
+
+**Traces to:** SYS-HIPP-016
 
 Defined in `src/runtime/evaluator.rs`.
 
@@ -863,7 +949,9 @@ Defined in `src/runtime/evaluator.rs`.
 3. Matches the value against assessment cases using `RangeSelector` matching.
 4. Returns the first matching case's block result (typically a meaning label assignment).
 
-### DDR-RT-05: Scheduler
+### DET-HIPP-RT-005: Scheduler
+
+**Traces to:** SYS-HIPP-014
 
 Defined in `src/runtime/scheduler.rs`.
 
@@ -889,7 +977,9 @@ Timeframe matching supports:
 - Date ranges.
 - Named period references.
 
-### DDR-RT-06: Session
+### DET-HIPP-RT-006: Session
+
+**Traces to:** SYS-HIPP-017
 
 Defined in `src/runtime/session.rs`.
 
@@ -923,7 +1013,9 @@ pub struct Session {
 - `executors`: `Arc<Mutex<Vec<Sender>>>` for broadcasting answers to all running plans.
 - `pending_requests`: `Arc<Mutex<HashSet>>` preventing duplicate question prompts.
 
-### DDR-RT-07: Input Validation
+### DET-HIPP-RT-007: Input Validation
+
+**Traces to:** SYS-HIPP-015
 
 Defined in `src/runtime/input_validation.rs`.
 
@@ -945,7 +1037,9 @@ Defined in `src/runtime/input_validation.rs`.
 - Multiplies the value by `10^decimals`, rounds, and checks if the difference is less than `1e-9`.
 - Non-numeric values pass validation.
 
-### DDR-RT-08: Execution Modes
+### DET-HIPP-RT-008: Execution Modes
+
+**Traces to:** SYS-HIPP-013
 
 Defined in `src/runtime/executor.rs`.
 
@@ -961,9 +1055,9 @@ pub enum ExecutionMode {
 | `RealTime`    | The executor waits for real time to pass between scheduled events. Input is received via the `mpsc` channel from external sources. The event loop blocks on channel receive with timeout until the next event time. |
 | `Simulation`  | Events are processed as fast as possible without real-time delays. `speed_factor: None` means instant execution. `duration` optionally limits the total simulated time span. The executor advances `env.now` to each event's scheduled time without waiting. |
 
-### DDR-RT-09: Time-of-Day Pinning and Period-Based Repetition
+### DET-HIPP-RT-009: Time-of-Day Pinning and Period-Based Repetition
 
-**Traces to:** DES-13, REQ-3.8-05, REQ-3.8-06, REQ-5-05
+**Traces to:** SYS-HIPP-013, REQ-HIPP-EVT-005, REQ-HIPP-EVT-006, REQ-HIPP-EXEC-005
 
 **AST change** (`src/ast.rs`):
 - `Trigger::Periodic` gains `time_of_day: Option<String>` field (`#[serde(default)]`), storing a `"HH:MM"` literal when the `at` clause is present.
@@ -976,16 +1070,18 @@ pub enum ExecutionMode {
 
 **Executor change** (`src/runtime/executor.rs`):
 
-1. **Time-pinned scheduling (REQ-5-05):** When `time_of_day` is `Some`, the first run is scheduled at that time on the current day (or next day if already past). Rescheduling advances by `interval_secs` then pins to the target time on the resulting date.
+1. **Time-pinned scheduling (REQ-HIPP-EXEC-005):** When `time_of_day` is `Some`, the first run is scheduled at that time on the current day (or next day if already past). Rescheduling advances by `interval_secs` then pins to the target time on the resulting date.
 
-2. **Period-based repetition (REQ-3.8-06):** When a `Trigger::Periodic` has `offset` referring to a defined period and `duration` is set, the executor uses `Scheduler::occurrences_in_range(def, start_time, start_time + duration)` to enumerate all occurrences and pre-schedules each as `EventKind::PeriodicByPeriod { block }`. These events execute once without rescheduling.
+2. **Period-based repetition (REQ-HIPP-EVT-006):** When a `Trigger::Periodic` has `offset` referring to a defined period and `duration` is set, the executor uses `Scheduler::occurrences_in_range(def, start_time, start_time + duration)` to enumerate all occurrences and pre-schedules each as `EventKind::PeriodicByPeriod { block }`. These events execute once without rescheduling.
 
 **Formatter change** (`src/formatter.rs`):
 - Periodic trigger formatting emits `at HH:MM` when `time_of_day` is present.
 
-### DDR-RT-10: After Plan Execution
+### DET-HIPP-RT-010: After Plan Execution
 
-**Traces to:** DES-13, REQ-3.7-10, STKR-36
+**Traces to:** SYS-HIPP-013
+
+**Traces to:** SYS-HIPP-013, REQ-HIPP-ACT-010, SREQ-HIPP-036
 
 **AST change** (`src/ast.rs`):
 - `PlanBlock` enum gains an `AfterPlan(Vec<Statement>)` variant, representing the `after plan:` block.
@@ -1007,7 +1103,9 @@ pub enum ExecutionMode {
 
 ## 7. Formatter
 
-### DDR-FMT-01: format_script
+### DET-HIPP-FMT-001: format_script
+
+**Traces to:** SYS-HIPP-019
 
 Defined in `src/formatter.rs`.
 
@@ -1033,21 +1131,21 @@ Defined in `src/formatter.rs`.
 
 | DDR ID Range    | System Design Reference | Component |
 |-----------------|------------------------|-----------|
-| DDR-FFI-01..19  | DES-18                 | FFI Layer |
-| DDR-DOM-01..06  | DES-15, DES-11         | Environment, AST |
-| DDR-PARSER-01..06 | DES-10               | Parser |
-| DDR-VAL-01..08  | DES-12                 | Validator |
-| DDR-RT-01       | DES-13                 | Executor |
-| DDR-RT-02       | DES-15                 | Environment |
-| DDR-RT-03       | DES-13                 | Executor |
-| DDR-RT-04       | DES-16                 | Evaluator |
-| DDR-RT-05       | DES-14                 | Scheduler |
-| DDR-RT-06       | DES-17                 | Session |
-| DDR-RT-07       | DES-15                 | Environment (input validation) |
-| DDR-RT-08       | DES-13                 | Executor (modes) |
-| DDR-RT-09       | DES-13                 | Executor (time-of-day pinning, period repetition) |
-| DDR-RT-10       | DES-13                 | Executor (after plan execution) |
-| DDR-FMT-01      | DES-19                 | Formatter |
+| DET-HIPP-FFI-001..19  | SYS-HIPP-018                 | FFI Layer |
+| DET-HIPP-DOM-001..06  | SYS-HIPP-015, SYS-HIPP-011         | Environment, AST |
+| DET-HIPP-PARSER-001..06 | SYS-HIPP-010               | Parser |
+| DET-HIPP-VAL-001..08  | SYS-HIPP-012                 | Validator |
+| DET-HIPP-RT-001       | SYS-HIPP-013                 | Executor |
+| DET-HIPP-RT-002       | SYS-HIPP-015                 | Environment |
+| DET-HIPP-RT-003       | SYS-HIPP-013                 | Executor |
+| DET-HIPP-RT-004       | SYS-HIPP-016                 | Evaluator |
+| DET-HIPP-RT-005       | SYS-HIPP-014                 | Scheduler |
+| DET-HIPP-RT-006       | SYS-HIPP-017                 | Session |
+| DET-HIPP-RT-007       | SYS-HIPP-015                 | Environment (input validation) |
+| DET-HIPP-RT-008       | SYS-HIPP-013                 | Executor (modes) |
+| DET-HIPP-RT-009       | SYS-HIPP-013                 | Executor (time-of-day pinning, period repetition) |
+| DET-HIPP-RT-010       | SYS-HIPP-013                 | Executor (after plan execution) |
+| DET-HIPP-FMT-001      | SYS-HIPP-019                 | Formatter |
 
 ---
 
@@ -1055,8 +1153,8 @@ Defined in `src/formatter.rs`.
 
 | Version | Date       | Author | Changes |
 |---------|------------|--------|---------|
-| 1.0     | 2026-03-20 | --     | Initial draft. Full module inventory, C-FFI interface (DDR-FFI-01 through DDR-FFI-19), domain model (DDR-DOM-01 through DDR-DOM-06), parser (DDR-PARSER-01 through DDR-PARSER-04), validator (DDR-VAL-01 through DDR-VAL-06), runtime (DDR-RT-01 through DDR-RT-08), formatter (DDR-FMT-01), and traceability matrix. |
-| 1.1     | 2026-03-23 | V-Model | Added DDR-RT-09 (time-of-day pinning, period repetition). Updated DDR-RT-03 EventKind variants and execution flow. |
-| 1.2     | 2026-03-23 | V-Model | Added DDR-RT-10 (after plan execution). PlanBlock gains AfterPlan variant; executor runs AfterPlan blocks after event loop exit. |
-| 1.3     | 2026-03-23 | V-Model | Added DDR-PARSER-05 (ordinal and bare-unit trigger sugar). Grammar gains `ordinal` and `bare_unit` rules; parser desugars to numeric intervals at parse time. |
-| 1.4     | 2026-03-23 | V-Model | Added DDR-PARSER-06 (parse error humanization), DDR-VAL-07 (undefined reference validation), DDR-VAL-08 (suggested fixes). EngineError gains `suggestion` field. All trace to STKR-37. |
+| 1.0     | 2026-03-20 | --     | Initial draft. Full module inventory, C-FFI interface (DET-HIPP-FFI-001 through DET-HIPP-FFI-019), domain model (DET-HIPP-DOM-001 through DET-HIPP-DOM-006), parser (DET-HIPP-PARSER-001 through DET-HIPP-PARSER-004), validator (DET-HIPP-VAL-001 through DET-HIPP-VAL-006), runtime (DET-HIPP-RT-001 through DET-HIPP-RT-008), formatter (DET-HIPP-FMT-001), and traceability matrix. |
+| 1.1     | 2026-03-23 | V-Model | Added DET-HIPP-RT-009 (time-of-day pinning, period repetition). Updated DET-HIPP-RT-003 EventKind variants and execution flow. |
+| 1.2     | 2026-03-23 | V-Model | Added DET-HIPP-RT-010 (after plan execution). PlanBlock gains AfterPlan variant; executor runs AfterPlan blocks after event loop exit. |
+| 1.3     | 2026-03-23 | V-Model | Added DET-HIPP-PARSER-005 (ordinal and bare-unit trigger sugar). Grammar gains `ordinal` and `bare_unit` rules; parser desugars to numeric intervals at parse time. |
+| 1.4     | 2026-03-23 | V-Model | Added DET-HIPP-PARSER-006 (parse error humanization), DET-HIPP-VAL-007 (undefined reference validation), DET-HIPP-VAL-008 (suggested fixes). EngineError gains `suggestion` field. All trace to SREQ-HIPP-037. |
