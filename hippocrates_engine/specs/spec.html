@@ -69,6 +69,13 @@ aside .title { color: var(--muted); margin-left: 6px; font-family: -apple-system
 
 .matrix-section table a.idref { font-family: ui-monospace, monospace; }
 .matrix-section td, .matrix-section th { font-size: 0.88em; }
+.doc-refs { margin: 12px 0 18px; }
+.doc-refs h2 { font-size: 1.05em; margin: 0 0 8px; border: none; padding: 0; }
+.doc-refs-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+.doc-refs-table th, .doc-refs-table td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--border); }
+.doc-refs-table th { background: #f6f8fa; font-weight: 600; }
+.doc-refs-table td code { font-family: ui-monospace, monospace; font-size: 0.88em; }
+.doc-refs-table td:nth-child(2) a { font-family: ui-monospace, monospace; font-size: 0.88em; }
 
 .trace-graph { margin-top: 8px; border-top: 1px dashed var(--border); padding-top: 4px; }
 .trace-graph > summary { cursor: pointer; color: var(--muted); font-size: 0.88em; list-style: none; }
@@ -659,11 +666,12 @@ aside .title { color: var(--muted); margin-left: 6px; font-family: -apple-system
 <li><a href="#AT-HIPP-042">AT-HIPP-042<span class="title"> Class II Documentation Readiness</span></a></li>
 </ul></details>
 <h2>Reference</h2>
-<ul class="reflinks"><li><a href="#traceability">Traceability matrix</a></li></ul>
+<ul class="reflinks"><li><a href="#document-references">Document references</a></li><li><a href="#traceability">Traceability matrix</a></li></ul>
   </aside>
   <main>
     <h1>Hippocrates Engine — V-Model Specification</h1>
     <div class="meta"></div>
+    <section class="doc-refs" id="document-references"><h2>Document References</h2><table class="doc-refs-table"><thead><tr><th>Ref</th><th>File</th><th>Title</th><th>V-Model Phase</th><th>Latest Revision</th></tr></thead><tbody><tr><td><a href="#phase-SREQ"><code>SREQ</code></a></td><td><a href="00-stakeholder-requirements.md">00-stakeholder-requirements.md</a></td><td>Stakeholder Requirements (STKR)</td><td>Stakeholder Requirements</td><td>1.5 (2026-04-19)</td></tr><tr><td><a href="#phase-REQ"><code>REQ</code></a></td><td><a href="01-system-requirements.md">01-system-requirements.md</a></td><td>SYRS-01: Hippocrates Language System Requirements</td><td>System Requirements</td><td>1.6 (2026-04-19)</td></tr><tr><td><a href="#phase-SYS"><code>SYS</code></a></td><td><a href="02-system-design.md">02-system-design.md</a></td><td>System Design (DES)</td><td>System Design</td><td>1.5 (2026-04-19)</td></tr><tr><td><a href="#phase-DET"><code>DET</code></a></td><td><a href="03-detailed-design.md">03-detailed-design.md</a></td><td>Detailed Design Document</td><td>Detailed Design</td><td>1.5 (2026-04-19)</td></tr><tr><td><a href="#phase-UT"><code>UT</code></a></td><td><a href="test-plans/00-unit-test-plan.md">test-plans/00-unit-test-plan.md</a></td><td>Unit Test Plan</td><td>Unit Tests</td><td>1.6 (2026-04-19)</td></tr><tr><td><a href="#phase-IT"><code>IT</code></a></td><td><a href="test-plans/01-integration-test-plan.md">test-plans/01-integration-test-plan.md</a></td><td>Integration Test Plan</td><td>Integration Tests</td><td>1.4 (2026-04-19)</td></tr><tr><td><a href="#phase-ST"><code>ST</code></a></td><td><a href="test-plans/02-system-test-plan.md">test-plans/02-system-test-plan.md</a></td><td>System Test Plan</td><td>System Tests</td><td>1.6 (2026-04-19)</td></tr><tr><td><a href="#phase-AT"><code>AT</code></a></td><td><a href="test-plans/03-acceptance-test-plan.md">test-plans/03-acceptance-test-plan.md</a></td><td>Acceptance Test Plan</td><td>Acceptance Tests</td><td>1.6 (2026-04-19)</td></tr><tr><td><a href="#traceability"><code>Traceability Matrix</code></a></td><td><a href="04-traceability.md">04-traceability.md</a></td><td>Traceability Matrix (TM)</td><td>—</td><td>1.6 (2026-04-19)</td></tr><tr><td><code>README</code></td><td><a href="README.md">README.md</a></td><td>Hippocrates Engine — V-Model Specification</td><td>—</td><td>1.1 (2026-04-19)</td></tr></tbody></table></section>
     <div class="toolbar">
       <input id="search" type="search" placeholder="Filter by ID or title…" autocomplete="off">
       <label><input type="checkbox" data-phase-toggle="SREQ" checked> SREQ</label><label><input type="checkbox" data-phase-toggle="REQ" checked> REQ</label><label><input type="checkbox" data-phase-toggle="SYS" checked> SYS</label><label><input type="checkbox" data-phase-toggle="DET" checked> DET</label><label><input type="checkbox" data-phase-toggle="UT" checked> UT</label><label><input type="checkbox" data-phase-toggle="IT" checked> IT</label><label><input type="checkbox" data-phase-toggle="ST" checked> ST</label><label><input type="checkbox" data-phase-toggle="AT" checked> AT</label>
