@@ -338,3 +338,4 @@ The engine documentation shall be structured to support Class II medical device 
 | 1.2 | 2026-03-23 | Added SREQ-HIPP-036 (Plan Completion Actions) for `after plan:` block |
 | 1.3 | 2026-03-23 | Natural language trigger syntax (bare units, ordinals) enhances SREQ-HIPP-002 readability. No new STKR required. |
 | 1.4 | 2026-03-23 | Added SREQ-HIPP-037 (LLM-Correctable Error Diagnostics) in new AI Integration Requirements section. |
+| 1.5 | 2026-04-19 | Renamed all STKR-* IDs to canonical SREQ-HIPP-* form for V-Model validator/generator compatibility; cross-references updated throughout. |

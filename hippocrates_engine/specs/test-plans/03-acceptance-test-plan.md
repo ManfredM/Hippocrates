@@ -468,3 +468,4 @@ All 28 stakeholder requirements are covered by acceptance test cases.
 | 1.3 | 2026-03-23 | Added AT-HIPP-036 (Plan Completion Actions) for SREQ-HIPP-036. |
 | 1.4 | 2026-03-23 | Updated AT-HIPP-002 evidence with natural language trigger syntax references (REQ-HIPP-EVT-007). |
 | 1.5 | 2026-03-23 | Added AT-HIPP-037 (LLM-Correctable Error Diagnostics) for SREQ-HIPP-037. |
+| 1.6 | 2026-04-19 | Renamed all AT-* test IDs to canonical AT-HIPP-* form and updated `**Traces to:**` / STKR Reference cells from STKR-* to SREQ-HIPP-* for V-Model validator/generator compatibility. |

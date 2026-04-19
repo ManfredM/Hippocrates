@@ -288,3 +288,4 @@ Two REQ IDs (REQ-HIPP-REQP-007 and REQ-HIPP-FLOW-005) each map to two distinct t
 | 1.3 | 2026-03-23 | —      | Added ST-HIPP-ACT-010 (`after plan:` block). |
 | 1.4 | 2026-03-23 | —      | Added ST-HIPP-EVT-007 (bare unit and ordinal trigger parsing, REQ-HIPP-EVT-007). |
 | 1.5 | 2026-03-23 | —      | Added ST-HIPP-CORE-005 (parse error humanization), ST-HIPP-VALID-002 (undefined reference detection), ST-HIPP-VALID-003 (validation error suggestions). Updated counts. |
+| 1.6 | 2026-04-19 | —      | Renamed all ST-* test IDs to canonical ST-HIPP-* form and updated `**Traces to:**` references from REQ-N.M to REQ-HIPP-<SECTION>-NNN for V-Model validator/generator compatibility. |

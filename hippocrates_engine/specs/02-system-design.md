@@ -426,3 +426,4 @@ These divergences reflect pragmatic design decisions made during implementation.
 | 1.2 | 2026-03-23 | Updated SYS-HIPP-013: added AfterPlan block execution after event loop exit. Added SREQ-HIPP-036 traceability. |
 | 1.3 | 2026-03-23 | Updated SYS-HIPP-010: parser supports ordinal and bare-unit trigger sugar (REQ-HIPP-EVT-007). |
 | 1.4 | 2026-03-23 | Updated SYS-HIPP-010: human-readable error mapping (REQ-HIPP-CORE-005). Updated SYS-HIPP-012: undefined reference detection (REQ-HIPP-VALID-002) and suggestion generation (REQ-HIPP-VALID-003). Added SREQ-HIPP-037 traceability. |
+| 1.5 | 2026-04-19 | Renamed all DES-* IDs to canonical SYS-HIPP-* form and added explicit `**Traces to:**` lines on every design item for V-Model validator/generator compatibility; cross-references in prose updated from REQ-N.M to REQ-HIPP-<SECTION>-NNN. |

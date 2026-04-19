@@ -5,10 +5,10 @@ This directory contains the complete V-Model documentation for the Hippocrates e
 ## V-Model Structure
 
 ```
-Stakeholder Requirements (STKR)    <──────────>   Acceptance Testing (AT)
+Stakeholder Requirements (SREQ)    <──────────>   Acceptance Testing (AT)
    System Requirements (REQ)       <────────>      System Testing (ST)
-      System Design (DES)          <──────>        Integration Testing (IT)
-         Detailed Design (DDR)     <────>          Unit Testing (UT)
+      System Design (SYS)          <──────>        Integration Testing (IT)
+         Detailed Design (DET)     <────>          Unit Testing (UT)
                   Implementation
 ```
 
@@ -18,16 +18,16 @@ Every requirement on the left side has a corresponding verification on the right
 
 | V-Model Level | Prefix | Format | Example |
 |---|---|---|---|
-| Stakeholder Requirements | `STKR-` | `STKR-nn` | `SREQ-HIPP-010` |
-| System Requirements | `REQ-` | `REQ-{section}-{nn}` | `REQ-HIPP-VALUE-005` |
-| System Design | `DES-` | `DES-nn` | `SYS-HIPP-012` |
-| Detailed Design | `DDR-` | `DDR-{module}-nn` | `DET-HIPP-FFI-003` |
-| Unit Tests | `UT-` | `UT-{module}-nn` | `UT-HIPP-PARSER-001` |
-| Integration Tests | `IT-` | `IT-nn` | `IT-HIPP-005` |
-| System Tests | `ST-` | `ST-{section}-nn` | `ST-HIPP-VALUE-005` |
-| Acceptance Tests | `AT-` | `AT-nn` | `AT-HIPP-010` |
+| Stakeholder Requirements | `SREQ-` | `SREQ-HIPP-nnn` | `SREQ-HIPP-010` |
+| System Requirements | `REQ-` | `REQ-HIPP-{section}-nnn` | `REQ-HIPP-VALUE-005` |
+| System Design | `SYS-` | `SYS-HIPP-nnn` | `SYS-HIPP-012` |
+| Detailed Design | `DET-` | `DET-HIPP-{module}-nnn` | `DET-HIPP-FFI-003` |
+| Unit Tests | `UT-` | `UT-HIPP-{module}-nnn` | `UT-HIPP-PARSER-001` |
+| Integration Tests | `IT-` | `IT-HIPP-nnn` | `IT-HIPP-005` |
+| System Tests | `ST-` | `ST-HIPP-{section}-nnn` | `ST-HIPP-VALUE-005` |
+| Acceptance Tests | `AT-` | `AT-HIPP-nnn` | `AT-HIPP-010` |
 
-**Numbering policy**: STKR IDs use gapped ranges to allow insertion without renumbering:
+**Numbering policy**: SREQ IDs use gapped ranges to allow insertion without renumbering:
 - 01–09: Purpose and scope
 - 10–29: Design philosophy
 - 30–39: Safety
@@ -49,10 +49,10 @@ REQ IDs are inherited from the existing language specification and must not be r
 
 | # | File | V-Model Level | Verifies |
 |---|---|---|---|
-| 0 | [`test-plans/00-unit-test-plan.md`](test-plans/00-unit-test-plan.md) | Right (bottom) | Detailed Design (DDR) |
-| 1 | [`test-plans/01-integration-test-plan.md`](test-plans/01-integration-test-plan.md) | Right | System Design (DES) |
+| 0 | [`test-plans/00-unit-test-plan.md`](test-plans/00-unit-test-plan.md) | Right (bottom) | Detailed Design (DET) |
+| 1 | [`test-plans/01-integration-test-plan.md`](test-plans/01-integration-test-plan.md) | Right | System Design (SYS) |
 | 2 | [`test-plans/02-system-test-plan.md`](test-plans/02-system-test-plan.md) | Right | System Requirements (REQ) |
-| 3 | [`test-plans/03-acceptance-test-plan.md`](test-plans/03-acceptance-test-plan.md) | Right (top) | Stakeholder Requirements (STKR) |
+| 3 | [`test-plans/03-acceptance-test-plan.md`](test-plans/03-acceptance-test-plan.md) | Right (top) | Stakeholder Requirements (SREQ) |
 
 ## Traceability Flow
 
@@ -68,3 +68,10 @@ Every row in the [traceability matrix](04-traceability.md) links a stakeholder r
 ## Regulatory Context
 
 This documentation structure supports Class II medical device readiness per IEC 62304 (software lifecycle) and ISO 14971 (risk management). The traceability matrix provides the audit trail required for regulatory submissions.
+
+## Revision History
+
+| Version | Date | Changes |
+|---|---|---|
+| 1.0 | 2026-03-20 | Initial V-Model README describing spec layout and ID conventions. |
+| 1.1 | 2026-04-19 | Updated ID-convention table, V-Model diagram, and test-plan "Verifies" column to canonical SREQ/REQ/SYS/DET prefixes (was STKR/DES/DDR). |
